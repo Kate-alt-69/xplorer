@@ -28,63 +28,31 @@ interface AIModel {
 // ── Simple Markdown Renderer ─────────────────────────────────────────────────
 
 function renderMarkdown(text: string): React.ReactNode {
-  // Split into blocks by double newline
-  const blocks = text.split(/\n\n+/);
+  const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
+  let i = 0;
+  let key = 0;
 
-  for (let i = 0; i < blocks.length; i++) {
-    const block = blocks[i];
+  while (i < lines.length) {
+    const line = lines[i];
 
-    // Fenced code block (```...```)
-    if (block.startsWith('```')) {
-      const lines = block.split('\n');
-      const lang = lines[0].replace(/^```/, '').trim();
-      const codeLines = [];
-      let closed = false;
-      for (let j = 1; j < lines.length; j++) {
-        if (lines[j].trimEnd() === '```') {
-          closed = true;
-          break;
-        }
-        codeLines.push(lines[j]);
+    // Skip empty lines
+    if (!line.trim()) { i++; continue; }
+
+    // Fenced code block
+    if (line.trimStart().startsWith('```')) {
+      const lang = line.replace(/^```/, '').trim();
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trimEnd().endsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
       }
-      // If not closed, check subsequent blocks
-      if (!closed) {
-        let k = i + 1;
-        while (k < blocks.length) {
-          const subLines = blocks[k].split('\n');
-          for (const sl of subLines) {
-            if (sl.trimEnd() === '```') {
-              closed = true;
-              break;
-            }
-            codeLines.push(sl);
-          }
-          if (closed) { i = k; break; }
-          codeLines.push(''); // re-add paragraph break
-          k++;
-        }
-        if (!closed) i = k - 1;
-      }
-
+      i++; // skip closing ```
       elements.push(
-        <div key={i} style={{ position: 'relative', margin: '8px 0' }}>
-          {lang && (
-            <div style={{
-              fontSize: 10, color: 'var(--xp-text-muted)', padding: '2px 8px',
-              backgroundColor: 'var(--xp-surface)', borderTopLeftRadius: 6, borderTopRightRadius: 6,
-              borderBottom: '1px solid var(--xp-border)',
-            }}>
-              {lang}
-            </div>
-          )}
-          <pre style={{
-            margin: 0, padding: 8, fontSize: 12, lineHeight: 1.5,
-            backgroundColor: 'var(--xp-surface)',
-            borderRadius: lang ? '0 0 6px 6px' : 6,
-            overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-            fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace",
-          }}>
+        <div key={key++} style={{ position: 'relative', margin: '8px 0' }}>
+          {lang && <div style={{ fontSize: 10, color: 'var(--xp-text-muted)', padding: '2px 8px', backgroundColor: 'var(--xp-surface)', borderTopLeftRadius: 6, borderTopRightRadius: 6, borderBottom: '1px solid var(--xp-border)' }}>{lang}</div>}
+          <pre style={{ margin: 0, padding: 8, fontSize: 12, lineHeight: 1.5, backgroundColor: 'var(--xp-surface)', borderRadius: lang ? '0 0 6px 6px' : 6, overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: "'Cascadia Code', 'Fira Code', Consolas, monospace" }}>
             <code>{codeLines.join('\n')}</code>
           </pre>
         </div>,
@@ -92,69 +60,136 @@ function renderMarkdown(text: string): React.ReactNode {
       continue;
     }
 
-    // Heading
-    const headingMatch = block.match(/^(#{1,3})\s+(.*)$/);
+    // Heading (# ## ###)
+    const headingMatch = line.match(/^(#{1,3})\s+(.*)$/);
     if (headingMatch) {
       const level = headingMatch[1].length;
-      const sizes = { 1: 16, 2: 14, 3: 13 } as Record<number, number>;
+      const sizes: Record<number, number> = { 1: 16, 2: 14, 3: 13 };
       elements.push(
-        <div key={i} style={{ fontSize: sizes[level] || 13, fontWeight: 600, margin: '8px 0 4px' }}>
+        <div key={key++} style={{ fontSize: sizes[level] || 13, fontWeight: 600, margin: '12px 0 4px', lineHeight: 1.3 }}>
           {renderInline(headingMatch[2])}
         </div>,
       );
+      i++;
+      continue;
+    }
+
+    // Table: detect pipe-delimited rows
+    if (line.includes('|') && line.trim().startsWith('|')) {
+      const tableRows: string[][] = [];
+      let hasHeader = false;
+      while (i < lines.length && lines[i].includes('|')) {
+        const row = lines[i].trim();
+        // Skip separator row (|---|---|)
+        if (/^\|[\s\-:]+\|/.test(row) && row.replace(/[\s|:\-]/g, '') === '') {
+          hasHeader = tableRows.length > 0;
+          i++;
+          continue;
+        }
+        const cells = row.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1).map((c) => c.trim());
+        if (cells.length > 0) tableRows.push(cells);
+        i++;
+      }
+      if (tableRows.length > 0) {
+        const headerRow = hasHeader ? tableRows[0] : null;
+        const bodyRows = hasHeader ? tableRows.slice(1) : tableRows;
+        elements.push(
+          <div key={key++} style={{ overflowX: 'auto', margin: '8px 0' }}>
+            <table style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}>
+              {headerRow && (
+                <thead>
+                  <tr>
+                    {headerRow.map((cell, ci) => (
+                      <th key={ci} style={{ padding: '4px 8px', borderBottom: '2px solid var(--xp-border)', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {renderInline(cell)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+              )}
+              <tbody>
+                {bodyRows.map((row, ri) => (
+                  <tr key={ri}>
+                    {row.map((cell, ci) => (
+                      <td key={ci} style={{ padding: '3px 8px', borderBottom: '1px solid var(--xp-border)' }}>
+                        {renderInline(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>,
+        );
+      }
       continue;
     }
 
     // Unordered list
-    if (/^[-*]\s/.test(block.trim())) {
-      const items = block.split('\n').filter((l) => l.trim());
+    if (/^\s*[-*]\s/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*[-*]\s/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*[-*]\s+/, ''));
+        i++;
+      }
       elements.push(
-        <ul key={i} style={{ margin: '4px 0', paddingLeft: 20 }}>
-          {items.map((item, j) => (
-            <li key={j} style={{ marginBottom: 2 }}>
-              {renderInline(item.replace(/^[-*]\s+/, ''))}
-            </li>
-          ))}
+        <ul key={key++} style={{ margin: '4px 0', paddingLeft: 20 }}>
+          {items.map((item, j) => <li key={j} style={{ marginBottom: 2 }}>{renderInline(item)}</li>)}
         </ul>,
       );
       continue;
     }
 
     // Ordered list
-    if (/^\d+\.\s/.test(block.trim())) {
-      const items = block.split('\n').filter((l) => l.trim());
+    if (/^\s*\d+\.\s/.test(line)) {
+      const items: string[] = [];
+      while (i < lines.length && /^\s*\d+\.\s/.test(lines[i])) {
+        items.push(lines[i].replace(/^\s*\d+\.\s+/, ''));
+        i++;
+      }
       elements.push(
-        <ol key={i} style={{ margin: '4px 0', paddingLeft: 20 }}>
-          {items.map((item, j) => (
-            <li key={j} style={{ marginBottom: 2 }}>
-              {renderInline(item.replace(/^\d+\.\s+/, ''))}
-            </li>
-          ))}
+        <ol key={key++} style={{ margin: '4px 0', paddingLeft: 20 }}>
+          {items.map((item, j) => <li key={j} style={{ marginBottom: 2 }}>{renderInline(item)}</li>)}
         </ol>,
       );
       continue;
     }
 
     // Blockquote
-    if (block.startsWith('>')) {
-      const text = block.replace(/^>\s?/gm, '');
+    if (line.startsWith('>')) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith('>')) {
+        quoteLines.push(lines[i].replace(/^>\s?/, ''));
+        i++;
+      }
       elements.push(
-        <blockquote key={i} style={{
-          borderLeft: '3px solid var(--xp-blue)', paddingLeft: 10, margin: '8px 0',
-          color: 'var(--xp-text-muted)', fontStyle: 'italic',
-        }}>
-          {renderInline(text)}
+        <blockquote key={key++} style={{ borderLeft: '3px solid var(--xp-blue)', paddingLeft: 10, margin: '8px 0', color: 'var(--xp-text-muted)', fontStyle: 'italic' }}>
+          {renderInline(quoteLines.join(' '))}
         </blockquote>,
       );
       continue;
     }
 
-    // Paragraph (default)
-    elements.push(
-      <p key={i} style={{ margin: '4px 0', lineHeight: 1.5 }}>
-        {renderInline(block)}
-      </p>,
-    );
+    // Horizontal rule
+    if (/^[-*_]{3,}$/.test(line.trim())) {
+      elements.push(<hr key={key++} style={{ border: 'none', borderTop: '1px solid var(--xp-border)', margin: '8px 0' }} />);
+      i++;
+      continue;
+    }
+
+    // Paragraph (default) — collect consecutive non-special lines
+    const paraLines: string[] = [];
+    while (i < lines.length && lines[i].trim() && !lines[i].startsWith('#') && !lines[i].startsWith('```') && !lines[i].startsWith('>') && !/^\s*[-*]\s/.test(lines[i]) && !/^\s*\d+\.\s/.test(lines[i]) && !(lines[i].includes('|') && lines[i].trim().startsWith('|')) && !/^[-*_]{3,}$/.test(lines[i].trim())) {
+      paraLines.push(lines[i]);
+      i++;
+    }
+    if (paraLines.length > 0) {
+      elements.push(
+        <p key={key++} style={{ margin: '4px 0', lineHeight: 1.5 }}>
+          {renderInline(paraLines.join(' '))}
+        </p>,
+      );
+    }
   }
 
   return elements;
