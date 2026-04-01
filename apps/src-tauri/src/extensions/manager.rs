@@ -308,7 +308,7 @@ impl ExtensionManager {
             if workspace_ext_dir.exists() {
                 Self::scan_extension_dir_into(
                     &workspace_ext_dir,
-                    true,
+                    false,
                     &active,
                     &mut self.installed_extensions,
                     &mut seen_ids,

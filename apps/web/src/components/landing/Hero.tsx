@@ -1,13 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import { ArrowRight, Github } from 'lucide-react';
 import { useInView } from '@/hooks/useInView';
-
-const FileBrowserDemo = dynamic(() => import('./FeatureDemos').then((m) => m.FileBrowserDemo), {
-  ssr: false,
-});
 
 export function Hero() {
   const { ref, inView } = useInView();
@@ -93,11 +89,15 @@ export function Hero() {
         {/* Real App Window — uses the actual Xplorer components */}
         <div className={`reveal ${inView ? 'visible' : ''} reveal-delay-4 mt-16 sm:mt-20 lg:mt-24`}>
           <div className="mx-auto max-w-6xl">
-            <div className="window-glow gradient-border overflow-hidden rounded-xl bg-gray-900 dark:bg-gray-900">
-              {/* Real component composition — TopBar acts as the title bar */}
-              <div className="relative aspect-[16/10] min-h-[520px]">
-                <FileBrowserDemo />
-              </div>
+            <div className="window-glow gradient-border overflow-hidden rounded-xl">
+              <Image
+                src="/xplorer.png"
+                alt="Xplorer file manager — home page with AI chat, extensions, and file browser"
+                width={1920}
+                height={1080}
+                className="w-full"
+                priority
+              />
             </div>
           </div>
         </div>
