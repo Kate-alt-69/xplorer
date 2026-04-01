@@ -147,7 +147,16 @@ export default async function middleware(req: NextRequest) {
     return (authMiddleware as any)(req);
   }
 
-  return NextResponse.next();
+  // Add CORS headers to all API responses for allowed origins
+  const response = NextResponse.next();
+  if (req.nextUrl.pathname.startsWith('/api/')) {
+    const origin = req.headers.get('origin');
+    if (origin && CORS_ORIGINS.includes(origin)) {
+      response.headers.set('Access-Control-Allow-Origin', origin);
+      response.headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+  return response;
 }
 
 export const config = {

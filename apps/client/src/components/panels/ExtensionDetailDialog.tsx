@@ -1,7 +1,7 @@
+import { MARKETPLACE_API_URL } from '@/lib/constants';
 import React from 'react';
 import { X, Download, Star, ExternalLink, Shield, Loader2, User, Tag } from 'lucide-react';
 import type { MarketplaceExtension } from './MarketplacePanel';
-import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 interface ExtensionDetailDialogProps {
   isOpen: boolean;
@@ -161,9 +161,7 @@ const ExtensionDetailDialog = ({
         <div className="border-xp-border flex items-center justify-between border-t p-4">
           <button
             onClick={() => {
-              const baseUrl = (
-                localStorage.getItem(STORAGE_KEYS.MARKETPLACE_URL) || 'https://xplorer.space/api'
-              ).replace(/\/api$/, '');
+              const baseUrl = MARKETPLACE_API_URL.replace(/\/api$/, '');
               window.open(`${baseUrl}/extensions/${extension.slug || extension.id}`, '_blank');
             }}
             className="text-xp-text-muted hover:text-xp-text border-xp-border hover:bg-xp-surface-light flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm transition-colors"

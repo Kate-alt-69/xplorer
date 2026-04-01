@@ -117,14 +117,20 @@ pub(crate) fn validate_extension_id(id: &str) -> Result<(), String> {
 /// Localhost (127.0.0.1, ::1, localhost) is allowed with HTTP for local development
 /// (e.g., local marketplace server). All remote URLs must use HTTPS.
 pub(crate) fn validate_url_security(url: &str) -> Result<(), String> {
-    let parsed = reqwest::Url::parse(url).map_err(|e| format!("Invalid URL '{}': {}", url, e))?;
+    // Auto-upgrade http to https for remote URLs
+    let url = if url.starts_with("http://") && !url.contains("localhost") && !url.contains("127.0.0.1") {
+        url.replacen("http://", "https://", 1)
+    } else {
+        url.to_string()
+    };
+    let parsed = reqwest::Url::parse(&url).map_err(|e| format!("Invalid URL '{}': {}", url, e))?;
 
     let host_str = parsed
         .host_str()
         .ok_or_else(|| "URL has no host".to_string())?;
 
-    // Enforce HTTPS for all URLs
-    if parsed.scheme() != "https" {
+    // Enforce HTTPS for remote URLs (allow HTTP for localhost dev)
+    if parsed.scheme() != "https" && !host_str.eq("localhost") && !host_str.eq("127.0.0.1") {
         return Err(format!(
             "URL must use HTTPS protocol, got '{}'",
             parsed.scheme()
@@ -136,9 +142,11 @@ pub(crate) fn validate_url_security(url: &str) -> Result<(), String> {
         return Err("URL must not contain credentials".to_string());
     }
 
-    // Reject non-standard ports
+    // Reject non-standard ports (allow any port for localhost dev)
+    let host_lower = host_str.to_lowercase();
+    let is_local = host_lower == "localhost" || host_lower == "127.0.0.1" || host_lower == "::1";
     if let Some(port) = parsed.port() {
-        if port != 443 {
+        if port != 443 && !is_local {
             return Err(format!(
                 "URL must use the default HTTPS port (443), got port {}",
                 port
@@ -146,10 +154,9 @@ pub(crate) fn validate_url_security(url: &str) -> Result<(), String> {
         }
     }
 
-    // Reject localhost
-    let host_lower = host_str.to_lowercase();
-    if host_lower == "localhost"
-        || host_lower == "127.0.0.1"
+    // Reject localhost in production (allow in dev)
+    #[cfg(not(debug_assertions))]
+    if is_local
         || host_lower == "::1"
         || host_lower == "[::1]"
     {

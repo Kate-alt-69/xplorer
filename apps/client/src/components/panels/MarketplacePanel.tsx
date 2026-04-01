@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TauriAPI } from '@/lib/tauri-api';
-import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { extensionHost } from '@/lib/extension-host';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -29,29 +28,9 @@ import ExtensionCard from './marketplace/ExtensionCard';
 import MarketplaceFilters from './marketplace/MarketplaceFilters';
 import MarketplacePagination from './marketplace/MarketplacePagination';
 
-const DEFAULT_MARKETPLACE_API = 'https://xplorer.space/api';
+import { MARKETPLACE_API_URL } from '@/lib/constants';
 
-const getMarketplaceApi = (): string => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEYS.MARKETPLACE_URL);
-    const url = saved || DEFAULT_MARKETPLACE_API;
-    // CRIT-05: Enforce HTTPS for remote (non-localhost) marketplace URLs
-    // to prevent man-in-the-middle attacks on extension downloads.
-    if (
-      !url.startsWith('http://localhost') &&
-      !url.startsWith('http://127.0.0.1') &&
-      !url.startsWith('https://')
-    ) {
-      console.warn(
-        '[Security] Marketplace URL must use HTTPS for remote servers. Falling back to default.',
-      );
-      return DEFAULT_MARKETPLACE_API;
-    }
-    return url;
-  } catch {
-    return DEFAULT_MARKETPLACE_API;
-  }
-};
+const getMarketplaceApi = (): string => MARKETPLACE_API_URL;
 
 export interface MarketplaceExtension {
   id: string;

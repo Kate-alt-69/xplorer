@@ -253,8 +253,7 @@ export const checkForUpdates = async (
 ): Promise<ExtensionUpdateInfo[]> => {
   try {
     const { TauriAPI: API } = await import('./tauri-api');
-    const marketplaceUrl =
-      localStorage.getItem('xplorer:marketplace-url') || 'https://xplorer.space/api';
+    const { MARKETPLACE_API_URL: marketplaceUrl } = await import('./constants');
     const extList = installed.map((pkg) => ({
       id: pkg.manifest.id,
       version: pkg.manifest.version || '0.0.0',

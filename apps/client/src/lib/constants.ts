@@ -124,6 +124,13 @@ export const ROUTES = {
 
 export const BYTES = { KB: 1024, MB: 1024 ** 2, GB: 1024 ** 3, TB: 1024 ** 4 } as const;
 
+// ── Marketplace ─────────────────────────────────────────────────────────────
+
+/** Marketplace API base URL. Override via VITE_MARKETPLACE_URL env var. */
+export const MARKETPLACE_API_URL =
+  (import.meta as unknown as { env?: { VITE_MARKETPLACE_URL?: string } }).env
+    ?.VITE_MARKETPLACE_URL || 'https://xplorer.space/api';
+
 // ── Toast defaults ──────────────────────────────────────────────────────────
 
 /** Default toast auto-dismiss delay, also defined in use-toast.ts */

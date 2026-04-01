@@ -17,7 +17,6 @@ import {
   MousePointerClick,
   Settings2,
   ChevronRight,
-  Globe,
   FileCode,
   RefreshCw,
 } from 'lucide-react';
@@ -46,7 +45,6 @@ import {
   SETTINGS_KEY,
   Toggle,
   SettingRow,
-  Divider,
 } from '@/components/settings/shared';
 
 type SettingsTab =
@@ -110,65 +108,16 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType; descripti
   { id: 'versioning', label: 'Versioning', icon: History, description: 'File version history' },
 ];
 
-const MARKETPLACE_KEY = STORAGE_KEYS.MARKETPLACE_URL;
-const DEFAULT_MARKETPLACE_URL = 'https://xplorer.space/api';
-
 const MarketplaceSettings = ({
-  marketplaceUrl,
-  setMarketplaceUrl,
   autoUpdateExtensions,
   setAutoUpdateExtensions,
   t,
 }: {
-  marketplaceUrl: string;
-  setMarketplaceUrl: (v: string) => void;
   autoUpdateExtensions: boolean;
   setAutoUpdateExtensions: (v: boolean) => void;
   t: (key: string) => string;
 }) => (
   <div className="space-y-1">
-    <div className="mb-1 px-4 pb-1 pt-2">
-      <h3 className="text-xp-text-secondary text-xs font-semibold uppercase tracking-wider">
-        Connection
-      </h3>
-      <p className="text-xp-text-secondary/70 mt-0.5 text-xs">
-        Configure the marketplace server endpoint
-      </p>
-    </div>
-    <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
-      <div className="mb-2 flex items-center gap-3">
-        <Globe size={18} className="text-xp-text-secondary shrink-0" />
-        <div>
-          <div className="text-xp-text text-sm font-medium">Marketplace API URL</div>
-          <div className="text-xp-text-secondary mt-0.5 text-xs">
-            Base URL for the extension marketplace server
-          </div>
-        </div>
-      </div>
-      <div className="ml-[30px]">
-        <input
-          type="text"
-          value={marketplaceUrl}
-          onChange={(e) => setMarketplaceUrl(e.target.value)}
-          placeholder="https://xplorer.space/api"
-          className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
-        />
-        <div className="mt-2 flex items-center justify-between">
-          <span className="text-xp-text-secondary/60 text-[10px]">
-            Default: {DEFAULT_MARKETPLACE_URL}
-          </span>
-          {marketplaceUrl !== DEFAULT_MARKETPLACE_URL && (
-            <button
-              onClick={() => setMarketplaceUrl(DEFAULT_MARKETPLACE_URL)}
-              className="text-xp-text-secondary hover:text-xp-text flex items-center gap-1 text-xs transition-colors"
-            >
-              Reset
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-    <Divider />
     <div className="mb-1 px-4 pb-1 pt-2">
       <h3 className="text-xp-text-secondary text-xs font-semibold uppercase tracking-wider">
         Updates
@@ -203,18 +152,6 @@ const Settings = () => {
     }
     return DEFAULT_SETTINGS;
   });
-
-  const [marketplaceUrl, setMarketplaceUrl] = useState(() => {
-    try {
-      return localStorage.getItem(MARKETPLACE_KEY) || DEFAULT_MARKETPLACE_URL;
-    } catch {
-      return DEFAULT_MARKETPLACE_URL;
-    }
-  });
-
-  useEffect(() => {
-    localStorage.setItem(MARKETPLACE_KEY, marketplaceUrl);
-  }, [marketplaceUrl]);
 
   const [autoUpdateExtensions, setAutoUpdateExtensions] = useState(() => {
     try {
@@ -391,8 +328,6 @@ const Settings = () => {
       case 'marketplace':
         return (
           <MarketplaceSettings
-            marketplaceUrl={marketplaceUrl}
-            setMarketplaceUrl={setMarketplaceUrl}
             autoUpdateExtensions={autoUpdateExtensions}
             setAutoUpdateExtensions={setAutoUpdateExtensions}
             t={t}
