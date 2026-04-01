@@ -300,21 +300,8 @@ impl ExtensionManager {
 
         let active = self.active_extensions.clone();
 
-        // In dev mode, load from local workspace first (takes priority)
-        #[cfg(debug_assertions)]
-        {
-            let workspace_ext_dir =
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/extensions");
-            if workspace_ext_dir.exists() {
-                Self::scan_extension_dir_into(
-                    &workspace_ext_dir,
-                    false,
-                    &active,
-                    &mut self.installed_extensions,
-                    &mut seen_ids,
-                );
-            }
-        }
+        // Workspace extensions are loaded on-demand via the dev watcher (.hotreload)
+        // or installed from the marketplace. No bulk scan of packages/extensions/.
 
         // Then scan the user data extensions dir (marketplace installs)
         if self.extensions_dir.exists() {
