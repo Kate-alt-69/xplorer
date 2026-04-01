@@ -113,7 +113,7 @@ export interface TagsPanelProps {
   handleUndoRemove: (name: string) => void;
   handleQuickAddSystemTag: (tag: FileTag) => void;
   handleTagInputKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
-  tagInputRef: React.RefObject<HTMLInputElement>;
+  tagInputRef: React.RefObject<HTMLInputElement | null>;
   error: string | null;
   setError: (v: string | null) => void;
 }

@@ -621,7 +621,7 @@ export const GroupedSearchResults = ({
 
   let flatIndex = -1;
 
-  const highlightMatch = (text: string, matches: SearchMatch[]): JSX.Element => {
+  const highlightMatch = (text: string, matches: SearchMatch[]): React.JSX.Element => {
     if (matches.length === 0) return <span>{text}</span>;
     const tokens = matches
       .map((m) => m.token.toLowerCase())

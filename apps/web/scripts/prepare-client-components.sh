@@ -1,282 +1,118 @@
 #!/usr/bin/env bash
-# Copy only the specific Xplorer components needed for landing page demos.
-# Stubs out any internal @/ imports that don't resolve.
+# Stub-only: no client components are copied from the desktop app.
+# This eliminates the React 18/19 version conflict that crashed xplorer.space.
+# Landing page uses screenshots instead of live component demos.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WEB_DIR="$(dirname "$SCRIPT_DIR")"
-SRC="$WEB_DIR/../client/src"
 DEST="$WEB_DIR/.client-components"
 
 rm -rf "$DEST"
-mkdir -p "$DEST"
+mkdir -p "$DEST/components/explorer" "$DEST/components/panels" "$DEST/components/ui" "$DEST/lib" "$DEST/hooks" "$DEST/contexts" "$DEST/__mocks__" "$DEST/locales" "$DEST/styles" "$DEST/components/dialogs" "$DEST/components/split-view" "$DEST/components/explorer/sidebar" "$DEST/components/explorer/architect" "$DEST/extensions/advanced-selection" "$DEST/types"
 
-STUB='const S = (p: any) => <div {...p} />; export default S;'
-HOOK_STUB='export const useStub = () => ({});'
+STUB='const S = (p: any) => <div {...p} />; export default S; export {};'
 
-if [ ! -d "$SRC" ]; then
-  echo "⚠️  Xplorer submodule not found — creating stubs"
-  mkdir -p "$DEST/components/explorer" "$DEST/components/panels" "$DEST/components/ui" "$DEST/lib"
-  for f in StatusBar; do echo "$STUB" > "$DEST/components/$f.tsx"; done
-  for f in LeftSidebar OperationBar FileGridItem FileGridHelpers TopBar NavigationBar; do echo "$STUB" > "$DEST/components/explorer/$f.tsx"; done
-  for f in ChatPanel ChatInput ChatMessage PreviewPanel ExtensionsPanel; do echo "$STUB" > "$DEST/components/panels/$f.tsx"; done
-  for f in MarkdownRenderer; do echo "$STUB" > "$DEST/components/ui/$f.tsx"; done
-  exit 0
-fi
+# Component stubs
+for f in StatusBar CommandPalette; do echo "$STUB" > "$DEST/components/$f.tsx"; done
+for f in LeftSidebar OperationBar FileGridItem FileGridHelpers TopBar NavigationBar SearchResultsPanel VimModeIndicator ThumbnailPreview TerminalCommands; do echo "$STUB" > "$DEST/components/explorer/$f.tsx"; done
+for f in ChatPanel ChatInput ChatMessage PreviewPanel ExtensionsPanel PreviewActionBar; do echo "$STUB" > "$DEST/components/panels/$f.tsx"; done
+for f in MarkdownRenderer Skeleton ContextMenu Toast; do echo "$STUB" > "$DEST/components/ui/$f.tsx"; done
+echo 'export const PreviewSkeleton = () => null;' >> "$DEST/components/ui/Skeleton.tsx"
+for f in BatchConfirmDialog EncryptionDialog FileConflictDialog FileDetailsDialog MoveTreePreviewDialog PermissionReviewDialog; do echo "$STUB" > "$DEST/components/dialogs/$f.tsx"; done
+echo "$STUB" > "$DEST/components/split-view/EditorGroupPane.tsx"
 
-echo "Copying components from $SRC ..."
-
-# 1. Copy the specific files the web project imports via @client/
-FILES=(
-  "components/StatusBar.tsx"
-  "components/explorer/LeftSidebar.tsx"
-  "components/explorer/OperationBar.tsx"
-  "components/explorer/FileGridItem.tsx"
-  "components/explorer/FileGridHelpers.tsx"
-  "components/explorer/TopBar.tsx"
-  "components/explorer/NavigationBar.tsx"
-  "components/explorer/FileGridTypes.ts"
-  "components/explorer/sidebar/"
-  "components/panels/ChatPanel.tsx"
-  "components/panels/ChatInput.tsx"
-  "components/panels/ChatMessage.tsx"
-  "components/panels/chat/"
-  "components/panels/PreviewPanel.tsx"
-  "components/panels/ExtensionsPanel.tsx"
-  "components/ui/MarkdownRenderer.tsx"
-)
-
-for f in "${FILES[@]}"; do
-  src_path="$SRC/$f"
-  dest_path="$DEST/$f"
-  if [ -d "$src_path" ]; then
-    mkdir -p "$dest_path"
-    cp -r "$src_path"/* "$dest_path/" 2>/dev/null || true
-    echo "  copied $f/"
-  elif [ -f "$src_path" ]; then
-    mkdir -p "$(dirname "$dest_path")"
-    cp "$src_path" "$dest_path"
-    echo "  copied $f"
-  else
-    mkdir -p "$(dirname "$dest_path")"
-    echo "$STUB" > "${dest_path%.ts}.tsx"
-    echo "  stubbed $f"
-  fi
+# Sidebar stubs
+for f in SidebarQuickAccess SidebarRecent SidebarBookmarks SidebarCollections SidebarDrives SidebarFileTree PlacesSection; do
+  echo "$STUB" > "$DEST/components/explorer/sidebar/$f.tsx"
 done
 
-# 2. Copy lib/ files that the components import via @/lib/
-LIB_FILES=(
-  "lib/tauri-api.ts"
-  "lib/tauri-api/"
-  "lib/utils.ts"
-  "lib/constants.ts"
-  "lib/context-menu-factory.ts"
-  "lib/context-menu-rules.ts"
-  "lib/storage-keys.ts"
-  "lib/extension-host.ts"
-  "lib/extension-host-types.ts"
-  "lib/extension-sandbox.ts"
-  "lib/extension-sandbox-env.ts"
-  "lib/extension-api-factory.ts"
-  "lib/extension-lifecycle.ts"
-  "lib/collections.ts"
-  "lib/path-bookmarks.ts"
-  "lib/saved-searches.ts"
-  "lib/workspace-layouts.ts"
-  "lib/folder-colors.ts"
-  "lib/file-templates.ts"
-  "lib/agent-service.ts"
-  "lib/ai-service.ts"
-)
-
-for f in "${LIB_FILES[@]}"; do
-  src_path="$SRC/$f"
-  dest_path="$DEST/$f"
-  if [ -d "$src_path" ]; then
-    mkdir -p "$dest_path"
-    cp -r "$src_path"/* "$dest_path/" 2>/dev/null || true
-  elif [ -f "$src_path" ]; then
-    mkdir -p "$(dirname "$dest_path")"
-    cp "$src_path" "$dest_path"
-  fi
+# Architect stubs
+for f in use-architect-scanner ArchitectSidebarTree ArchitectCanvas ArchitectToolbar ArchitectAnalysis; do
+  echo "export default {}; export {};" > "$DEST/components/explorer/architect/$f.ts"
 done
+echo "$STUB" > "$DEST/components/explorer/ArchitectView.tsx"
+echo "$STUB" > "$DEST/components/explorer/BrowserView.tsx"
 
-# 3. Copy hooks/ and contexts/ that components reference
-for dir in hooks contexts; do
-  if [ -d "$SRC/$dir" ]; then
-    mkdir -p "$DEST/$dir"
-    cp -r "$SRC/$dir"/* "$DEST/$dir/" 2>/dev/null || true
-    echo "  copied $dir/"
-  fi
+# Lib stubs
+for f in utils constants storage-keys context-menu-factory context-menu-rules collections path-bookmarks saved-searches workspace-layouts folder-colors file-templates agent-service ai-service editable-files validate-filename drag-utils file-operation-helpers move-tree-preview paste-helpers preview-factory shortcut-utils theme-registry tour-steps extension-host-icon extension-registry tauri-api-types format-utils tab-utils extension-registration-helpers extension-host-queries; do
+  echo "export default {}; export {};" > "$DEST/lib/$f.ts"
 done
+echo "export const isTauri = () => false; export const transport = {};" > "$DEST/lib/transport.ts"
+echo "export const STORAGE_KEYS = {} as Record<string, string>;" > "$DEST/lib/storage-keys.ts"
 
-# 4. Copy styles and i18n
-for f in styles/tokyo-night.css i18n.ts index.css; do
-  if [ -f "$SRC/$f" ]; then
-    mkdir -p "$DEST/$(dirname "$f")"
-    cp "$SRC/$f" "$DEST/$f"
-  fi
-done
-
-# 5. Copy locales
-if [ -d "$SRC/locales" ]; then
-  cp -r "$SRC/locales" "$DEST/locales"
-fi
-
-# 6. Stub out any files that reference feature-branch-only modules.
-# These are files that exist in feature branches but not on next/main.
-STUB_FILES=(
-  "hooks/use-architect-context.ts"
-  "components/panels/ArchitectContextBar.tsx"
-  "components/explorer/ArchitectView.tsx"
-  "components/explorer/architect/use-architect-scanner.ts"
-  "components/explorer/architect/ArchitectSidebarTree.tsx"
-  "components/explorer/architect/ArchitectCanvas.tsx"
-  "components/explorer/architect/ArchitectToolbar.tsx"
-  "components/explorer/architect/ArchitectAnalysis.tsx"
-  "components/explorer/BrowserView.tsx"
-)
-
-for f in "${STUB_FILES[@]}"; do
-  dest_path="$DEST/$f"
-  if [ ! -f "$dest_path" ]; then
-    mkdir -p "$(dirname "$dest_path")"
-    if [[ "$f" == hooks/* ]]; then
-      echo "$HOOK_STUB" > "$dest_path"
-    else
-      echo "$STUB" > "$dest_path"
-    fi
-    echo "  stubbed missing: $f"
-  fi
-done
-
-# 7. Replace extension-host with a no-op stub (the real one depends on Tauri runtime)
-cat > "$DEST/lib/extension-host.ts" << 'EXTHOST'
+# Extension host stub
+cat > "$DEST/lib/extension-host.ts" << 'EOF'
 const noop = () => {};
-export const extensionHost = {
-  getSidebarTabs: () => [],
-  getBottomTabs: () => [],
-  getPanels: () => [],
-  getEditors: () => [],
-  getSidebarTabRenderer: () => null,
-  getBottomTabRenderer: () => null,
-  getContextMenuItems: () => [],
-  onChange: () => noop,
-  isReady: () => true,
-  getLoadedExtensions: () => [],
-  activateExtension: async () => {},
-  deactivateExtension: async () => {},
-};
+export const extensionHost = { getSidebarTabs: () => [], getBottomTabs: () => [], onChange: () => noop, isReady: () => true };
 export default extensionHost;
-EXTHOST
+EOF
 
-cat > "$DEST/lib/extension-lifecycle.ts" << 'EXTLIFE'
+cat > "$DEST/lib/extension-lifecycle.ts" << 'EOF'
 export const initExtensions = async () => {};
-export const loadExtension = async () => {};
-EXTLIFE
+EOF
 
-# 8. Create mocks for packages not in the web project
-MOCKS_DIR="$DEST/__mocks__"
-mkdir -p "$MOCKS_DIR"
+# Extension host types stub
+cat > "$DEST/lib/extension-host-types.ts" << 'EOF'
+export interface LoadedExtension { id: string; manifest: any; isActive: boolean; isBuiltin: boolean; isDev?: boolean; reloadCount?: number; }
+export interface PanelRegistration { id: string; extensionId: string; title: string; icon: any; location: string; isBuiltin: boolean; render: () => any; }
+export type ExtensionManifest = Record<string, any>;
+export type ExtensionPackage = Record<string, any>;
+export type PanelRenderProps = Record<string, any>;
+export type FileDecoration = Record<string, any>;
+export type FileDecorator = Record<string, any>;
+export type ContextMenuEntry = Record<string, any>;
+export type EditorRegistration = Record<string, any>;
+export type PreviewRegistration = Record<string, any>;
+export type ExtensionFileInfo = Record<string, any>;
+export type CommandHandler = Record<string, any>;
+export type EventCallback = () => void;
+export class EventBus { on() {} off() {} emit() {} }
+export const resolveIcon = () => null;
+EOF
 
-cat > "$MOCKS_DIR/react-i18next.ts" << 'MOCK'
-export const useTranslation = () => ({
-  t: (key: string) => key.split('.').pop() || key,
-  i18n: { language: 'en', changeLanguage: () => Promise.resolve() },
-});
+# Tauri API stub
+mkdir -p "$DEST/lib/tauri-api"
+cat > "$DEST/lib/tauri-api.ts" << 'EOF'
+export class TauriAPI { static readDirectory = async () => []; static readTextFile = async () => ''; }
+export type FileEntry = { name: string; path: string; is_dir: boolean; size: number; modified: number; file_type: string; is_readonly: boolean; };
+EOF
+echo "export {};" > "$DEST/lib/tauri-api/index.ts"
+
+# Hook stubs
+for f in use-toast use-chat use-chat-state use-file-operations use-xplorer-actions use-xplorer-effects use-navigation use-live-search use-folder-sizes use-sidebar-resize use-window-event use-draggable use-theme-manager use-shortcuts use-vim-mode use-type-ahead-search use-cross-tab-selection use-dialogs use-split-layout use-pane-sync use-layout-state use-file-comparison use-terminal use-focus-change-tracker use-context-menu use-bulk-rename use-file-actions use-navigation-actions use-search-results use-undo-history use-open-with-prefs use-updater; do
+  echo "export const ${f//-/_} = () => ({}); export default ${f//-/_};" > "$DEST/hooks/$f}.ts" 2>/dev/null || echo "export default {};" > "$DEST/hooks/$f.ts"
+done
+
+# Context stubs
+echo "export {};" > "$DEST/contexts/ExplorerContext.tsx"
+echo "export {};" > "$DEST/contexts/DragDropContext.tsx"
+
+# Extension selection stub
+echo "export {};" > "$DEST/extensions/advanced-selection/selection-utils.ts"
+# Types stub
+echo "export {};" > "$DEST/types/split-view.ts"
+
+# Mock files
+cat > "$DEST/__mocks__/react-i18next.ts" << 'EOF'
+export const useTranslation = () => ({ t: (key: string) => key.split('.').pop() || key, i18n: { language: 'en', changeLanguage: () => Promise.resolve() } });
 export const Trans = ({ children }: { children?: React.ReactNode }) => children;
 export const initReactI18next = { type: '3rdParty', init: () => {} };
-MOCK
+EOF
 
-cat > "$MOCKS_DIR/wouter.ts" << 'MOCK'
+cat > "$DEST/__mocks__/wouter.ts" << 'EOF'
 export const useLocation = () => ['/home', () => {}] as const;
 export const useRoute = () => [true, {}] as const;
 export const Link = (p: any) => p.children;
 export const Route = (p: any) => p.children;
 export const Switch = (p: any) => p.children;
-MOCK
+EOF
 
-# 8. Stub named exports that components import from missing/feature-branch files
-cat > "$DEST/lib/editable-files.ts" << 'NAMED'
-export const isEditableFile = () => false;
-NAMED
+# i18n stub
+echo "export default { t: (k: string) => k };" > "$DEST/i18n.ts"
 
-cat > "$DEST/lib/validate-filename.ts" << 'NAMED'
-export const validateFileName = () => true;
-NAMED
+# Empty CSS
+echo "" > "$DEST/styles/tokyo-night.css"
+echo "" > "$DEST/index.css"
 
-cat > "$DEST/lib/transport.ts" << 'NAMED'
-export const isTauri = () => false;
-export const transport = {};
-NAMED
-
-cat > "$DEST/hooks/use-architect-context.ts" << 'NAMED'
-export const useArchitectContext = () => ({ isArchitectMode: false });
-NAMED
-
-cat > "$DEST/components/explorer/architect/use-architect-scanner.ts" << 'NAMED'
-export const useArchitectScanner = () => ({ nodes: [], isScanning: false, progress: '' });
-NAMED
-
-cat > "$DEST/components/ui/Skeleton.tsx" << 'NAMED'
-export const PreviewSkeleton = () => null;
-const S = (p: any) => <div {...p} />;
-export default S;
-NAMED
-
-cat > "$DEST/components/panels/PreviewActionBar.tsx" << 'NAMED'
-const S = (p: any) => <div {...p} />;
-export default S;
-NAMED
-
-# Stub remaining missing component/lib files
-EXTRA_STUBS=(
-  "components/CommandPalette.tsx"
-  "components/dialogs/BatchConfirmDialog.tsx"
-  "components/dialogs/EncryptionDialog.tsx"
-  "components/dialogs/FileConflictDialog.tsx"
-  "components/dialogs/FileDetailsDialog.tsx"
-  "components/dialogs/MoveTreePreviewDialog.tsx"
-  "components/dialogs/PermissionReviewDialog.tsx"
-  "components/explorer/TerminalCommands.tsx"
-  "components/explorer/SearchResultsPanel.tsx"
-  "components/explorer/VimModeIndicator.tsx"
-  "components/explorer/ThumbnailPreview.tsx"
-  "components/split-view/EditorGroupPane.tsx"
-  "components/ui/ContextMenu.tsx"
-  "components/ui/Toast.tsx"
-)
-
-for f in "${EXTRA_STUBS[@]}"; do
-  dest_path="$DEST/$f"
-  if [ ! -f "$dest_path" ]; then
-    mkdir -p "$(dirname "$dest_path")"
-    echo 'const S = (p: any) => <div {...p} />; export default S; export {};' > "$dest_path"
-  fi
-done
-
-EXTRA_TS_STUBS=(
-  "extensions/advanced-selection/selection-utils.ts"
-  "lib/drag-utils.ts"
-  "lib/file-operation-helpers.ts"
-  "lib/move-tree-preview.ts"
-  "lib/paste-helpers.ts"
-  "lib/preview-factory.ts"
-  "lib/shortcut-utils.ts"
-  "lib/theme-registry.ts"
-  "lib/tour-steps.ts"
-  "lib/extension-host-icon.ts"
-  "lib/extension-registry.ts"
-  "lib/tauri-api-types.ts"
-  "types/split-view.ts"
-)
-
-for f in "${EXTRA_TS_STUBS[@]}"; do
-  dest_path="$DEST/$f"
-  if [ ! -f "$dest_path" ]; then
-    mkdir -p "$(dirname "$dest_path")"
-    echo 'export default {}; export {};' > "$dest_path"
-  fi
-done
-
-echo "✅ Client components prepared"
+echo "✅ Stubs created (no client components copied — eliminates React version conflict)"

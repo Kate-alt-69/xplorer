@@ -30,7 +30,7 @@ export const Tabs = ({
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
           return React.cloneElement(child, {
-            ...child.props,
+            ...(child.props as Record<string, unknown>),
             currentValue,
             onValueChange: handleValueChange,
           } as Record<string, unknown>);
@@ -61,7 +61,7 @@ export const TabsList = ({
       {React.Children.map(children, (child) => {
         if (React.isValidElement(child)) {
           return React.cloneElement(child, {
-            ...child.props,
+            ...(child.props as Record<string, unknown>),
             currentValue,
             onValueChange,
           } as Record<string, unknown>);

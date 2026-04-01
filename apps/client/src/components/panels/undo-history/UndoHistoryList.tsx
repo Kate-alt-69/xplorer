@@ -82,8 +82,8 @@ interface UndoHistoryListProps {
   displayItems: DisplayItem[];
   undoCount: number;
   entries: UndoHistoryEntry[];
-  listRef: React.RefObject<HTMLDivElement>;
-  markerRef: React.RefObject<HTMLDivElement>;
+  listRef: React.RefObject<HTMLDivElement | null>;
+  markerRef: React.RefObject<HTMLDivElement | null>;
   onContextMenu: (e: React.MouseEvent, item: DisplayItem) => void;
   onToggleGroup: (groupId: string) => void;
 }

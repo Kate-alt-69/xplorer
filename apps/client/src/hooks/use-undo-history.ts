@@ -19,8 +19,8 @@ export interface UseUndoHistoryReturn {
   contextMenu: ContextMenuState | null;
   detailsPopover: DetailsPopoverState | null;
   replayDialog: { item: DisplayItem } | null;
-  listRef: React.RefObject<HTMLDivElement>;
-  markerRef: React.RefObject<HTMLDivElement>;
+  listRef: React.RefObject<HTMLDivElement | null>;
+  markerRef: React.RefObject<HTMLDivElement | null>;
   entries: UndoHistoryEntry[];
   undoCount: number;
   canUndo: boolean;

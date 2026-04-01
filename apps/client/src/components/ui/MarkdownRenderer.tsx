@@ -127,7 +127,7 @@ const parseMarkdown = (text: string): React.ReactNode[] => {
     if (headerMatch) {
       const level = headerMatch[1].length;
       const text = headerMatch[2];
-      const Tag = `h${level}` as keyof JSX.IntrinsicElements;
+      const Tag = `h${level}` as keyof React.JSX.IntrinsicElements;
       const sizes: Record<number, string> = {
         1: 'text-base font-bold mt-3 mb-1',
         2: 'text-sm font-bold mt-2 mb-1',

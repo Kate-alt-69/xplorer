@@ -548,7 +548,7 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
       }
     };
 
-    const highlightMatches = (text: string, matches: SearchMatch[]): JSX.Element => {
+    const highlightMatches = (text: string, matches: SearchMatch[]): React.JSX.Element => {
       if (matches.length === 0) return <span>{text}</span>;
       const tokens = matches
         .map((m) => m.token.toLowerCase())

@@ -7,7 +7,7 @@
  */
 
 import React from 'react';
-import { Sidebar, type XplorerAPI, type SidebarRenderProps } from '@xplorer/extension-sdk';
+import { Sidebar, useCurrentPath, useSelectedFiles, type XplorerAPI, type SidebarRenderProps } from '@xplorer/extension-sdk';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -337,6 +337,8 @@ let chatApi: XplorerAPI;
 let _aiChatMessages: ChatMessage[] = [];
 
 function AIChatPanel(_props: SidebarRenderProps) {
+  const currentPath = useCurrentPath();
+  const selectedFiles = useSelectedFiles();
   const [, _forceRender] = React.useState(0);
   const messages = _aiChatMessages;
   const [input, setInput] = React.useState('');
@@ -411,9 +413,24 @@ function AIChatPanel(_props: SidebarRenderProps) {
     setIsLoading(true);
 
     try {
-      const conversationHistory = [..._aiChatMessages].map((m) => ({
+      // Build context-aware conversation
+      const contextParts: string[] = [];
+      if (currentPath && !currentPath.startsWith('xplorer://')) {
+        contextParts.push(`Current folder: ${currentPath}`);
+      }
+      if (selectedFiles.length > 0) {
+        contextParts.push(`Selected files: ${selectedFiles.map((f) => `${f.name} (${f.path})`).join(', ')}`);
+      }
+      const systemContext = contextParts.length > 0
+        ? `[Context: ${contextParts.join(' | ')}]\n\n`
+        : '';
+
+      const conversationHistory = [..._aiChatMessages].map((m, idx) => ({
         role: m.role,
-        content: m.content,
+        // Prepend context to the latest user message only
+        content: idx === _aiChatMessages.length - 1 && m.role === 'user'
+          ? systemContext + m.content
+          : m.content,
       }));
 
       const response = await chatApi.ai.chat(conversationHistory);
@@ -619,6 +636,34 @@ function AIChatPanel(_props: SidebarRenderProps) {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Context chips */}
+      {(currentPath || selectedFiles.length > 0) && (
+        <div style={{
+          padding: '4px 10px', borderTop: '1px solid var(--xp-border)', flexShrink: 0,
+          display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 10, color: 'var(--xp-text-muted)' }}>Context:</span>
+          {currentPath && !currentPath.startsWith('xplorer://') && (
+            <span style={{
+              padding: '1px 6px', fontSize: 10, borderRadius: 4,
+              backgroundColor: 'rgba(122,162,247,0.1)', border: '1px solid rgba(122,162,247,0.2)',
+              color: 'var(--xp-blue)', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {currentPath.split(/[/\\]/).pop() || currentPath}
+            </span>
+          )}
+          {selectedFiles.map((f) => (
+            <span key={f.path} style={{
+              padding: '1px 6px', fontSize: 10, borderRadius: 4,
+              backgroundColor: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)',
+              color: 'var(--xp-green, #22c55e)',
+            }}>
+              {f.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Input Area */}
       <div style={{

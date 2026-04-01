@@ -551,7 +551,7 @@ const SearchInput = ({
   isSearching: boolean;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onClear: () => void;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }) => (
   <div style={{ padding: '8px', borderBottom: '1px solid var(--xp-border)' }}>
     <div

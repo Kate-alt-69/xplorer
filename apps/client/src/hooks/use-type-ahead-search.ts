@@ -19,7 +19,7 @@ export const useTypeAheadSearch = ({
   getColumnsCount: _getColumnsCount,
 }: UseTypeAheadSearchOptions) => {
   const searchBufferRef = useRef('');
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastMatchIndexRef = useRef(-1);
 
   useEffect(() => {

@@ -7,8 +7,8 @@ import { tokenizeLine, type DiffSegment } from '@/pages/file-comparison-helpers'
 interface SideBySideViewProps {
   segments: DiffSegment[];
   language: string;
-  leftRef: React.RefObject<HTMLDivElement>;
-  rightRef: React.RefObject<HTMLDivElement>;
+  leftRef: React.RefObject<HTMLDivElement | null>;
+  rightRef: React.RefObject<HTMLDivElement | null>;
   onScroll: (source: 'left' | 'right') => void;
   onToggleSection: (idx: number) => void;
 }
@@ -111,7 +111,7 @@ export const SideBySideView = ({
 interface UnifiedViewProps {
   segments: DiffSegment[];
   language: string;
-  unifiedRef: React.RefObject<HTMLDivElement>;
+  unifiedRef: React.RefObject<HTMLDivElement | null>;
   onToggleSection: (idx: number) => void;
 }
 
