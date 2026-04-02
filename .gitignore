@@ -45,3 +45,5 @@ e2e/screenshots/
 CLAUDE.md
 .orchestrate/
 apps/src-tauri/shortcuts/
+packages/extensions/*/native/target/
+*.dylib
