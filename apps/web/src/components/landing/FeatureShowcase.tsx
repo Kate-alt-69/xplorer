@@ -72,7 +72,7 @@ const FEATURES: Feature[] = [
     label: 'Extensions',
     title: 'Make it yours.',
     description:
-      'Themes, custom previews, sidebar panels, commands, and context menus. A powerful SDK with a growing marketplace of 40+ extensions. Build and share your own plugins.',
+      'Themes, custom previews, sidebar panels, commands, and context menus. A powerful SDK with a marketplace of 25 extensions and counting. Build and share your own plugins.',
     iconBg: 'bg-brand-500/10 text-brand-500 dark:bg-brand-500/20 dark:text-brand-400',
     image: '/demo7.png',
     imageAlt: 'Extension marketplace with developer tools, themes, and productivity plugins',

@@ -16,6 +16,7 @@ import {
   ArrowUpRight,
   Search,
   BarChart3,
+  Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -62,6 +63,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [archiveTarget, setArchiveTarget] = useState<DashboardExtension | null>(null);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     if (authStatus === 'unauthenticated') {
@@ -88,6 +91,25 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }
+
+  const handleArchive = async () => {
+    if (!archiveTarget) return;
+    setArchiving(true);
+    try {
+      const res = await fetch(`/api/extensions/${archiveTarget.id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setExtensions((prev) => prev.filter((ext) => ext.id !== archiveTarget.id));
+        setArchiveTarget(null);
+      } else {
+        const data = await res.json().catch(() => null);
+        setError(data?.error ?? 'Failed to archive extension');
+      }
+    } catch {
+      setError('Failed to archive extension');
+    } finally {
+      setArchiving(false);
+    }
+  };
 
   const filteredExtensions = useMemo(() => {
     if (!searchQuery) return extensions;
@@ -177,6 +199,46 @@ export default function DashboardPage() {
 
       {/* Connect prompt */}
       {session?.user && <ConnectPrompt />}
+
+      {/* Archive confirmation dialog */}
+      {archiveTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => { if (!archiving) setArchiveTarget(null); }}
+          />
+          <div className="relative mx-4 w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Archive Extension
+            </h3>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Are you sure you want to archive{' '}
+              <span className="font-medium text-gray-900 dark:text-white">
+                {archiveTarget.displayName}
+              </span>
+              ? It will be unpublished and hidden from the marketplace.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setArchiveTarget(null)}
+                disabled={archiving}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={handleArchive}
+                loading={archiving}
+              >
+                Archive
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Extensions table */}
       <div className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800">
@@ -286,6 +348,14 @@ export default function DashboardPage() {
                         >
                           <ArrowUpRight className="h-4 w-4" />
                         </Link>
+                        <button
+                          onClick={() => setArchiveTarget(ext)}
+                          className="text-gray-400 transition-colors hover:text-red-600 dark:hover:text-red-400"
+                          aria-label="Archive extension"
+                          title="Archive extension"
+                        >
+                          <Archive className="h-4 w-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

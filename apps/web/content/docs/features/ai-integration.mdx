@@ -6,18 +6,28 @@ sidebar_position: 5
 
 # AI Integration
 
-Xplorer integrates with local AI models via Ollama to provide intelligent file analysis, chat assistance, and automated organization.
+Xplorer integrates with multiple AI providers to deliver intelligent file analysis, chat assistance, semantic search, and automated organization.
 
-## Prerequisites
+## Supported Providers
 
-Install [Ollama](https://ollama.ai) and pull at least one model:
+Configure your preferred provider in **Settings > AI Agent**.
+
+| Provider  | Models                        | Setup                        |
+| --------- | ----------------------------- | ---------------------------- |
+| Anthropic | Claude Sonnet, Haiku, Opus    | API key in Settings          |
+| OpenAI    | GPT-4o, o1, o3, o4           | API key in Settings          |
+| Google    | Gemini                        | API key in Settings          |
+| DeepSeek  | DeepSeek models               | API key in Settings          |
+| Mistral   | Mistral models                | API key in Settings          |
+| Ollama    | Any locally installed model   | Ollama running on localhost  |
+
+### Ollama (Local Models)
+
+For fully offline AI, install [Ollama](https://ollama.ai) and pull at least one model:
 
 ```bash
 # Recommended general-purpose model
 ollama pull llama3.2
-
-# For image analysis
-ollama pull llava
 
 # For semantic search embeddings
 ollama pull nomic-embed-text
@@ -27,14 +37,14 @@ Ollama runs locally on `http://localhost:11434`. Xplorer auto-detects it.
 
 ## AI Chat Panel
 
-![AI chat panel](/screenshots/ai-chat.png)
-
-The bottom panel includes an AI chat interface where you can:
+The AI chat interface lives in the right sidebar. You can:
 
 - Ask questions about files in the current directory
 - Request file analysis and summaries
 - Get organization suggestions
 - Ask general questions with file context
+- Save and resume chat sessions
+- Create `.chat` files stored directly in directories
 
 ### Context-Aware Chat
 
@@ -45,17 +55,6 @@ When chatting, Xplorer automatically provides context about:
 - Recent navigation history
 - System information
 
-### Available Models
-
-Xplorer queries Ollama for available models. Common choices:
-
-| Model     | Size  | Best For                     |
-| --------- | ----- | ---------------------------- |
-| llama3.2  | 2GB   | General chat, fast responses |
-| llama3.1  | 4.7GB | Higher quality reasoning     |
-| codellama | 3.8GB | Code-related questions       |
-| mistral   | 4.1GB | Balanced performance         |
-
 ## File Analysis
 
 Right-click a file > **Analyze with AI** to get:
@@ -63,22 +62,20 @@ Right-click a file > **Analyze with AI** to get:
 - Content summary
 - Key topics and themes
 - File type-specific insights
-- Suggested organization
+- AI-suggested filenames
 
 ## AI File Organizer
-
-![AI file organizer panel](/screenshots/ai-organizer.png)
 
 The File Organizer panel uses AI to analyze a directory and suggest organization:
 
 ### Analysis Output
 
-1. **File Categories** — Groups files by type (Images, Documents, Code, etc.)
+1. **File Categories** -- Groups files by type (Images, Documents, Code, etc.)
 2. **Organization Suggestions**:
    - Group similar files into folders
    - Cluster by date (monthly folders)
    - Group by name prefix patterns
-3. **Duplicate Summary** — Identifies duplicate files with cleanup recommendations
+3. **Duplicate Summary** -- Identifies duplicate files with cleanup recommendations
 4. **Directory Insights**:
    - Largest files
    - Oldest / newest files
@@ -92,30 +89,15 @@ The organizer generates suggestions like:
 
 - "Create an 'Images' folder for 15 PNG and JPG files"
 - "Group 8 files from January 2024 into a '2024-01' folder"
-- "3 files share the prefix 'report\_' — create a 'Reports' folder"
+- "3 files share the prefix 'report\_' -- create a 'Reports' folder"
 
-## Claude AI Agent
+## AI Agent
 
-Xplorer also includes a Claude AI agent (requires API key) that can:
-
-- Read and write files on your behalf
-- Execute multi-step file operations
-- Answer complex questions with file context
-- Perform structured analysis tasks
-
-Configure the Claude API key in your `.env` file:
-
-```env
-CLAUDE_API_KEY=your-api-key-here
-```
-
-:::caution
-The Claude agent has file read/write permissions. Review its actions before confirming file modifications.
-:::
+For autonomous file operations, see the dedicated [AI Agent](/docs/features/ai-agent) page. The agent can read/write files, execute commands, create plans, and request approval -- with granular permission controls.
 
 ## Semantic Search
 
-With an embedding model installed, Xplorer can find files by meaning rather than keywords:
+With an embedding model installed (via Ollama or a cloud provider), Xplorer can find files by meaning rather than keywords:
 
 ```
 Query: "machine learning research papers"
@@ -128,3 +110,7 @@ This works by:
 1. Converting file content into vector embeddings
 2. Converting the search query into a vector
 3. Finding files with the highest cosine similarity
+
+## AI-Powered Tagging
+
+Xplorer can automatically tag files using AI analysis. Select files, right-click, and choose **Auto-tag** to have the AI categorize them based on content.

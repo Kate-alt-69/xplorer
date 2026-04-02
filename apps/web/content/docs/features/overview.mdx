@@ -1,0 +1,273 @@
+---
+id: features-overview
+title: Features Overview
+sidebar_position: 0
+description: A complete overview of every feature in Xplorer.
+---
+
+# Features Overview
+
+Xplorer is a modern desktop file manager packed with features that go far beyond basic file browsing. This page provides a high-level map of everything Xplorer offers.
+
+---
+
+## File Management
+
+Xplorer handles all standard file operations with extras like progress tracking, conflict resolution, and undo/redo.
+
+- **Copy, cut, paste** with real-time progress bars and cancellation
+- **Accelerated copy** using memory-mapped I/O for large files
+- **Rename** inline or in bulk with regex, sequential numbering, and date prefixes
+- **Paste and Rename** for clipboard items with custom name transforms
+- **Duplicate** files in place
+- **Clipboard history** to re-paste previous copy/cut operations
+- **Move to Trash** or **permanently delete** with confirmation
+- **Secure delete** using multi-pass overwrite (DoD-standard)
+- **Restore from Trash** individual items or empty the entire recycle bin
+- **File conflict resolution** during copy/move (skip, overwrite, rename, apply to all)
+- **Symlink creation** for files and directories
+- **Lock/Unlock** files (read-only toggle)
+- **Undo/Redo** for file operations with full history
+- **Create from template** (README, .gitignore, HTML, React component, Python, Rust, Dockerfile, and more)
+
+See [File Operations](/docs/features/file-operations) for details.
+
+---
+
+## Navigation
+
+- **Breadcrumb address bar** with autocomplete and tilde expansion
+- **Back/Forward history** with keyboard shortcuts
+- **Tabs** with add, close, switch, and reorder
+- **Split panes** (horizontal or vertical) with independent navigation
+- **Cross-tab selection** for batch operations across tabs
+- **Pin folders to sidebar** for quick access
+- **Protocol URLs**: `xplorer://home`, `xplorer://trash`, `xplorer://settings`
+- **Type-ahead search** to jump to files by typing
+
+See [File Browsing](/docs/features/file-browsing) for details.
+
+---
+
+## View Modes
+
+Xplorer supports eight view modes, each suited to different browsing tasks:
+
+| View | Best for |
+|------|----------|
+| Large / Medium / Small Icons | Visual browsing with thumbnails |
+| List | Scanning large directories quickly |
+| Details | Sortable columns (name, size, date, type) |
+| Gallery | Image-heavy folders with filmstrip navigation |
+| Tree | Expanding nested folders inline |
+| Column | Miller columns drill-down (macOS Finder-style) |
+
+Additional view features:
+
+- **Smart View** auto-selects the best mode based on folder contents
+- **Per-folder saved view** remembers your preference for each directory
+- **Group by date** for chronological organization
+- **Size heatmap badges** showing relative file sizes
+- **Size distribution chart** in the status bar
+
+See [View Modes](/docs/features/views) for details.
+
+---
+
+## File Preview
+
+The right sidebar renders inline previews for 50+ file formats:
+
+- **Images**: PNG, JPG, GIF, WebP, SVG, BMP, ICO, TIFF with zoom
+- **Documents**: PDF, DOCX, XLSX
+- **Code**: 100+ languages with syntax highlighting
+- **Data**: JSON (tree view), CSV (table), Markdown (rendered)
+- **Media**: Video and audio players
+- **Preview scrubber** to cycle through selected files
+- **Compare preview** for side-by-side file comparison
+- **Hover thumbnails** with dimensions and size
+
+See [File Previews](/docs/features/file-previews) for details.
+
+---
+
+## Search
+
+- **Smart Search** with local, AI-powered, and natural language modes
+- **File content search** with match highlighting
+- **Regex search** and structured query parsing
+- **Filters**: file type, date range, size range, extension
+- **Saved searches** and search history
+- **Tokenizer indexing** for instant search across the filesystem
+- **Semantic search** using vector embeddings (requires Ollama)
+- **Hybrid search** combining keyword and semantic results
+
+See [Search & Tokenizer](/docs/features/search-and-tokenizer) for details.
+
+---
+
+## AI Integration
+
+Xplorer supports multiple AI providers for chat, file analysis, and automation:
+
+| Provider | Models | Setup |
+|----------|--------|-------|
+| Anthropic | Claude Sonnet, Haiku, Opus | API key |
+| OpenAI | GPT-4o, o1, o3, o4 | API key |
+| Google | Gemini | API key |
+| DeepSeek | DeepSeek models | API key |
+| Mistral | Mistral models | API key |
+| Ollama | Any local model | Local server |
+
+### AI Features
+
+- **AI Chat panel** with context-aware conversations about your files
+- **Chat sessions** saved and resumable
+- **Chat-as-Files** (.chat files stored in directories)
+- **File analysis** and AI filename suggestions
+- **Agent mode** with autonomous file read/write, command execution, and plan creation
+- **Agent permissions** for granular tool and path access
+- **Agent memory** persisted across sessions
+- **Semantic search** with vector embeddings
+- **File recommendations** based on the selected file
+
+See [AI Integration](/docs/features/ai-integration) and [AI Agent](/docs/features/ai-agent) for details.
+
+---
+
+## Git Integration
+
+A full Git GUI built into the file explorer:
+
+- **Commit graph** visualization
+- **Branch management** (create, switch, delete)
+- **File history** and **blame view**
+- **Staging/unstaging** and **commit creation**
+- **Stash operations** (list, create, apply, drop)
+- **Remote operations** (pull, push, fetch)
+- **File diffs** for uncommitted and committed changes
+
+See [Git Integration](/docs/features/git-integration) for details.
+
+---
+
+## Extension System
+
+Xplorer ships with 25 extensions and a marketplace for discovering more. Extensions can register:
+
+| API | What it does |
+|-----|-------------|
+| `Theme.register()` | Custom color themes |
+| `Sidebar.register()` | Right sidebar panels |
+| `SidebarTab.register()` | Left sidebar tabs |
+| `Command.register()` | Named commands with optional shortcuts |
+| `ContextMenu.register()` | Right-click menu items |
+| `BottomTab.register()` | Bottom panel tabs |
+| `Editor.register()` | Custom file editors |
+| `Preview.register()` | Custom file preview renderers |
+
+### Built-in Extensions (25)
+
+**Themes**: Tokyo Night, Dracula, Nord, Cyberpunk, Ocean Deep
+
+**Code and Editing**: Code Editor (CodeMirror 6), IDE Mode (project sidebar + file tree)
+
+**File Tools**: File Hasher, JSON Formatter, Word Counter, Batch Image Processor, Image Editor, 3D Model Viewer, SQLite Browser, Folder Statistics
+
+**Integrations**: Git, Google Drive, Docker Manager, SSH Manager, Claude Code, Collaboration
+
+**Productivity**: Architecture Visualizer, Incremental Backup, Problems Panel, Software Finder
+
+See the [Extension System](/docs/extensions/overview) documentation for the full reference.
+
+---
+
+## Keyboard and Input
+
+- **Customizable shortcuts** with profiles and context-aware bindings
+- **Global shortcuts** that work even when the app is unfocused
+- **Vim Mode** with normal, visual, insert, and command modes
+- **Command Palette** (Ctrl+P) with fuzzy search, favorites, and history
+- **Extension-registered shortcuts**
+
+See [Keyboard Shortcuts](/docs/features/keyboard-shortcuts) for details.
+
+---
+
+## Compression and Archives
+
+| Format | Compress | Extract |
+|--------|----------|---------|
+| ZIP | Yes | Yes |
+| TAR / TAR.GZ / TAR.BZ2 / TAR.XZ | Yes | Yes |
+| RAR, 7Z | -- | Yes |
+
+Features include archive inspection, selective extraction, and progress tracking.
+
+---
+
+## Security
+
+- **AES file encryption** with password protection (.enc files)
+- **File decryption** with password
+- **Secure delete** with multi-pass overwrite
+- **Extension permission system** with review dialog before installation
+
+---
+
+## File Comparison
+
+- **Text diff** with character-level and line-level comparison
+- **Side-by-side** and **unified** diff views
+- **Folder comparison** (left only, right only, both)
+- **Hash comparison** (SHA-256, SHA-1, MD5)
+
+---
+
+## Tags, Notes, and Metadata
+
+- **File tags** with colored categories and batch tagging
+- **Auto-tag** files using AI
+- **File notes** with search across all notes
+- **File annotations** with resolved/unresolved status
+- **Custom key-value metadata** with batch editing
+
+---
+
+## Cloud and Sync
+
+- **Google Drive** multi-account integration (browse, upload, download, manage)
+- **Bookmark sync** and **tag sync** to the cloud
+- **Auto sync** on startup or interval
+
+See [Google Drive](/docs/features/google-drive) for details.
+
+---
+
+## Terminal
+
+- **Integrated terminal** (XTerm.js with full PTY)
+- **Multiple terminal sessions**
+- **Auto-detect system shell**
+- **Open in terminal** from any directory context menu
+
+---
+
+## Additional Features
+
+- **Storage Analytics** with disk usage charts, file type distribution, and cleanup suggestions
+- **Duplicate Finder** with parallel hashing and progress tracking
+- **File Versioning** with auto-version on save, restore, and per-directory configuration
+- **Docker Management** for containers and images
+- **Image Processing** (resize, convert, rotate, crop, brightness, grayscale, batch)
+- **SQLite browser** for .db files
+- **Workspace layouts** (save and restore pane arrangements)
+- **Drag and drop** with cross-pane support and drop validation
+- **Folder colors** for visual organization
+- **Onboarding tour** with spotlight walkthrough
+- **Auto-updater** with download progress
+- **Backup and restore** for settings (export/import JSON)
+- **Audit log** with operation history, filtering, and export
+- **i18n** in English, Chinese, Japanese, and Indonesian
+
+See [Accessibility](/docs/features/accessibility), [Themes](/docs/features/themes), and [Onboarding Tour](/docs/features/onboarding-tour) for more.
