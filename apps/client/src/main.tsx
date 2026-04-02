@@ -13,6 +13,10 @@ import './index.css';
 import * as XplorerSDK from '@xplorer/extension-sdk';
 (window as unknown as Record<string, unknown>).XplorerSDK = XplorerSDK;
 
+// Install theme event bridge so extension themes register in the theme picker
+import { installThemeEventBridge } from './lib/theme-registry';
+installThemeEventBridge();
+
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[Unhandled Promise Rejection]', event.reason);
 });

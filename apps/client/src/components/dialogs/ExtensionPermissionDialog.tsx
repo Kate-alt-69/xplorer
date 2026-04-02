@@ -189,8 +189,16 @@ export const revokeConsent = (extensionId: string): void => {
 // ── Consent helpers ─────────────────────────────────────────────────────────
 
 /** Returns true when any requested permission needs an interactive consent dialog */
+const SAFE_PERMISSIONS = new Set([
+  'ui:notifications',
+  'ui:panels',
+  'ui:theme',
+  'ui:statusbar',
+  'ai:read',
+]);
+
 export const requiresConsentDialog = (permissions: string[]): boolean => {
-  return permissions.length > 0;
+  return permissions.some((p) => !SAFE_PERMISSIONS.has(p));
 };
 
 /** Show a single-extension permission consent dialog. Resolves true if user allows. */
@@ -309,11 +317,11 @@ const ExtensionPermissionDialog = () => {
           maxWidth: '90vw',
           maxHeight: '80vh',
           borderRadius: '16px',
-          backgroundColor: 'rgba(var(--xp-bg-rgb, 26, 27, 38), 0.85)',
-          border: '1px solid rgba(var(--xp-border-rgb, 41, 46, 66), 0.6)',
-          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255,255,255,0.03) inset',
-          backdropFilter: 'blur(24px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+          backgroundColor: 'var(--xp-surface, #1a1b26)',
+          border: '1px solid var(--xp-border, #292e42)',
+          boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column' as const,
@@ -328,7 +336,7 @@ const ExtensionPermissionDialog = () => {
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '18px 20px 14px',
-            borderBottom: '1px solid rgba(var(--xp-border-rgb, 41, 46, 66), 0.4)',
+            borderBottom: '1px solid var(--xp-border, #292e42)',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -587,7 +595,7 @@ const ExtensionPermissionDialog = () => {
             justifyContent: 'flex-end',
             gap: '8px',
             padding: '12px 20px',
-            borderTop: '1px solid rgba(var(--xp-border-rgb, 41, 46, 66), 0.4)',
+            borderTop: '1px solid var(--xp-border, #292e42)',
           }}
         >
           <button
