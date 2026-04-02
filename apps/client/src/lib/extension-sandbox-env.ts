@@ -187,7 +187,14 @@ export const createSandboxedEnvironment = (
   const windowRef: { current: typeof window | null } = { current: null };
 
   const sandboxedObject = Object.create(Object) as typeof Object;
-  sandboxedObject.getPrototypeOf = (_target: unknown) => null;
+  sandboxedObject.getPrototypeOf = (target: unknown) => {
+    // Block window/document prototype traversal but allow normal usage
+    // (esbuild module interop relies on Object.getPrototypeOf)
+    if (target === windowRef.current || target === window || target === document) {
+      return null;
+    }
+    return Object.getPrototypeOf(target as object);
+  };
   sandboxedObject.getOwnPropertyDescriptor = (target: unknown, prop: PropertyKey) => {
     // Block reading descriptors from the window proxy (could expose unproxied values)
     if (target === windowRef.current || target === window) {

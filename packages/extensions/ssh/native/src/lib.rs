@@ -166,7 +166,7 @@ lazy_static::lazy_static! {
     static ref RUNTIME: RwLock<Option<tokio::runtime::Runtime>> = RwLock::new(None);
     static ref PLUGIN_INFO: CString = CString::new(
         serde_json::json!({
-            "id": "ssh",
+            "id": "xplorer-ssh",
             "name": "SSH Manager",
             "version": "1.0.0"
         }).to_string()

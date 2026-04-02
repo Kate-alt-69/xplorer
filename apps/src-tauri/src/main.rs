@@ -23,6 +23,8 @@ use xplorer::backup;
 use xplorer::file_versions;
 use xplorer::sync;
 
+use tracing::warn;
+
 fn main() {
     // Load environment variables from .env file
     dotenvy::dotenv().ok();
@@ -49,15 +51,17 @@ fn main() {
                 operations::ProgressManager::new().with_app_handle(app.handle().clone());
             app.manage(std::sync::Arc::new(progress_manager));
 
-            // Initialize shortcuts manager
-            shortcuts::init_shortcuts_manager("shortcuts");
-
             // Initialize extension manager using app data directory
             let app_data_dir = app
                 .path()
                 .app_data_dir()
                 .unwrap_or_else(|_| std::path::PathBuf::from("./data"));
             std::fs::create_dir_all(&app_data_dir).unwrap_or_default();
+
+            // Initialize shortcuts manager in app data dir (NOT source tree)
+            let shortcuts_dir = app_data_dir.join("shortcuts");
+            std::fs::create_dir_all(&shortcuts_dir).unwrap_or_default();
+            shortcuts::init_shortcuts_manager(shortcuts_dir.to_str().unwrap_or("shortcuts"));
             let extensions_dir = app_data_dir.join("extensions");
             std::fs::create_dir_all(&extensions_dir).unwrap_or_default();
 

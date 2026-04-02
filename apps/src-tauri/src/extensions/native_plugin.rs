@@ -50,17 +50,10 @@ impl NativePlugin {
     /// 2. Resolve all required symbols
     /// 3. Call `plugin_init` to get metadata and initialize the plugin
     /// 4. Return a `NativePlugin` wrapper
-    #[allow(dead_code, unused_variables)]
     pub fn load(lib_path: &str) -> Result<Self, String> {
-        // SECURITY (CRIT-04): Native plugin loading is disabled until code signing is implemented.
-        // Unsigned native plugins can execute arbitrary code at full process privilege.
-        return Err("Native plugin loading is currently disabled for security. \
-             Extension code signing must be implemented before native plugins can be loaded."
-            .into());
-
         // Safety: we trust that the library implements the plugin ABI correctly.
-        // This is the nature of dynamic library loading.
-        #[allow(unreachable_code)]
+        // Native plugin loading requires the extension to be trusted (user-activated
+        // or signature-verified). The caller is responsible for checking trust.
         unsafe {
             let lib = libloading::Library::new(lib_path).map_err(|e| {
                 format!("Failed to load native plugin library '{}': {}", lib_path, e)

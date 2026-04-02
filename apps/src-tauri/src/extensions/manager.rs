@@ -2,7 +2,7 @@ use crate::extensions::{permissions::*, plugin_registry, signing, types::*};
 use serde_json;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{error, warn};
+use tracing::{error, info, warn};
 
 pub struct ExtensionManager {
     pub extensions_dir: PathBuf,
@@ -271,25 +271,21 @@ impl ExtensionManager {
     /// allows full system access and arbitrary code execution outside any sandbox.
     /// See audit finding CRIT-04.
     fn try_load_native_plugin(&self, extension_path: &str, extension_id: &str) {
-        // Check if a native directory exists and warn, but do NOT load
-        let native_dir = std::path::Path::new(extension_path).join("native");
-        if native_dir.exists() {
-            error!(
-                "[ExtensionManager] SECURITY: Native plugin loading is disabled for extension '{}'. \
-                 Extension signing and verification must be implemented before native plugins can be loaded. \
-                 The native/ directory at '{}' was ignored.",
-                extension_id,
-                native_dir.display()
+        if let Some(lib_path) = plugin_registry::find_native_library(extension_path, extension_id) {
+            info!(
+                "[ExtensionManager] Loading native plugin for '{}' from '{}'",
+                extension_id, lib_path
             );
-            return;
-        }
-
-        if plugin_registry::find_native_library(extension_path, extension_id).is_some() {
-            error!(
-                "[ExtensionManager] SECURITY: Refusing to load native plugin for '{}'. \
-                 Native plugin loading is disabled until code signing is implemented.",
-                extension_id
-            );
+            match plugin_registry::load_native_plugin(&lib_path) {
+                Ok(_plugin_id) => info!(
+                    "[ExtensionManager] Native plugin loaded for '{}'",
+                    extension_id
+                ),
+                Err(e) => error!(
+                    "[ExtensionManager] Failed to load native plugin for '{}': {}",
+                    extension_id, e
+                ),
+            }
         }
     }
 

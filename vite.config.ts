@@ -42,6 +42,9 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 5174,
     strictPort: true,
+    watch: {
+      ignored: ['**/packages/extensions/**'],
+    },
   },
   // Copy PDF worker to public directory
   assetsInclude: ['**/*.wasm'],
