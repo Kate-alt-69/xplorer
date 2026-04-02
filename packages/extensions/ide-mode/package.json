@@ -30,9 +30,9 @@
       "panels": [
         {
           "id": "ide-mode",
-          "title": "Project Explorer",
+          "title": "Workspace",
           "location": "right",
-          "icon": "layout"
+          "icon": "folder-tree"
         }
       ]
     }
