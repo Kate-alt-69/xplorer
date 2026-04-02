@@ -359,8 +359,10 @@ export const executeOrganization = async (plan: OrganizationPlan): Promise<numbe
 
 // ── Recent files ────────────────────────────────────────────────────────────
 
-export const addRecentFile = async (path: string): Promise<void> =>
+export const addRecentFile = async (path: string): Promise<void> => {
   await transport('add_recent_file', { path });
+  window.dispatchEvent(new CustomEvent('recent-files-changed'));
+};
 
 export const getRecentFiles = async (limit?: number): Promise<RecentFile[]> =>
   await transport('get_recent_files', { limit: limit ?? null });

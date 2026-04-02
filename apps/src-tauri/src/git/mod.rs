@@ -5,6 +5,7 @@ pub(crate) mod validation;
 
 pub mod branch_ops;
 pub mod history;
+pub mod remote_ops;
 pub mod staging;
 pub mod stash_ops;
 pub mod status;

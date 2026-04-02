@@ -6,6 +6,7 @@ import type { ConflictResolution } from '@/components/dialogs/FileConflictDialog
 
 import { useFolderSizes } from '@/hooks/use-folder-sizes';
 import { useFileComparison } from '@/hooks/use-file-comparison';
+import { useWindowEvent } from '@/hooks/use-window-event';
 
 // Extracted hooks
 import { useFileOperations } from '@/hooks/use-file-operations';
@@ -304,6 +305,21 @@ const ExplorerUnified = () => {
     openGDriveManager: actions.openGDriveManager,
     vimActions: actions.vimActions,
   });
+
+  // ── Extension: compare-files event ────────────────────────────────────────
+  useWindowEvent(
+    'xplorer-compare-files',
+    (e: Event) => {
+      const { path } = (e as CustomEvent<{ path: string }>).detail;
+      if (!path) return;
+      fileComparison.compareFiles({
+        path,
+        name: path.split(/[/\\]/).pop() || path,
+        is_dir: false,
+      } as FileEntry);
+    },
+    [fileComparison],
+  );
 
   // ── Render ────────────────────────────────────────────────────────────────
 

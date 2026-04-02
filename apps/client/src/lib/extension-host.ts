@@ -95,6 +95,20 @@ class ExtensionHost {
   private expectedExtensionId: string | null = null;
   private availableUpdates = new Map<string, ExtensionUpdateInfo>();
   private updatingExtensions = new Set<string>();
+  private globalStateStore = new Map<string, Map<string, unknown>>();
+  private workspaceStateStore = new Map<string, Map<string, unknown>>();
+
+  private getExtensionStateMap(
+    store: Map<string, Map<string, unknown>>,
+    extId: string,
+  ): Map<string, unknown> {
+    let stateMap = store.get(extId);
+    if (!stateMap) {
+      stateMap = new Map<string, unknown>();
+      store.set(extId, stateMap);
+    }
+    return stateMap;
+  }
 
   constructor() {
     if (typeof window !== 'undefined') {
@@ -302,19 +316,28 @@ class ExtensionHost {
     // Register bottom tabs from renderBottomTab + getBottomTabConfig
     registerBottomTab(ext as Record<string, unknown>, manifest.id, this.bottomTabRegistry);
 
+    const globalMap = this.getExtensionStateMap(this.globalStateStore, manifest.id);
+    const workspaceMap = this.getExtensionStateMap(this.workspaceStateStore, manifest.id);
+
     const context = {
       extensionPath: '',
       globalState: {
-        get: (key: string) => this.executeCommand(`state:${manifest.id}:get`, key),
-        set: (key: string, value: unknown) =>
-          this.registerCommand(`state:${manifest.id}:set:${key}`, () => value),
-        delete: (_key: string) => {},
+        get: (key: string) => globalMap.get(key),
+        set: (key: string, value: unknown) => {
+          globalMap.set(key, value);
+        },
+        delete: (key: string) => {
+          globalMap.delete(key);
+        },
       },
       workspaceState: {
-        get: (key: string) => this.executeCommand(`workspace:${manifest.id}:get`, key),
-        set: (key: string, value: unknown) =>
-          this.registerCommand(`workspace:${manifest.id}:set:${key}`, () => value),
-        delete: (_key: string) => {},
+        get: (key: string) => workspaceMap.get(key),
+        set: (key: string, value: unknown) => {
+          workspaceMap.set(key, value);
+        },
+        delete: (key: string) => {
+          workspaceMap.delete(key);
+        },
       },
       subscriptions: [] as Array<{ dispose(): void }>,
       asAbsolutePath: (relativePath: string) => relativePath,
@@ -554,21 +577,31 @@ class ExtensionHost {
 
         // Provide the API via _setContext if the extension supports it
         if (typeof obj._setContext === 'function') {
+          const loadGlobalMap = this.getExtensionStateMap(this.globalStateStore, pkg.manifest.id);
+          const loadWorkspaceMap = this.getExtensionStateMap(
+            this.workspaceStateStore,
+            pkg.manifest.id,
+          );
+
           const context = {
             extensionPath: pkg.path,
             globalState: {
-              get: (key: string) =>
-                this.executeCommand(`state:${pkg.manifest.id}:get`, key).catch(() => undefined),
-              set: (key: string, value: unknown) =>
-                this.registerCommand(`state:${pkg.manifest.id}:set:${key}`, () => value),
-              delete: (_key: string) => {},
+              get: (key: string) => loadGlobalMap.get(key),
+              set: (key: string, value: unknown) => {
+                loadGlobalMap.set(key, value);
+              },
+              delete: (key: string) => {
+                loadGlobalMap.delete(key);
+              },
             },
             workspaceState: {
-              get: (key: string) =>
-                this.executeCommand(`workspace:${pkg.manifest.id}:get`, key).catch(() => undefined),
-              set: (key: string, value: unknown) =>
-                this.registerCommand(`workspace:${pkg.manifest.id}:set:${key}`, () => value),
-              delete: (_key: string) => {},
+              get: (key: string) => loadWorkspaceMap.get(key),
+              set: (key: string, value: unknown) => {
+                loadWorkspaceMap.set(key, value);
+              },
+              delete: (key: string) => {
+                loadWorkspaceMap.delete(key);
+              },
             },
             subscriptions: [] as Array<{ dispose(): void }>,
             asAbsolutePath: (relativePath: string) => {

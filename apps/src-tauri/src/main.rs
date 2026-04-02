@@ -353,6 +353,11 @@ fn main() {
             git::stash_ops::apply_stash,
             git::stash_ops::drop_stash,
             git::history::get_all_commits,
+            // Git remote operations
+            git::remote_ops::git_pull,
+            git::remote_ops::git_push,
+            git::remote_ops::git_fetch,
+            git::remote_ops::git_get_remotes,
             // File comparison operations
             operations::compute_file_hash,
             operations::compare_files,
