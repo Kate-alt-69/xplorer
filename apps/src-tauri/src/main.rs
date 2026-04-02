@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use tauri::{Emitter, Listener, Manager, WindowEvent};
-use tracing::warn;
 
 // All modules are declared in lib.rs (the `xplorer` library crate).
 // Import them here so the binary can register Tauri commands.
