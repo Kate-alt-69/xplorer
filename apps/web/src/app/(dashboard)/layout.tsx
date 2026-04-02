@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 const SIDEBAR_LINKS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/billing', label: 'Billing', icon: CreditCard },
+  { href: '/dashboard/settings', label: 'Settings', icon: Settings },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
