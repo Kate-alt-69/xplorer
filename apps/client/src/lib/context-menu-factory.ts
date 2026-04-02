@@ -60,6 +60,7 @@ import {
   Palette,
   FolderSync,
   MoreHorizontal,
+  Fingerprint,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -657,6 +658,96 @@ export class ContextMenuFactory {
         icon: mi(ClipboardCopy),
         action: () => this.actions.copyName(file),
       });
+
+      if (!file.is_dir) {
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const isText = [
+          'txt',
+          'md',
+          'json',
+          'xml',
+          'yaml',
+          'yml',
+          'toml',
+          'js',
+          'jsx',
+          'ts',
+          'tsx',
+          'py',
+          'rb',
+          'rs',
+          'go',
+          'java',
+          'c',
+          'cpp',
+          'h',
+          'cs',
+          'html',
+          'css',
+          'scss',
+          'sh',
+          'sql',
+          'vue',
+          'svelte',
+          'log',
+          'csv',
+          'ini',
+          'conf',
+          'env',
+        ].includes(ext);
+        if (isText) {
+          moreItems.push({
+            id: 'word-count',
+            label: 'Word Count',
+            icon: mi(FileText),
+            action: async () => {
+              try {
+                const content = await TauriAPI.readTextFile(file.path);
+                const words = content.trim() === '' ? 0 : content.trim().split(/\s+/).length;
+                const lines = content.split('\n').length;
+                const chars = content.length;
+                window.dispatchEvent(
+                  new CustomEvent('xplorer:extension-toast', {
+                    detail: {
+                      title: file.name,
+                      description: `${words.toLocaleString()} words · ${lines.toLocaleString()} lines · ${chars.toLocaleString()} chars`,
+                    },
+                  }),
+                );
+              } catch (err) {
+                console.error('Word count failed:', err);
+              }
+            },
+          });
+        }
+      }
+
+      if (!file.is_dir) {
+        moreItems.push({
+          id: 'calculate-hash',
+          label: 'Calculate Hash',
+          icon: mi(Fingerprint),
+          action: async () => {
+            try {
+              const data = await TauriAPI.readBinaryFile(file.path);
+              const sha256 = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', data)))
+                .map((b) => b.toString(16).padStart(2, '0'))
+                .join('');
+              await navigator.clipboard.writeText(sha256);
+              window.dispatchEvent(
+                new CustomEvent('xplorer:extension-toast', {
+                  detail: {
+                    title: 'File Hash',
+                    description: `SHA-256: ${sha256} — copied to clipboard`,
+                  },
+                }),
+              );
+            } catch (err) {
+              console.error('Hash failed:', err);
+            }
+          },
+        });
+      }
 
       if (!file.is_dir) {
         moreItems.push({
