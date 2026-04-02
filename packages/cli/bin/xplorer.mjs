@@ -146,7 +146,7 @@ const login = async () => {
 
   // Verify the token
   try {
-    const res = await fetch(`${API_URL}/user/token`, {
+    const res = await fetch(`${API_URL}/cli`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {

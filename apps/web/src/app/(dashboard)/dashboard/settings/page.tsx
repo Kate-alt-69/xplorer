@@ -13,7 +13,7 @@ const SettingsPage = () => {
   const generateToken = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/user/token', { method: 'POST' });
+      const res = await fetch('/api/cli', { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
