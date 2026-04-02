@@ -221,6 +221,9 @@ const EditorGroupPane = ({
         }
         return [];
       }
+      if (currentPath.startsWith('ssh://')) {
+        return await TauriAPI.sshReadDirectory(currentPath);
+      }
       return await TauriAPI.readDirectory(currentPath);
     },
     staleTime: 0,

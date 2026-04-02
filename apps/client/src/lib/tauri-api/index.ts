@@ -193,6 +193,7 @@ export class TauriAPI {
   static extensionBackendStatus = extensions.extensionBackendStatus;
   static checkForExtensionUpdates = extensions.checkForExtensionUpdates;
   static downloadExtensionUpdate = extensions.downloadExtensionUpdate;
+  static sshReadDirectory = extensions.sshReadDirectory;
 
   // ── AI ──────────────────────────────────────────────────────────────────
   static getAiModels = ai.getAiModels;

@@ -31,6 +31,7 @@
       "native:invoke",
       "ui:panels",
       "ui:notifications",
+      "ui:modify",
       "xplorer:settings"
     ],
     "activationEvents": ["onStartup"],

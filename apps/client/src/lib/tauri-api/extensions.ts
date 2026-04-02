@@ -1,5 +1,5 @@
 import { transport } from '../transport';
-import type { ExtensionManifestInfo, ExtensionPackageInfo } from '../tauri-api-types';
+import type { ExtensionManifestInfo, ExtensionPackageInfo, FileEntry } from '../tauri-api-types';
 
 // ── Extension-scoped storage ────────────────────────────────────────────────
 
@@ -114,3 +114,83 @@ export const downloadExtensionUpdate = async (
     url,
     expectedChecksum: expectedChecksum ?? null,
   });
+
+// ── SSH file browsing (via native plugin) ──────────────────────────────────
+
+const parseSSHUrl = (
+  url: string,
+): { host: string; port: number; username: string; remotePath: string; connId: string } | null => {
+  const match = url.match(/^ssh:\/\/([^/]+)\/(.*)$/);
+  if (!match) return null;
+  const connId = match[1];
+  const remotePath = decodeURIComponent(match[2]) || '~';
+  const connMatch = connId.match(/^([^@]+)@([^:]+):(\d+)$/);
+  if (!connMatch) return null;
+  return {
+    username: connMatch[1],
+    host: connMatch[2],
+    port: parseInt(connMatch[3], 10),
+    remotePath,
+    connId,
+  };
+};
+
+export const sshReadDirectory = async (sshUrl: string): Promise<FileEntry[]> => {
+  const parsed = parseSSHUrl(sshUrl);
+  if (!parsed) return [];
+
+  const storedRaw = await transport('get_extension_storage', {
+    extensionId: 'xplorer-ssh',
+    key: 'connections',
+  }).catch(() => null);
+
+  let password: string | null = null;
+  let keyPath: string | null = null;
+  if (storedRaw && Array.isArray(storedRaw)) {
+    const stored = storedRaw as Array<{
+      host: string;
+      port: number;
+      username: string;
+      password?: string;
+      keyPath?: string;
+    }>;
+    const match = stored.find(
+      (c) => c.host === parsed.host && c.port === parsed.port && c.username === parsed.username,
+    );
+    if (match) {
+      password = match.password ?? null;
+      keyPath = match.keyPath ?? null;
+    }
+  }
+
+  const result = (await nativePluginInvoke('xplorer-ssh', 'xplorer-ssh', 'read_directory', {
+    host: parsed.host,
+    port: parsed.port,
+    username: parsed.username,
+    remote_path: parsed.remotePath,
+    password,
+    key_path: keyPath,
+  })) as {
+    ok?: Array<{
+      name: string;
+      path: string;
+      is_dir: boolean;
+      size: number;
+      modified: number;
+      file_type: string;
+    }>;
+    error?: string;
+  };
+
+  if (!result.ok) return [];
+
+  return result.ok.map((f) => ({
+    name: f.name,
+    path: `ssh://${parsed.connId}/${encodeURIComponent(f.path)}`,
+    is_dir: f.is_dir,
+    size: f.size,
+    modified: f.modified,
+    file_type: f.file_type,
+    is_readonly: false,
+  }));
+};
