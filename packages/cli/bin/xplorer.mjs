@@ -182,28 +182,85 @@ const whoami = () => {
   print('Not logged in. Run: xplorer login');
 };
 
+const ask = (question) => new Promise((resolve) => {
+  process.stdout.write(question);
+  let data = '';
+  process.stdin.setEncoding('utf-8');
+  process.stdin.on('data', (chunk) => {
+    data += chunk;
+    if (data.includes('\n')) {
+      process.stdin.pause();
+      process.stdin.removeAllListeners('data');
+      resolve(data.trim());
+    }
+  });
+  process.stdin.resume();
+});
+
+const CATEGORIES = ['Themes', 'Previews', 'Productivity', 'Developer Tools', 'Cloud Storage', 'Security', 'Media', 'Utilities'];
+
 const publish = async () => {
   const token = loadToken();
   if (!token) error('Not logged in. Run: xplorer login');
 
-  // Find package.json in current directory
+  // Find package.json
   const pkgPath = resolve('package.json');
   if (!existsSync(pkgPath)) {
     error('No package.json found. Run this from an extension directory.');
   }
 
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
-  const manifest = pkg.xplorer;
-  if (!manifest?.id) {
-    error('No xplorer manifest found in package.json. Is this an Xplorer extension?');
+  const manifest = pkg.xplorer || {};
+
+  print('\n  Xplorer Extension Publisher\n');
+  print('  Fill in the details below. Press Enter to accept defaults shown in [brackets].\n');
+
+  // Interactive prompts with defaults from package.json
+  const id = await ask(`  Extension ID [${manifest.id || pkg.name || ''}]: `) || manifest.id || pkg.name;
+  if (!id) error('Extension ID is required.');
+
+  const displayName = await ask(`  Display Name [${manifest.displayName || manifest.name || id}]: `) || manifest.displayName || manifest.name || id;
+  const description = await ask(`  Description [${manifest.description || pkg.description || ''}]: `) || manifest.description || pkg.description || '';
+  const version = await ask(`  Version [${manifest.version || pkg.version || '1.0.0'}]: `) || manifest.version || pkg.version || '1.0.0';
+
+  // Category selection
+  print('\n  Categories (pick up to 3, comma-separated numbers):');
+  CATEGORIES.forEach((cat, i) => print(`    ${i + 1}. ${cat}`));
+  const catInput = await ask('  Categories []: ');
+  const selectedCategories = catInput
+    ? catInput.split(',').map(n => CATEGORIES[parseInt(n.trim()) - 1]).filter(Boolean)
+    : (manifest.categories || []);
+
+  const icon = await ask(`  Icon (lucide icon name) [${manifest.icon || ''}]: `) || manifest.icon || '';
+  const repoUrl = await ask(`  Repository URL [${pkg.repository?.url || ''}]: `) || pkg.repository?.url || '';
+  const homepage = await ask(`  Homepage URL [${pkg.homepage || ''}]: `) || pkg.homepage || '';
+  const license = await ask(`  License [${pkg.license || 'MIT'}]: `) || pkg.license || 'MIT';
+
+  // Pricing
+  const pricingInput = await ask('  Pricing (free/paid) [free]: ') || 'free';
+  const pricing = pricingInput.toLowerCase() === 'paid' ? 'paid' : 'free';
+
+  // Confirm
+  print('\n  Summary:');
+  print(`    ID:          ${id}`);
+  print(`    Name:        ${displayName}`);
+  print(`    Version:     ${version}`);
+  print(`    Description: ${description.slice(0, 60)}${description.length > 60 ? '...' : ''}`);
+  print(`    Categories:  ${selectedCategories.join(', ') || 'none'}`);
+  print(`    License:     ${license}`);
+  print(`    Pricing:     ${pricing}`);
+  print('');
+
+  const confirm = await ask('  Publish? (y/n) [y]: ') || 'y';
+  if (confirm.toLowerCase() !== 'y') {
+    print('  Cancelled.');
+    return;
   }
 
-  print(`Publishing ${manifest.displayName || manifest.id} v${manifest.version || '1.0.0'}...`);
-
   // Build
-  print('  Building...');
+  print('\n  Building...');
   try {
-    execSync('npm run build', { stdio: 'pipe' });
+    execSync('npm run build 2>&1 || pnpm build 2>&1', { stdio: 'pipe', shell: true });
   } catch {
     error('Build failed. Fix build errors and try again.');
   }
@@ -211,15 +268,27 @@ const publish = async () => {
   // Check dist exists
   const distPath = resolve('dist', 'index.js');
   if (!existsSync(distPath)) {
-    error('No dist/index.js found after build. Check your build script.');
+    error('No dist/index.js found after build.');
   }
 
-  // Create zip (package.json + dist/)
+  // Package zip (include .sig if it exists)
   print('  Packaging...');
-  const JSZip = (await import('jszip')).default;
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   zip.file('package.json', readFileSync(pkgPath));
   zip.file('dist/index.js', readFileSync(distPath));
+
+  const sigPath = resolve('.sig');
+  if (existsSync(sigPath)) {
+    zip.file('.sig', readFileSync(sigPath));
+    print('  Including .sig (signed extension)');
+  }
+
+  // Include README if exists
+  const readmePath = resolve('README.md');
+  if (existsSync(readmePath)) {
+    zip.file('README.md', readFileSync(readmePath));
+  }
 
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
   const checksum = createHash('sha256').update(zipBuffer).digest('hex');
@@ -227,16 +296,19 @@ const publish = async () => {
   // Upload
   print('  Uploading to xplorer.space...');
   const formData = new FormData();
-  formData.append('file', new Blob([zipBuffer]), `${manifest.id}.zip`);
-  formData.append('name', manifest.id);
-  formData.append('displayName', manifest.displayName || manifest.name || manifest.id);
-  formData.append('description', manifest.description || '');
-  formData.append('version', manifest.version || '1.0.0');
-  formData.append('category', manifest.category || 'tool');
-  formData.append('icon', manifest.icon || '');
+  formData.append('file', new Blob([zipBuffer]), `${id}.zip`);
+  formData.append('name', id);
+  formData.append('displayName', displayName);
+  formData.append('description', description);
+  formData.append('version', version);
+  formData.append('license', license);
+  formData.append('pricing', pricing);
+  formData.append('icon', icon);
   formData.append('checksum', checksum);
+  if (selectedCategories.length > 0) formData.append('categories', JSON.stringify(selectedCategories));
   if (manifest.permissions) formData.append('permissions', JSON.stringify(manifest.permissions));
-  if (manifest.keywords) formData.append('keywords', JSON.stringify(manifest.keywords));
+  if (repoUrl) formData.append('repositoryUrl', repoUrl);
+  if (homepage) formData.append('homepageUrl', homepage);
 
   try {
     const res = await fetch(`${API_URL}/extensions/publish`, {
@@ -247,8 +319,8 @@ const publish = async () => {
 
     if (res.ok) {
       const data = await res.json();
-      print(`\n  Published! ${data.slug || manifest.id}`);
-      print(`  View: https://xplorer.space/extensions/${data.slug || manifest.id}`);
+      print(`\n  ✓ Published! ${data.slug || id}`);
+      print(`  View: https://xplorer.space/extensions/${data.slug || id}\n`);
     } else {
       const err = await res.json().catch(() => ({}));
       error(`Publish failed: ${err.error || res.statusText}`);
