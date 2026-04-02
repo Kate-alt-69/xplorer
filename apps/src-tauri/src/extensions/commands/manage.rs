@@ -18,7 +18,9 @@ pub async fn activate_extension(extension_id: String) -> Result<(), String> {
     validate_extension_id(&extension_id)?;
     let mut manager_guard = EXTENSION_MANAGER.lock().map_err(|e| e.to_string())?;
     if let Some(manager) = manager_guard.as_mut() {
-        manager.activate_extension(&extension_id)
+        // force_trust: true — user explicitly chose to activate this extension.
+        // Signature verification happens at install time; activation is a user decision.
+        manager.activate_extension_with_trust(&extension_id, true)
     } else {
         Err("Extension manager not initialized".to_string())
     }
