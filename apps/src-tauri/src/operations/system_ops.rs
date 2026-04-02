@@ -2,6 +2,8 @@ use tauri::command;
 use tauri::Emitter;
 
 use crate::operations::validate_file_path;
+#[cfg(windows)]
+use crate::operations::get_disk_space;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
