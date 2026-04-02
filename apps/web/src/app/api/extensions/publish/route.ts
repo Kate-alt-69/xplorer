@@ -25,12 +25,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Auth: try web session first, then CLI token
+    let userId: string;
     const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401, headers: corsHeaders(request) },
-      );
+    if (session?.user?.id) {
+      userId = session.user.id;
+    } else {
+      // Try CLI token auth
+      const { verifyCliToken } = await import('@/app/api/cli/route');
+      const cliUser = await verifyCliToken(request);
+      if (cliUser) {
+        userId = cliUser.id;
+      } else {
+        return NextResponse.json(
+          { error: 'Authentication required' },
+          { status: 401, headers: corsHeaders(request) },
+        );
+      }
     }
 
     const formData = await request.formData();
@@ -151,7 +162,7 @@ export async function POST(request: NextRequest) {
       }
 
       const author = await prisma.user.findUnique({
-        where: { id: session.user.id },
+        where: { id: userId },
         select: { stripeConnectOnboarded: true },
       });
 
@@ -180,7 +191,7 @@ export async function POST(request: NextRequest) {
 
       if (existing) {
         // If same author, treat as version update
-        if (existing.authorId === session.user.id) {
+        if (existing.authorId === userId) {
           const { url, downloadUrl } = await uploadExtensionFile(
             file,
             existing.id,
@@ -246,7 +257,7 @@ export async function POST(request: NextRequest) {
           checksum,
           status: 'PENDING',
           isPublished: false,
-          authorId: session.user.id,
+          authorId: userId,
           categories: {
             create: data.categories.map((catSlug: string) => ({
               category: { connect: { slug: catSlug } },

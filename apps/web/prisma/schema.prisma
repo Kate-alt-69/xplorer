@@ -60,6 +60,9 @@ model User {
   stripeConnectAccountId  String?  @unique
   stripeConnectOnboarded  Boolean  @default(false)
 
+  // CLI authentication token
+  cliToken    String?   @unique
+
   // Relations
   accounts   Account[]
   sessions   Session[]
