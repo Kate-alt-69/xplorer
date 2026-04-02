@@ -17,6 +17,12 @@ import * as XplorerSDK from '@xplorer/extension-sdk';
 import { installThemeEventBridge } from './lib/theme-registry';
 installThemeEventBridge();
 
+import { toast } from './hooks/use-toast';
+window.addEventListener('xplorer:extension-toast', ((e: CustomEvent) => {
+  const { title, description, variant } = e.detail;
+  toast({ title, description, variant });
+}) as EventListener);
+
 window.addEventListener('unhandledrejection', (event) => {
   console.error('[Unhandled Promise Rejection]', event.reason);
 });

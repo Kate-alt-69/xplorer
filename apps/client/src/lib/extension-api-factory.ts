@@ -86,11 +86,15 @@ export const createExtensionApi = (manifest: ExtensionManifest, deps: ExtensionA
     },
     ui: {
       showMessage: (message: string, type: 'info' | 'warning' | 'error' = 'info') => {
-        if (type === 'error') {
-          console.error(`[${manifest.name}] ${message}`);
-        } else {
-          console.warn(`[${manifest.name}] ${message}`);
-        }
+        window.dispatchEvent(
+          new CustomEvent('xplorer:extension-toast', {
+            detail: {
+              title: manifest.display_name || manifest.name,
+              description: message,
+              variant: type === 'error' ? 'destructive' : 'default',
+            },
+          }),
+        );
       },
       showInputBox: async (options?: {
         prompt?: string;
