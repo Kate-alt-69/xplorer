@@ -1292,37 +1292,155 @@ pub async fn diagnose_directory(
     Ok(result)
 }
 
-/// Install the `xplorer` CLI command to /usr/local/bin (macOS/Linux).
+/// Install the `xplorer` CLI command to the system PATH.
+/// macOS/Linux: /usr/local/bin/xplorer (shell script)
+/// Windows: %LOCALAPPDATA%\Xplorer\xplorer.cmd (batch file + add to PATH via registry)
 #[command]
 pub async fn install_cli() -> Result<String, String> {
     tokio::task::spawn_blocking(|| {
         #[cfg(target_os = "windows")]
         {
-            Err("CLI install is not yet supported on Windows.".to_string())
+            use std::path::PathBuf;
+
+            let local_app_data = std::env::var("LOCALAPPDATA")
+                .map_err(|_| "LOCALAPPDATA not set".to_string())?;
+            let cli_dir = PathBuf::from(&local_app_data).join("Xplorer");
+            std::fs::create_dir_all(&cli_dir)
+                .map_err(|e| format!("Failed to create CLI directory: {}", e))?;
+
+            // Write xplorer.cmd
+            let cmd_path = cli_dir.join("xplorer.cmd");
+            let script = r#"@echo off
+where node >nul 2>nul
+if %errorlevel% equ 0 (
+    node "%~dp0xplorer.mjs" %*
+) else (
+    if "%~1"=="" (
+        start "" "xplorer://"
+    ) else (
+        start "" "xplorer://%~1"
+    )
+)
+"#;
+            std::fs::write(&cmd_path, script)
+                .map_err(|e| format!("Failed to write CLI script: {}", e))?;
+
+            // Copy the CLI JS if available
+            let exe_dir = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent().map(|d| d.to_path_buf()));
+            if let Some(ref exe) = exe_dir {
+                let src_mjs = exe.join("resources").join("xplorer.mjs");
+                if src_mjs.exists() {
+                    let _ = std::fs::copy(&src_mjs, cli_dir.join("xplorer.mjs"));
+                }
+            }
+
+            // Add to PATH via registry (user-level, no admin needed)
+            let cli_dir_str = cli_dir.to_string_lossy().to_string();
+            let output = std::process::Command::new("reg")
+                .args([
+                    "query", "HKCU\\Environment", "/v", "Path"
+                ])
+                .output()
+                .map_err(|e| format!("Failed to read PATH: {}", e))?;
+
+            let current_path = String::from_utf8_lossy(&output.stdout);
+            if !current_path.contains(&cli_dir_str) {
+                // Extract current PATH value
+                let path_val = current_path
+                    .lines()
+                    .find(|l| l.contains("Path") || l.contains("PATH"))
+                    .and_then(|l| l.split("REG_EXPAND_SZ").nth(1).or_else(|| l.split("REG_SZ").nth(1)))
+                    .map(|v| v.trim().to_string())
+                    .unwrap_or_default();
+
+                let new_path = if path_val.is_empty() {
+                    cli_dir_str.clone()
+                } else {
+                    format!("{};{}", path_val, cli_dir_str)
+                };
+
+                let _ = std::process::Command::new("reg")
+                    .args([
+                        "add", "HKCU\\Environment", "/v", "Path", "/t", "REG_EXPAND_SZ", "/d", &new_path, "/f"
+                    ])
+                    .status();
+
+                // Broadcast environment change
+                let _ = std::process::Command::new("cmd")
+                    .args(["/c", "setx", "XPLORER_CLI_INSTALLED", "1"])
+                    .status();
+            }
+
+            Ok(format!("CLI installed to {}\nRestart your terminal for PATH changes.", cmd_path.display()))
         }
-        #[cfg(not(target_os = "windows"))]
+
+        #[cfg(target_os = "macos")]
         {
             let target = std::path::Path::new("/usr/local/bin/xplorer");
 
-            // Create the CLI wrapper script content
             let script = r#"#!/bin/bash
 APP_PATH="/Applications/Xplorer.app"
-CLI_SCRIPT="$APP_PATH/Contents/Resources/cli/xplorer.mjs"
+CLI_SCRIPT="$APP_PATH/Contents/Resources/xplorer.mjs"
 if [ -f "$CLI_SCRIPT" ] && command -v node &>/dev/null; then
     exec node "$CLI_SCRIPT" "$@"
 fi
-if [ $# -eq 0 ]; then open "$APP_PATH"; elif [ -d "$1" ] || [ -f "$1" ]; then open -a Xplorer "$1"; else echo "Node.js required for full CLI. Install: https://nodejs.org"; exit 1; fi
+if [ $# -eq 0 ]; then open "$APP_PATH"
+elif [ -d "$1" ] || [ -f "$1" ]; then open -a Xplorer "$1"
+else echo "Node.js required for full CLI features."; exit 1; fi
 "#;
 
-            // Write to a temp file then move (needs sudo for /usr/local/bin)
             let tmp = std::env::temp_dir().join("xplorer-cli-install.sh");
             std::fs::write(&tmp, script)
                 .map_err(|e| format!("Failed to write temp script: {}", e))?;
 
-            // Try direct write first, then sudo
             let status = std::process::Command::new("sh")
                 .args(["-c", &format!(
                     "cp '{}' '{}' && chmod +x '{}' 2>/dev/null || osascript -e 'do shell script \"cp \\'{}\\' \\'{}\\' && chmod +x \\'{}\\'\" with administrator privileges'",
+                    tmp.display(), target.display(), target.display(),
+                    tmp.display(), target.display(), target.display()
+                )])
+                .status()
+                .map_err(|e| format!("Failed to install CLI: {}", e))?;
+
+            let _ = std::fs::remove_file(&tmp);
+
+            if status.success() {
+                Ok("CLI installed to /usr/local/bin/xplorer".to_string())
+            } else {
+                Err("Failed to install CLI — admin permission denied.".to_string())
+            }
+        }
+
+        #[cfg(target_os = "linux")]
+        {
+            let target = std::path::Path::new("/usr/local/bin/xplorer");
+
+            // On Linux, the app could be in various locations
+            let script = r#"#!/bin/bash
+CLI_LOCATIONS=(
+    "/opt/Xplorer/resources/xplorer.mjs"
+    "$HOME/.local/share/Xplorer/xplorer.mjs"
+    "/usr/share/xplorer/xplorer.mjs"
+)
+for loc in "${CLI_LOCATIONS[@]}"; do
+    if [ -f "$loc" ] && command -v node &>/dev/null; then
+        exec node "$loc" "$@"
+    fi
+done
+if [ $# -eq 0 ]; then xdg-open "xplorer://" 2>/dev/null || echo "Xplorer not found"
+elif [ -d "$1" ] || [ -f "$1" ]; then xdg-open "xplorer://$(realpath "$1")" 2>/dev/null
+else echo "Node.js required for full CLI features."; exit 1; fi
+"#;
+
+            let tmp = std::env::temp_dir().join("xplorer-cli-install.sh");
+            std::fs::write(&tmp, script)
+                .map_err(|e| format!("Failed to write temp script: {}", e))?;
+
+            let status = std::process::Command::new("sh")
+                .args(["-c", &format!(
+                    "cp '{}' '{}' && chmod +x '{}' 2>/dev/null || pkexec cp '{}' '{}' && pkexec chmod +x '{}'",
                     tmp.display(), target.display(), target.display(),
                     tmp.display(), target.display(), target.display()
                 )])
