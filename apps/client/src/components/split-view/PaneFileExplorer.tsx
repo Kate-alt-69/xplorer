@@ -98,6 +98,33 @@ const PaneFileExplorer = React.memo(
   }: PaneFileExplorerProps) => {
     const [showSizeBadges, setShowSizeBadges] = useState(false);
     const toggleSizeBadges = useCallback(() => setShowSizeBadges((prev) => !prev), []);
+
+    // Preserve scroll position across file list refetches (hot-reload, file changes)
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const savedScrollTopRef = useRef<number>(0);
+    const prevFilesLenRef = useRef<number>(0);
+
+    // Save scroll position before files change
+    useEffect(() => {
+      if (scrollContainerRef.current) {
+        savedScrollTopRef.current = scrollContainerRef.current.scrollTop;
+      }
+    });
+
+    // Restore scroll position after files update (only if same folder, not navigation)
+    useEffect(() => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      // Only restore if the file count is similar (refetch, not navigation)
+      const prevLen = prevFilesLenRef.current;
+      const newLen = sortedFiles.length;
+      if (prevLen > 0 && Math.abs(newLen - prevLen) < prevLen * 0.5) {
+        requestAnimationFrame(() => {
+          container.scrollTop = savedScrollTopRef.current;
+        });
+      }
+      prevFilesLenRef.current = newLen;
+    }, [sortedFiles]);
     const clipboardCtx = useClipboardContext();
 
     // ── Smart view detection ──────────────────────────────────────────────────
@@ -214,7 +241,7 @@ const PaneFileExplorer = React.memo(
           hasClipboard={clipboardCtx.hasClipboard}
         />
 
-        <div className="flex-1 overflow-auto p-4">
+        <div ref={scrollContainerRef} className="flex-1 overflow-auto p-4">
           <FileGrid
             files={displayFiles}
             fileGroups={colorFilter ? null : fileGroups}
