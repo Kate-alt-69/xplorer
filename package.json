@@ -15,6 +15,7 @@
     "dev": "concurrently \"pnpm run frontend:dev\" \"pnpm run tauri:dev\" \"pnpm run marketplace:dev\"",
     "dev:app": "concurrently \"pnpm run frontend:dev\" \"pnpm run tauri:dev\"",
     "extensions:build": "node scripts/build-extensions.mjs",
+    "extensions:sign": "node scripts/sign-all-extensions.mjs",
     "extensions:dev": "node scripts/build-extensions.mjs --watch",
     "marketplace:dev": "pnpm --filter xplorer-web run dev",
     "marketplace:db": "docker compose -f infra/docker-compose.yml up -d postgres",
