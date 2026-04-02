@@ -221,7 +221,7 @@
       "contextMenu": "Context Menu",
       "contextMenuDesc": "Right-click menu rules",
       "ai": "AI Agent",
-      "aiDesc": "Claude integration",
+      "aiDesc": "AI provider settings",
       "permissions": "Permissions",
       "permissionsDesc": "Agent tool & path access",
       "indexing": "Indexing",

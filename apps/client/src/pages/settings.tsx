@@ -77,7 +77,7 @@ const tabs: { id: SettingsTab; label: string; icon: React.ElementType; descripti
     icon: MousePointerClick,
     description: 'Right-click menu rules',
   },
-  { id: 'ai', label: 'AI Agent', icon: Bot, description: 'Claude integration' },
+  { id: 'ai', label: 'AI Agent', icon: Bot, description: 'AI provider settings' },
   {
     id: 'permissions',
     label: 'Permissions',

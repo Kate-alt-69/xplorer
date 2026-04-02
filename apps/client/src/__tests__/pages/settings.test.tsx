@@ -237,7 +237,7 @@ describe('Settings Page', () => {
       await waitFor(() => {
         expect(navSection.getByText('Appearance, layout & system')).toBeInTheDocument();
         expect(navSection.getByText('Views & file display')).toBeInTheDocument();
-        expect(navSection.getByText('Claude integration')).toBeInTheDocument();
+        expect(navSection.getByText('AI provider settings')).toBeInTheDocument();
       });
     });
 
