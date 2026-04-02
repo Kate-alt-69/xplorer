@@ -123,9 +123,9 @@ const openFolder = (folderPath) => {
 const login = async () => {
   // Generate a device code and poll for token (simplified: use API key for now)
   print('Login to xplorer.space\n');
-  print('Go to: https://xplorer.space/auth/signin');
-  print('After signing in, go to: https://xplorer.space/dashboard');
-  print('Copy your API token from Settings.\n');
+  print('1. Go to: https://xplorer.space/auth/signin');
+  print('2. After signing in, go to: https://xplorer.space/dashboard/settings');
+  print('3. Click "Generate CLI Token" and copy it.\n');
 
   // Read token from stdin
   process.stdout.write('Paste your API token: ');
@@ -146,13 +146,13 @@ const login = async () => {
 
   // Verify the token
   try {
-    const res = await fetch(`${API_URL}/user/dashboard`, {
+    const res = await fetch(`${API_URL}/user/token`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (res.ok) {
       const user = await res.json();
       saveToken(token, user);
-      print(`\nLogged in as ${user.name || user.email || 'user'}`);
+      print(`\nLogged in as ${user.name || user.username || user.email || 'user'}`);
     } else {
       error('Invalid token. Please check and try again.');
     }
