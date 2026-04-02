@@ -212,16 +212,61 @@ const publish = async () => {
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
   const manifest = pkg.xplorer || {};
 
-  print('\n  Xplorer Extension Publisher\n');
-  print('  Fill in the details below. Press Enter to accept defaults shown in [brackets].\n');
+  const id = manifest.id || pkg.name;
+  if (!id) error('No extension ID found in package.json xplorer.id');
 
-  // Interactive prompts with defaults from package.json
-  const id = await ask(`  Extension ID [${manifest.id || pkg.name || ''}]: `) || manifest.id || pkg.name;
-  if (!id) error('Extension ID is required.');
+  print('\n  Xplorer Extension Publisher\n');
+
+  // Check current published version
+  const currentVersion = manifest.version || pkg.version || '1.0.0';
+  let publishedVersion = null;
+  try {
+    const checkRes = await fetch(`${API_URL}/extensions/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (checkRes.ok) {
+      const data = await checkRes.json();
+      publishedVersion = data.version || data.extension?.version;
+    }
+  } catch { /* not published yet */ }
+
+  let version = currentVersion;
+  if (publishedVersion) {
+    print(`  Currently published: v${publishedVersion}`);
+    if (publishedVersion === currentVersion) {
+      // Suggest bumps
+      const parts = currentVersion.split('.').map(Number);
+      const patch = `${parts[0]}.${parts[1]}.${parts[2] + 1}`;
+      const minor = `${parts[0]}.${parts[1] + 1}.0`;
+      const major = `${parts[0] + 1}.0.0`;
+      print(`  Same version — pick a bump:`);
+      print(`    1. Patch → ${patch}`);
+      print(`    2. Minor → ${minor}`);
+      print(`    3. Major → ${major}`);
+      print(`    4. Custom`);
+      const bumpChoice = await ask('  Bump [1]: ') || '1';
+      if (bumpChoice === '2') version = minor;
+      else if (bumpChoice === '3') version = major;
+      else if (bumpChoice === '4') version = await ask(`  Version: `);
+      else version = patch;
+
+      // Update package.json with new version
+      if (manifest.version) pkg.xplorer.version = version;
+      else pkg.version = version;
+      writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+      print(`  Version bumped to ${version} in package.json`);
+    } else {
+      print(`  New version: v${currentVersion} (published: v${publishedVersion})`);
+    }
+  } else {
+    print(`  First publish: v${currentVersion}`);
+  }
+
+  print('');
+  print('  Fill in the details below. Press Enter to accept defaults.\n');
 
   const displayName = await ask(`  Display Name [${manifest.displayName || manifest.name || id}]: `) || manifest.displayName || manifest.name || id;
   const description = await ask(`  Description [${manifest.description || pkg.description || ''}]: `) || manifest.description || pkg.description || '';
-  const version = await ask(`  Version [${manifest.version || pkg.version || '1.0.0'}]: `) || manifest.version || pkg.version || '1.0.0';
 
   // Category selection
   print('\n  Categories (pick up to 3, comma-separated numbers):');
@@ -231,7 +276,18 @@ const publish = async () => {
     ? catInput.split(',').map(n => CATEGORIES[parseInt(n.trim()) - 1]).filter(Boolean)
     : (manifest.categories || []);
 
-  const icon = await ask(`  Icon (lucide icon name) [${manifest.icon || ''}]: `) || manifest.icon || '';
+  // Icon: read SVG file if exists, or use manifest icon
+  let icon = manifest.icon || '';
+  const iconPath = resolve('icon.svg');
+  if (existsSync(iconPath)) {
+    icon = readFileSync(iconPath, 'utf-8');
+    print(`  Icon: using icon.svg`);
+  } else {
+    const iconInput = await ask(`  Icon SVG file path [${icon ? 'from manifest' : 'none'}]: `);
+    if (iconInput && existsSync(resolve(iconInput))) {
+      icon = readFileSync(resolve(iconInput), 'utf-8');
+    }
+  }
   const repoUrl = await ask(`  Repository URL [${pkg.repository?.url || ''}]: `) || pkg.repository?.url || '';
   const homepage = await ask(`  Homepage URL [${pkg.homepage || ''}]: `) || pkg.homepage || '';
   const license = await ask(`  License [${pkg.license || 'MIT'}]: `) || pkg.license || 'MIT';
