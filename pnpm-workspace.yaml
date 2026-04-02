@@ -10,3 +10,7 @@ packages:
 onlyBuiltDependencies:
   - '@tailwindcss/oxide'
   - esbuild
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - sharp
