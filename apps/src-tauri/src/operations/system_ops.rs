@@ -1291,3 +1291,53 @@ pub async fn diagnose_directory(
 
     Ok(result)
 }
+
+/// Install the `xplorer` CLI command to /usr/local/bin (macOS/Linux).
+#[command]
+pub async fn install_cli() -> Result<String, String> {
+    tokio::task::spawn_blocking(|| {
+        #[cfg(target_os = "windows")]
+        {
+            Err("CLI install is not yet supported on Windows.".to_string())
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let target = std::path::Path::new("/usr/local/bin/xplorer");
+
+            // Create the CLI wrapper script content
+            let script = r#"#!/bin/bash
+APP_PATH="/Applications/Xplorer.app"
+CLI_SCRIPT="$APP_PATH/Contents/Resources/cli/xplorer.mjs"
+if [ -f "$CLI_SCRIPT" ] && command -v node &>/dev/null; then
+    exec node "$CLI_SCRIPT" "$@"
+fi
+if [ $# -eq 0 ]; then open "$APP_PATH"; elif [ -d "$1" ] || [ -f "$1" ]; then open -a Xplorer "$1"; else echo "Node.js required for full CLI. Install: https://nodejs.org"; exit 1; fi
+"#;
+
+            // Write to a temp file then move (needs sudo for /usr/local/bin)
+            let tmp = std::env::temp_dir().join("xplorer-cli-install.sh");
+            std::fs::write(&tmp, script)
+                .map_err(|e| format!("Failed to write temp script: {}", e))?;
+
+            // Try direct write first, then sudo
+            let status = std::process::Command::new("sh")
+                .args(["-c", &format!(
+                    "cp '{}' '{}' && chmod +x '{}' 2>/dev/null || osascript -e 'do shell script \"cp \\'{}\\' \\'{}\\' && chmod +x \\'{}\\'\" with administrator privileges'",
+                    tmp.display(), target.display(), target.display(),
+                    tmp.display(), target.display(), target.display()
+                )])
+                .status()
+                .map_err(|e| format!("Failed to install CLI: {}", e))?;
+
+            let _ = std::fs::remove_file(&tmp);
+
+            if status.success() {
+                Ok("CLI installed to /usr/local/bin/xplorer".to_string())
+            } else {
+                Err("Failed to install CLI — admin permission denied.".to_string())
+            }
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}

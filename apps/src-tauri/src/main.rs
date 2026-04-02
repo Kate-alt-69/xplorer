@@ -227,6 +227,7 @@ fn main() {
             operations::find_files,
             operations::search_in_files,
             operations::get_app_version,
+            operations::install_cli,
             operations::show_in_folder,
             operations::list_drives,
             operations::eject_volume,
