@@ -1,6 +1,6 @@
 # Xplorer Extensions
 
-A collection of 42 extensions for [Xplorer](https://github.com/kimlimjustin/xplorer), the modern file explorer.
+A collection of 25 extensions for [Xplorer](https://github.com/kimlimjustin/xplorer), the modern file explorer.
 
 > **Note:** All of these extensions are vibe coded. They were built rapidly with AI assistance and may contain rough edges. Contributions and bug reports are welcome!
 

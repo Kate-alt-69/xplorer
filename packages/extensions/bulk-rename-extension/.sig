@@ -1,7 +1,0 @@
-{
-  "hash": "02977df8724023fa03f7039dcbd4f2eef851e6fa623db8db5331420e5036f8db",
-  "signer": "Xplorer Team",
-  "timestamp": "2026-04-02T03:01:12.102Z",
-  "verified": true,
-  "ed25519_signature": "ded96a2ee6e387c36792b11e338440972001482ace2c7a785148584bed8ec13e0c2677480f794a4458e14ce76d39aa039cef6eb71299947bc73bab98460ed501"
-}

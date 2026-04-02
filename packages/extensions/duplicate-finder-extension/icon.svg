@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect x="8" y="8" width="48" height="48" rx="12" fill="#f7768e" opacity="0.15"/>
-  <circle cx="28" cy="28" r="14" fill="none" stroke="#f7768e" stroke-width="3"/>
-  <line x1="38" y1="38" x2="52" y2="52" stroke="#f7768e" stroke-width="3.5" stroke-linecap="round"/>
-  <text x="18" y="34" font-family="monospace" font-size="13" font-weight="bold" fill="#f7768e">2x</text>
-</svg>
