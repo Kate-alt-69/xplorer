@@ -15,7 +15,7 @@
  */
 
 import { resolve, join } from 'path';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, unlinkSync } from 'fs';
 import { execSync } from 'child_process';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
@@ -324,27 +324,36 @@ const publish = async () => {
     error('No dist/index.js found after build.');
   }
 
-  // Package zip (include .sig if it exists)
+  // Package zip using tar+gzip (no external deps needed)
   print('  Packaging...');
-  const { default: JSZip } = await import('jszip');
-  const zip = new JSZip();
-  zip.file('package.json', readFileSync(pkgPath));
-  zip.file('dist/index.js', readFileSync(distPath));
+  const { execSync: execSyncPkg } = await import('child_process');
+  const tmpZip = join(homedir(), `.xplorer-publish-${Date.now()}.zip`);
+  const filesToZip = ['package.json', 'dist/index.js'];
 
   const sigPath = resolve('.sig');
   if (existsSync(sigPath)) {
-    zip.file('.sig', readFileSync(sigPath));
+    filesToZip.push('.sig');
     print('  Including .sig (signed extension)');
   }
-
-  // Include README if exists
   const readmePath = resolve('README.md');
-  if (existsSync(readmePath)) {
-    zip.file('README.md', readFileSync(readmePath));
+  if (existsSync(readmePath)) filesToZip.push('README.md');
+  const iconZipPath = resolve('icon.svg');
+  if (existsSync(iconZipPath)) filesToZip.push('icon.svg');
+
+  try {
+    execSyncPkg(`zip -j "${tmpZip}" ${filesToZip.map(f => `"${f}"`).join(' ')}`, { stdio: 'pipe' });
+  } catch {
+    // Fallback: try with tar if zip not available
+    try {
+      execSyncPkg(`tar czf "${tmpZip}" ${filesToZip.join(' ')}`, { stdio: 'pipe' });
+    } catch {
+      error('Failed to create package. Install zip or tar.');
+    }
   }
 
-  const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+  const zipBuffer = readFileSync(tmpZip);
   const checksum = createHash('sha256').update(zipBuffer).digest('hex');
+  try { unlinkSync(tmpZip); } catch { /* ignore */ }
 
   // Upload
   print('  Uploading to xplorer.space...');
