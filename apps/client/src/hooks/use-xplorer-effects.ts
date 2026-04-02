@@ -594,9 +594,13 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
     );
   }, [currentPath]);
 
-  // ── Auto-start onboarding tour ────────────────────────────────────────────
+  // Auto-start onboarding tour only on truly first launch (never seen the app before)
   useEffect(() => {
-    if (!isTourCompleted()) {
+    // If any setting exists in localStorage, user has used the app before — skip tour
+    const hasUsedApp =
+      localStorage.getItem('xplorer:settings') !== null ||
+      localStorage.getItem('xplorer:tour-completed') === 'true';
+    if (!hasUsedApp && !isTourCompleted()) {
       const timer = setTimeout(() => startTour(), 800);
       return () => clearTimeout(timer);
     }
