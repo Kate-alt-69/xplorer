@@ -461,6 +461,10 @@
       "title": "Pintasan Keyboard",
       "description": "Xplorer dibangun untuk alur kerja berbasis keyboard. Buka Pengaturan > Pintasan untuk melihat dan menyesuaikan semua pengikatan tombol."
     },
+    "commandPalette": {
+      "title": "Palet Perintah",
+      "description": "Tekan Ctrl+Shift+P untuk membuka Palet Perintah — akses instan ke setiap tindakan, perintah ekstensi, dan file. Ketik > untuk perintah atau mulai mengetik untuk mencari file."
+    },
     "extensionPacks": {
       "title": "Paket Ekstensi",
       "description": "Tingkatkan Xplorer dengan paket ekstensi! Buka Marketplace untuk menjelajahi koleksi kurasi seperti Alat Pengembang, Produktivitas, dan Media. Pasang seluruh paket dengan satu klik."

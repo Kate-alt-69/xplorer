@@ -63,6 +63,13 @@ export const getTourSteps = (): TourStep[] => {
       icon: 'Keyboard',
     },
     {
+      target: null,
+      title: i18n.t('tour.commandPalette.title'),
+      description: i18n.t('tour.commandPalette.description'),
+      placement: 'center',
+      icon: 'Command',
+    },
+    {
       target: 'extensions-bar',
       title: i18n.t('tour.extensionPacks.title'),
       description: i18n.t('tour.extensionPacks.description'),

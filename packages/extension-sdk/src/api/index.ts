@@ -177,8 +177,14 @@ export const Theme = {
   register(config: ThemeConfig): void {
     // HIGH-11: Validate color values before generating CSS
     validateThemeColors(config.colors);
-    if (config.background && !isValidCssColor(config.background)) {
-      throw new Error(`[SDK] Invalid CSS background value: "${config.background}"`);
+    if (config.background) {
+      const isSafeBackground =
+        isValidCssColor(config.background) ||
+        /^(linear|radial|conic)-gradient\s*\([^;{}]*\)$/.test(config.background.trim());
+      const hasDangerousContent = /[;{}]|url\s*\(|@import|expression\s*\(/i.test(config.background);
+      if (!isSafeBackground || hasDangerousContent) {
+        throw new Error(`[SDK] Invalid CSS background value: "${config.background}"`);
+      }
     }
 
     // Sanitize any custom CSS provided by the extension

@@ -461,6 +461,10 @@
       "title": "键盘快捷键",
       "description": "Xplorer 专为键盘驱动的工作流而设计。前往设置 > 快捷键查看和自定义所有键位绑定。"
     },
+    "commandPalette": {
+      "title": "命令面板",
+      "description": "按 Ctrl+Shift+P 打开命令面板——即时访问所有操作、扩展命令和文件。输入 > 搜索命令，或直接输入搜索文件。"
+    },
     "extensionPacks": {
       "title": "扩展包",
       "description": "使用扩展包增强 Xplorer！打开扩展市场浏览开发工具、生产力、媒体等精选集合。一键安装整个扩展包。"
