@@ -276,17 +276,14 @@ const publish = async () => {
     ? catInput.split(',').map(n => CATEGORIES[parseInt(n.trim()) - 1]).filter(Boolean)
     : (manifest.categories || []);
 
-  // Icon: read SVG file if exists, or use manifest icon
-  let icon = manifest.icon || '';
+  // Icon: auto-read icon.svg if exists
+  let icon = '';
   const iconPath = resolve('icon.svg');
   if (existsSync(iconPath)) {
     icon = readFileSync(iconPath, 'utf-8');
-    print(`  Icon: using icon.svg`);
+    print(`  Icon: icon.svg ✓`);
   } else {
-    const iconInput = await ask(`  Icon SVG file path [${icon ? 'from manifest' : 'none'}]: `);
-    if (iconInput && existsSync(resolve(iconInput))) {
-      icon = readFileSync(resolve(iconInput), 'utf-8');
-    }
+    print(`  Icon: no icon.svg found (skipped)`);
   }
   const repoUrl = await ask(`  Repository URL [${pkg.repository?.url || ''}]: `) || pkg.repository?.url || '';
   const homepage = await ask(`  Homepage URL [${pkg.homepage || ''}]: `) || pkg.homepage || '';
