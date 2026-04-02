@@ -46,7 +46,7 @@ async function getExtension(slug: string) {
     },
   });
 
-  if (!extension || !extension.isPublished) return null;
+  if (!extension || !extension.isPublished || extension.status === 'ARCHIVED') return null;
 
   return {
     ...extension,

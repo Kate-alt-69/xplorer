@@ -2,6 +2,7 @@ import React from 'react';
 import { TauriAPI } from './tauri-api';
 import { listen } from '@tauri-apps/api/event';
 import { resolveIcon } from './extension-host-icon';
+import { registerTheme } from './theme-registry';
 import {
   EventBus,
   type ExtensionManifest,
@@ -1052,6 +1053,33 @@ class ExtensionHost {
         this.cleanupExtension(id);
         return;
       }
+    }
+
+    // Fallback: if a theme style element was injected but CustomEvent didn't
+    // reach the theme registry (sandboxed window, timing, etc.), register directly
+    const themeStyleEl = document.getElementById(`theme-${id}`);
+    if (themeStyleEl && ext.manifest.category === 'theme') {
+      const instManifest = (inst as Record<string, unknown> | undefined)?.manifest as
+        | Record<string, unknown>
+        | undefined;
+      const themeName =
+        (instManifest?.displayName as string) ||
+        (instManifest?.name as string) ||
+        ext.manifest.display_name ||
+        ext.manifest.name;
+      // Parse CSS variables from the injected style to extract theme colors
+      const cssText = themeStyleEl.textContent || '';
+      const extractVar = (name: string): string => {
+        const match = cssText.match(new RegExp(`${name}:\\s*([^;]+)`));
+        return match ? match[1].trim() : '';
+      };
+      registerTheme(id, {
+        name: themeName,
+        primary: extractVar('--xp-blue'),
+        bg: extractVar('--xp-bg'),
+        surface: extractVar('--xp-surface'),
+        text: extractVar('--xp-text'),
+      });
     }
 
     ext.isActive = true;

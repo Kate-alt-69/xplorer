@@ -187,8 +187,19 @@ export const Theme = {
     let styleEl: HTMLStyleElement | null = null;
     const css = generateThemeCSS(config.id, config.colors, config.background, sanitizedExtraCss);
 
-    register((_api: unknown) => ({
-      activate: () => {
+    const extension = {
+      manifest: {
+        id: config.id,
+        name: config.name,
+        displayName: config.name,
+        version: '1.0.0',
+        author: 'Extension',
+        category: 'theme' as const,
+        description: `${config.name} theme`,
+        permissions: [],
+      },
+
+      activate() {
         styleEl = document.createElement('style');
         styleEl.id = `theme-${config.id}`;
         styleEl.textContent = css;
@@ -207,7 +218,8 @@ export const Theme = {
           }),
         );
       },
-      deactivate: () => {
+
+      deactivate() {
         if (styleEl) {
           styleEl.remove();
           styleEl = null;
@@ -218,7 +230,9 @@ export const Theme = {
           }),
         );
       },
-    }));
+    };
+
+    register(extension);
   },
 };
 

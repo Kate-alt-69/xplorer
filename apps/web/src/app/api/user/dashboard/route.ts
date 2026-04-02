@@ -11,7 +11,7 @@ export async function GET() {
   const userId = session.user.id;
 
   const extensions = await prisma.extension.findMany({
-    where: { authorId: userId },
+    where: { authorId: userId, status: { not: 'ARCHIVED' } },
     include: {
       _count: { select: { reviews: true, versions: true } },
       categories: { include: { category: { select: { name: true, slug: true } } } },
