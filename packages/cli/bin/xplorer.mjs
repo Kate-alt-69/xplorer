@@ -364,11 +364,14 @@ const publish = async () => {
   formData.append('displayName', displayName);
   formData.append('description', description);
   formData.append('version', version);
-  formData.append('license', license);
-  formData.append('pricing', pricing);
+  formData.append('licenseType', license);
+  formData.append('pricingType', pricing === 'paid' ? 'PAID' : 'FREE');
   formData.append('icon', icon);
   formData.append('checksum', checksum);
-  if (selectedCategories.length > 0) formData.append('categories', JSON.stringify(selectedCategories));
+  if (selectedCategories.length > 0) {
+    const categorySlugs = selectedCategories.map(c => c.toLowerCase().replace(/\s+/g, '-'));
+    formData.append('categories', JSON.stringify(categorySlugs));
+  }
   if (manifest.permissions) formData.append('permissions', JSON.stringify(manifest.permissions));
   if (repoUrl) formData.append('repositoryUrl', repoUrl);
   if (homepage) formData.append('homepageUrl', homepage);
