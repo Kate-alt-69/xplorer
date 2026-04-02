@@ -55,6 +55,7 @@ const apiFetch = async (path, options = {}) => {
   const token = loadToken();
   const headers = {
     'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
@@ -375,7 +376,7 @@ const publish = async () => {
   try {
     const res = await fetch(`${API_URL}/extensions/publish`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, 'X-Requested-With': 'XMLHttpRequest' },
       body: formData,
     });
 
