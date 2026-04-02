@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { invoke } from '@tauri-apps/api/core';
 import { TauriAPI } from '@/lib/tauri-api';
 import { extensionHost } from '@/lib/extension-host';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +32,19 @@ import MarketplacePagination from './marketplace/MarketplacePagination';
 import { MARKETPLACE_API_URL } from '@/lib/constants';
 
 const getMarketplaceApi = (): string => MARKETPLACE_API_URL;
+
+/** Fetch marketplace API via Rust proxy to avoid CORS. Falls back to direct fetch. */
+const marketplaceFetch = async (url: string): Promise<unknown> => {
+  try {
+    const text = await invoke<string>('marketplace_proxy', { url });
+    return JSON.parse(text);
+  } catch {
+    // Fallback to direct fetch (works if CORS is configured)
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+};
 
 export interface MarketplaceExtension {
   id: string;
@@ -229,12 +243,10 @@ const MarketplacePanel = () => {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${getMarketplaceApi()}/categories`);
-      if (response.ok) {
-        const data = await response.json();
-        setCategories(data.categories || data);
-        return;
-      }
+      const data = (await marketplaceFetch(`${getMarketplaceApi()}/categories`)) as {
+        categories?: MarketplaceCategory[];
+      };
+      if (data.categories) setCategories(data.categories);
     } catch {
       // Remote marketplace not available
     }
@@ -269,11 +281,9 @@ const MarketplacePanel = () => {
         params.set('page', String(page));
         params.set('limit', '20');
 
-        const response = await fetch(`${getMarketplaceApi()}/extensions?${params.toString()}`);
-        if (!response.ok) {
-          throw new Error(`Server responded with ${response.status}`);
-        }
-        const data = await response.json();
+        const data = (await marketplaceFetch(
+          `${getMarketplaceApi()}/extensions?${params.toString()}`,
+        )) as { extensions?: MarketplaceExtension[]; pagination?: PaginationInfo };
         setExtensions(data.extensions || []);
         setPagination(
           data.pagination || {

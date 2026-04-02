@@ -327,6 +327,7 @@ fn main() {
             extensions::download_extension,
             extensions::check_extension_updates,
             extensions::pack_extension,
+            extensions::marketplace_proxy,
             extensions::install_xtension_file,
             extensions::inspect_xtension_file,
             // WASM backend operations
