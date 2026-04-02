@@ -1,4 +1,4 @@
-import React, { useSyncExternalStore } from 'react';
+import React, { useState, useEffect, useSyncExternalStore } from 'react';
 import { useLocation } from 'wouter';
 import { extensionHost } from '@/lib/extension-host';
 import { Eye, Search, Puzzle, ShoppingCart, Settings, Activity } from 'lucide-react';
@@ -20,13 +20,20 @@ const VerticalExtensionsBar = ({
 }: VerticalExtensionsBarProps) => {
   const [, setLocation] = useLocation();
 
-  // useSyncExternalStore ensures React 18 concurrent mode re-renders
-  // whenever the extension host state changes — no stale reads
+  // useSyncExternalStore ensures re-renders when extension host state changes
   const version = useSyncExternalStore(extensionHost.subscribe, extensionHost.getSnapshotVersion);
+
+  // Safety net: poll once after extensions have had time to load (1.5s)
+  // This catches cases where useSyncExternalStore subscription misses early notifications
+  const [, forceRender] = useState(0);
+  useEffect(() => {
+    const timer = setTimeout(() => forceRender((n) => n + 1), 1500);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Dynamic panels from extension host (re-read on every version change)
   const registeredPanels = extensionHost.getRegisteredPanels();
-  void version; // consumed by the store subscription
+  void version;
 
   // Core panels (always shown, part of the app core)
   const corePanels = [
