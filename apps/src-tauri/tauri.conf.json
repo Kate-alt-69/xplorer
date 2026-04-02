@@ -45,9 +45,9 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "resources": [
-      "../../packages/cli/bin/xplorer.mjs"
-    ],
+    "resources": {
+      "../../packages/cli/bin/xplorer.mjs": "xplorer.mjs"
+    },
     "icon": [
       "icons/icon.png",
       "icons/icon.ico"
