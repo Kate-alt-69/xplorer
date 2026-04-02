@@ -359,7 +359,7 @@ const publish = async () => {
   // Upload
   print('  Uploading to xplorer.space...');
   const formData = new FormData();
-  formData.append('file', new Blob([zipBuffer]), `${id}.zip`);
+  formData.append('file', new Blob([zipBuffer], { type: 'application/zip' }), `${id}.zip`);
   formData.append('name', id);
   formData.append('displayName', displayName);
   formData.append('description', description);

@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
     }
 
     // MED-29: Content-Type validation
-    if (file.type !== 'application/zip' && file.type !== 'application/x-zip-compressed') {
+    const validZipTypes = ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'];
+    if (!validZipTypes.includes(file.type)) {
       return NextResponse.json(
         { error: 'Invalid file type. Only ZIP files are accepted.' },
         { status: 400, headers: corsHeaders(request) },
