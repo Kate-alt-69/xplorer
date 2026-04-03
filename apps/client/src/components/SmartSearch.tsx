@@ -7,7 +7,13 @@ import React, {
   forwardRef,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { TauriAPI, SearchResult, SearchMatch, StructuredQuery } from '@/lib/tauri-api';
+import {
+  TauriAPI,
+  SearchResult,
+  SearchMatch,
+  StructuredQuery,
+  type GrepSearchMatch,
+} from '@/lib/tauri-api';
 import { useToast } from '@/hooks/use-toast';
 import { getSavedSearches, saveSearch, type SavedSearch } from '@/lib/saved-searches';
 import {
@@ -163,6 +169,9 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
 
     const [savedSearches, setSavedSearches] = useState<SavedSearch[]>(() => getSavedSearches());
     const [showSavedSearches, setShowSavedSearches] = useState(false);
+    const [grepResults, setGrepResults] = useState<GrepSearchMatch[]>([]);
+    const [isGrepSearching, setIsGrepSearching] = useState(false);
+    const [grepTriggered, setGrepTriggered] = useState(false);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
     const abortRef = useRef<AbortController | null>(null);
@@ -408,6 +417,13 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
       };
     }, [query, debouncedSearch]);
 
+    // Reset grep state when query changes
+    useEffect(() => {
+      setGrepResults([]);
+      setGrepTriggered(false);
+      setIsGrepSearching(false);
+    }, [query]);
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
       if (!showResults || results.length === 0) return;
       switch (e.key) {
@@ -440,6 +456,8 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
       setSelectedIndex(-1);
       setParsedQuery(null);
       setTokenChips([]);
+      setGrepResults([]);
+      setGrepTriggered(false);
       // A result is a directory if its filename has no extension (no dot after last separator)
       const hasExt = result.filename.includes('.') && !result.filename.startsWith('.');
       onFileSelect?.(result.path, !hasExt);
@@ -460,8 +478,51 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
       }
     };
 
+    const handleGrepSearch = async () => {
+      const searchPath =
+        currentPath && !currentPath.startsWith('xplorer://') ? currentPath : undefined;
+      if (!searchPath || !query.trim()) return;
+
+      setIsGrepSearching(true);
+      setGrepTriggered(true);
+      setGrepResults([]);
+
+      try {
+        const matches = await TauriAPI.grepSearch(query.trim(), searchPath, 200);
+        setGrepResults(matches);
+      } catch (err) {
+        console.error('Grep search failed:', err);
+        setGrepResults([]);
+      } finally {
+        setIsGrepSearching(false);
+      }
+    };
+
+    // Auto-trigger grep search when local search returns no filename matches
+    useEffect(() => {
+      if (
+        showResults &&
+        !isSearching &&
+        query.trim().length >= 2 &&
+        results.length === 0 &&
+        !grepTriggered &&
+        !isGrepSearching &&
+        searchProvider === 'local'
+      ) {
+        handleGrepSearch();
+      }
+    }, [
+      showResults,
+      isSearching,
+      query,
+      results.length,
+      grepTriggered,
+      isGrepSearching,
+      searchProvider,
+    ]);
+
     const handleFocus = () => {
-      if (results.length > 0) setShowResults(true);
+      if (results.length > 0 || grepResults.length > 0) setShowResults(true);
     };
 
     const handleBlur = (e: React.FocusEvent) => {
@@ -790,6 +851,8 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                   setSelectedIndex(-1);
                   setParsedQuery(null);
                   setTokenChips([]);
+                  setGrepResults([]);
+                  setGrepTriggered(false);
                   searchInputRef.current?.focus();
                 }}
                 className="text-xp-text-muted hover:text-xp-text"
@@ -946,35 +1009,164 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
           </div>
         )}
 
-        {/* No Results */}
+        {/* No Results / Grep Results */}
         {showResults && !isSearching && query.trim() && results.length === 0 && (
-          <div className="bg-xp-popover border-xp-border absolute left-0 right-0 top-full z-50 mt-1 rounded-lg border p-4 text-center shadow-xl backdrop-blur-xl">
-            <div className="text-xp-text-secondary">
-              <svg
-                className="text-xp-text-muted mx-auto mb-2 h-8 w-8"
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              <p className="text-xp-text text-sm">{t('smartSearch.noResults', { query })}</p>
-              <p className="text-xp-text-muted mt-1 text-xs">{t('smartSearch.noResultsHint')}</p>
-              {searchProvider === 'local' && (
-                <button
-                  onClick={() => {
-                    setSearchProvider('claude');
-                    debouncedSearch(query);
-                  }}
-                  className="mt-2 text-xs text-purple-400 hover:text-purple-300"
-                >
-                  {t('smartSearch.tryAiSearch')}
-                </button>
-              )}
-            </div>
+          <div className="bg-xp-popover border-xp-border absolute left-0 right-0 top-full z-50 mt-1 max-h-96 overflow-y-auto rounded-lg border shadow-xl backdrop-blur-xl">
+            {/* Grep results */}
+            {grepResults.length > 0 && (
+              <div>
+                <div className="bg-xp-bg border-xp-border text-xp-text-muted border-b px-3 py-2 text-xs font-semibold uppercase tracking-wider">
+                  {t('smartSearch.contentMatches', { count: grepResults.length })}
+                </div>
+                {grepResults.map((match) => (
+                  <button
+                    key={`${match.file}:${match.line}`}
+                    onClick={() => {
+                      setShowResults(false);
+                      setQuery('');
+                      setResults([]);
+                      setGrepResults([]);
+                      setGrepTriggered(false);
+                      setTokenChips([]);
+                      onFileSelect?.(match.file, false);
+                    }}
+                    className="hover:bg-xp-surface-light border-xp-border w-full border-b p-2 text-left transition-colors last:border-b-0"
+                  >
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-xp-blue flex-shrink-0 text-xs font-medium">
+                        {match.filename}
+                      </span>
+                      <span className="text-xp-text-muted flex-shrink-0 font-mono text-xs">
+                        :{match.line}
+                      </span>
+                    </div>
+                    <div className="text-xp-text mt-0.5 truncate font-mono text-xs">
+                      {(() => {
+                        const trimmed = match.content.trim();
+                        const queryLower = query.toLowerCase();
+                        const escaped = queryLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        const regex = new RegExp(`(${escaped})`, 'gi');
+                        const parts = trimmed.split(regex);
+                        return parts.map((part, i) =>
+                          part.toLowerCase() === queryLower ? (
+                            // eslint-disable-next-line react/no-array-index-key
+                            <mark key={i} className="rounded bg-yellow-300 bg-opacity-30 px-0.5">
+                              {part}
+                            </mark>
+                          ) : (
+                            // eslint-disable-next-line react/no-array-index-key
+                            <span key={i}>{part}</span>
+                          ),
+                        );
+                      })()}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* No results state */}
+            {!grepTriggered && grepResults.length === 0 && (
+              <div className="p-4 text-center">
+                <div className="text-xp-text-secondary">
+                  <svg
+                    className="text-xp-text-muted mx-auto mb-2 h-8 w-8"
+                    fill="currentColor"
+                    viewBox="0 0 20 20"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  <p className="text-xp-text text-sm">{t('smartSearch.noResults', { query })}</p>
+                  <p className="text-xp-text-muted mt-1 text-xs">
+                    {t('smartSearch.noResultsHint')}
+                  </p>
+                  {searchProvider === 'local' &&
+                    currentPath &&
+                    !currentPath.startsWith('xplorer://') && (
+                      <button
+                        onClick={handleGrepSearch}
+                        disabled={isGrepSearching}
+                        className="border-xp-border text-xp-blue mt-3 flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs transition-colors hover:bg-blue-500 hover:bg-opacity-10 disabled:cursor-wait disabled:opacity-50"
+                        style={{ margin: '12px auto 0' }}
+                      >
+                        {isGrepSearching ? (
+                          <>
+                            <div className="border-xp-blue h-3 w-3 animate-spin rounded-full border-2 border-t-transparent" />
+                            {t('smartSearch.searchingContents')}
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              width="12"
+                              height="12"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="16" y1="13" x2="8" y2="13" />
+                              <line x1="16" y1="17" x2="8" y2="17" />
+                            </svg>
+                            {t('smartSearch.searchInContents')}
+                          </>
+                        )}
+                      </button>
+                    )}
+                  {searchProvider === 'local' && (
+                    <button
+                      onClick={() => {
+                        setSearchProvider('claude');
+                        debouncedSearch(query);
+                      }}
+                      className="mt-2 text-xs text-purple-400 hover:text-purple-300"
+                    >
+                      {t('smartSearch.tryAiSearch')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Grep triggered but no content results either */}
+            {grepTriggered && !isGrepSearching && grepResults.length === 0 && (
+              <div className="p-4 text-center">
+                <div className="text-xp-text-secondary">
+                  <p className="text-xp-text text-sm">{t('smartSearch.noResults', { query })}</p>
+                  <p className="text-xp-text-muted mt-1 text-xs">
+                    {t('smartSearch.noContentResults')}
+                  </p>
+                  {searchProvider === 'local' && (
+                    <button
+                      onClick={() => {
+                        setSearchProvider('claude');
+                        debouncedSearch(query);
+                      }}
+                      className="mt-2 text-xs text-purple-400 hover:text-purple-300"
+                    >
+                      {t('smartSearch.tryAiSearch')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Loading spinner for grep */}
+            {isGrepSearching && (
+              <div className="flex items-center justify-center gap-2 p-4">
+                <div className="border-xp-blue h-4 w-4 animate-spin rounded-full border-2 border-t-transparent" />
+                <span className="text-xp-text-muted text-xs">
+                  {t('smartSearch.searchingContents')}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </div>

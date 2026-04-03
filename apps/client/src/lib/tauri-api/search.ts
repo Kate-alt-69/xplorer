@@ -9,6 +9,7 @@ import type {
   FileToken,
   StructuredQuery,
   TokenizerSettings,
+  GrepSearchMatch,
 } from '../tauri-api-types';
 
 // ── Basic search ────────────────────────────────────────────────────────────
@@ -26,6 +27,13 @@ export const searchInFiles = async (
     content: string;
   }[]
 > => await transport('search_in_files', { pattern, searchPath });
+
+export const grepSearch = async (
+  query: string,
+  searchPath: string,
+  maxResults?: number,
+): Promise<GrepSearchMatch[]> =>
+  await transport('grep_search', { query, searchPath, maxResults: maxResults ?? null });
 
 // ── Tokenizer operations ────────────────────────────────────────────────────
 

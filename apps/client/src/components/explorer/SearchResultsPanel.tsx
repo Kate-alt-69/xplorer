@@ -1,11 +1,23 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+
+// Auto-trigger content search when local filename search returns nothing
+const AutoContentSearch = ({ trigger }: { trigger: () => void }) => {
+  const calledRef = useRef(false);
+  useEffect(() => {
+    if (!calledRef.current) {
+      calledRef.current = true;
+      trigger();
+    }
+  }, [trigger]);
+  return null;
+};
 import {
   useLiveSearch,
   type SearchFilterType,
   type LiveSearchResult,
 } from '@/hooks/use-live-search';
-import type { FileEntry, SearchResult } from '@/lib/tauri-api';
+import type { FileEntry, SearchResult, GrepSearchMatch } from '@/lib/tauri-api';
 import { useAiSearch } from '@/hooks/use-search-results';
 import { ResultRow, AIResultRow, GroupHeader, Spinner } from './search-results/SearchResultItem';
 
@@ -56,6 +68,10 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
       hasMore,
       showMore,
       clearSearch: clearLocalSearch,
+      contentResults,
+      isContentSearching,
+      contentSearchTriggered,
+      triggerContentSearch,
     } = useLiveSearch(basePath);
 
     // ── AI search ───────────────────────────────────────────────────────────
@@ -275,21 +291,36 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
 
         {/* Result count / status (local mode) */}
         {searchMode === 'local' && !noQuery && (
-          <SearchStatusBar isSearching={isLocalSearching} noResults={noResults} query={query}>
+          <SearchStatusBar
+            isSearching={isLocalSearching || isContentSearching}
+            noResults={noResults && !contentSearchTriggered}
+            query={query}
+          >
             {isLocalSearching ? (
               <>
                 <Spinner />
                 <span>Searching...</span>
               </>
-            ) : noResults ? (
+            ) : isContentSearching ? (
+              <>
+                <Spinner />
+                <span>Searching file contents...</span>
+              </>
+            ) : contentSearchTriggered && contentResults.length > 0 ? (
+              <span>
+                Found {contentResults.length} content match{contentResults.length !== 1 ? 'es' : ''}
+              </span>
+            ) : noResults && !contentSearchTriggered ? (
               <span>No files matching &apos;{query}&apos;</span>
-            ) : (
+            ) : localResultCount > 0 ? (
               <span>
                 Found {localResultCount} file{localResultCount !== 1 ? 's' : ''} in {folderCount}{' '}
                 folder
                 {folderCount !== 1 ? 's' : ''}
                 {localTotalResultCount > localResultCount && <> ({localTotalResultCount} total)</>}
               </span>
+            ) : (
+              <span>No results for &apos;{query}&apos;</span>
             )}
           </SearchStatusBar>
         )}
@@ -323,7 +354,9 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
                 {searchMode === 'ai' ? 'Searching with AI...' : 'Searching...'}
               </span>
             </div>
-          ) : noResults ? (
+          ) : noResults && searchMode === 'local' && !contentSearchTriggered ? (
+            <AutoContentSearch trigger={triggerContentSearch} />
+          ) : noResults && (searchMode === 'ai' || contentSearchTriggered) ? (
             <NoResultsState
               query={query}
               searchMode={searchMode}
@@ -433,6 +466,78 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
               })}
             </div>
           )}
+
+          {/* Content search results (grep fallback) */}
+          {searchMode === 'local' &&
+            contentSearchTriggered &&
+            !isContentSearching &&
+            contentResults.length > 0 && (
+              <ContentSearchResults
+                results={contentResults}
+                query={localQuery}
+                onFileSelect={(filePath) => {
+                  const sep = filePath.includes('/') ? '/' : '\\';
+                  const parts = filePath.split(sep);
+                  const name = parts.pop() || '';
+                  const parentDir = parts.join(sep);
+                  const ext = name.split('.').pop()?.toLowerCase() || '';
+                  const entry: FileEntry = {
+                    name,
+                    path: filePath,
+                    is_dir: false,
+                    size: 0,
+                    modified: 0,
+                    file_type: ext,
+                    is_readonly: false,
+                  };
+                  navigateToPath(parentDir);
+                  onFileSelect(entry);
+                }}
+              />
+            )}
+
+          {/* Content search: searching spinner */}
+          {searchMode === 'local' && isContentSearching && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '32px 16px',
+                gap: '8px',
+                color: 'var(--xp-text-muted)',
+              }}
+            >
+              <Spinner />
+              <span style={{ fontSize: '12px' }}>Searching file contents...</span>
+            </div>
+          )}
+
+          {/* Content search: no results after search */}
+          {searchMode === 'local' &&
+            contentSearchTriggered &&
+            !isContentSearching &&
+            contentResults.length === 0 &&
+            localResultCount === 0 && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '24px 16px',
+                  gap: '4px',
+                  color: 'var(--xp-text-muted)',
+                }}
+              >
+                <span style={{ fontSize: '12px' }}>
+                  No content matches for &apos;{localQuery}&apos;
+                </span>
+                <span style={{ fontSize: '11px', opacity: 0.7 }}>
+                  Try a shorter or different search term
+                </span>
+              </div>
+            )}
         </div>
       </div>
     );
@@ -751,10 +856,14 @@ const NoResultsState = ({
   query,
   searchMode,
   onSwitchToAi,
+  onSearchContents,
+  isContentSearching,
 }: {
   query: string;
   searchMode: SearchMode;
   onSwitchToAi: () => void;
+  onSearchContents?: () => void;
+  isContentSearching?: boolean;
 }) => (
   <div
     style={{
@@ -785,6 +894,52 @@ const NoResultsState = ({
     <span style={{ fontSize: '12px', textAlign: 'center' }}>
       No files matching &apos;{query}&apos;
     </span>
+    {searchMode === 'local' && onSearchContents && (
+      <button
+        onClick={onSearchContents}
+        disabled={isContentSearching}
+        style={{
+          marginTop: '4px',
+          fontSize: '11px',
+          color: 'var(--xp-blue)',
+          background: 'none',
+          border: '1px solid var(--xp-border)',
+          borderRadius: '4px',
+          padding: '4px 12px',
+          cursor: isContentSearching ? 'wait' : 'pointer',
+          transition: 'all 0.15s',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        {isContentSearching ? (
+          <>
+            <Spinner />
+            Searching contents...
+          </>
+        ) : (
+          <>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            Search in file contents
+          </>
+        )}
+      </button>
+    )}
     {searchMode === 'local' && (
       <button
         onClick={onSwitchToAi}
@@ -803,3 +958,166 @@ const NoResultsState = ({
     )}
   </div>
 );
+
+const ContentSearchResults = ({
+  results,
+  query,
+  onFileSelect,
+}: {
+  results: GrepSearchMatch[];
+  query: string;
+  onFileSelect: (filePath: string) => void;
+}) => {
+  // Group results by file
+  const grouped = useMemo(() => {
+    const groups = new Map<string, GrepSearchMatch[]>();
+    for (const match of results) {
+      const existing = groups.get(match.file);
+      if (existing) {
+        existing.push(match);
+      } else {
+        groups.set(match.file, [match]);
+      }
+    }
+    return Array.from(groups.entries());
+  }, [results]);
+
+  const queryLower = query.toLowerCase();
+
+  const highlightContent = (text: string): React.ReactNode => {
+    if (!queryLower) return text;
+    const escaped = queryLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escaped})`, 'gi');
+    const parts = text.split(regex);
+    return parts.map((part, i) =>
+      part.toLowerCase() === queryLower ? (
+        <mark
+          // eslint-disable-next-line react/no-array-index-key
+          key={i}
+          style={{
+            backgroundColor: 'rgba(250, 204, 21, 0.3)',
+            color: 'inherit',
+            borderRadius: '2px',
+            padding: '0 1px',
+          }}
+        >
+          {part}
+        </mark>
+      ) : (
+        // eslint-disable-next-line react/no-array-index-key
+        <React.Fragment key={i}>{part}</React.Fragment>
+      ),
+    );
+  };
+
+  return (
+    <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+      <div
+        style={{
+          padding: '6px 8px',
+          fontSize: '10px',
+          fontWeight: 600,
+          color: 'var(--xp-text-muted)',
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          borderBottom: '1px solid var(--xp-border)',
+          background: 'rgba(99, 102, 241, 0.05)',
+        }}
+      >
+        Content matches ({results.length})
+      </div>
+      {grouped.map(([filePath, matches]) => (
+        <div key={filePath}>
+          {/* File header */}
+          <button
+            onClick={() => onFileSelect(filePath)}
+            style={{
+              width: '100%',
+              padding: '4px 8px',
+              fontSize: '11px',
+              fontWeight: 500,
+              color: 'var(--xp-blue)',
+              background: 'rgba(99, 102, 241, 0.08)',
+              border: 'none',
+              borderBottom: '1px solid var(--xp-border)',
+              cursor: 'pointer',
+              textAlign: 'left',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'background 0.15s',
+            }}
+            className="hover:bg-xp-surface-light"
+            title={filePath}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {matches[0].filename}
+            </span>
+          </button>
+          {/* Matching lines */}
+          {matches.map((match) => (
+            <button
+              key={`${match.file}:${match.line}`}
+              onClick={() => onFileSelect(match.file)}
+              style={{
+                width: '100%',
+                padding: '2px 8px 2px 24px',
+                fontSize: '11px',
+                color: 'var(--xp-text)',
+                background: 'none',
+                border: 'none',
+                borderBottom: '1px solid rgba(var(--xp-border-rgb, 100, 100, 100), 0.3)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '8px',
+                transition: 'background 0.15s',
+                lineHeight: '20px',
+              }}
+              className="hover:bg-xp-surface-light"
+              title={`${match.file}:${match.line}`}
+            >
+              <span
+                style={{
+                  color: 'var(--xp-text-muted)',
+                  fontSize: '10px',
+                  minWidth: '32px',
+                  textAlign: 'right',
+                  flexShrink: 0,
+                  fontFamily: 'monospace',
+                }}
+              >
+                {match.line}
+              </span>
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  fontFamily: 'monospace',
+                  fontSize: '11px',
+                }}
+              >
+                {highlightContent(match.content.trim())}
+              </span>
+            </button>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+};

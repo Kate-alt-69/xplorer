@@ -314,7 +314,7 @@
       "autoApproveToggle": "Persetujuan Otomatis Aksi Agen",
       "configuration": "Konfigurasi",
       "apiKey": "Kunci API",
-      "apiKeyDesc": "Kunci API Anthropic Claude Anda",
+      "apiKeyDesc": "Kunci API Anda",
       "model": "Model",
       "modelDesc": "Model AI yang digunakan untuk agen",
       "openaiApiKey": "Kunci API OpenAI",
@@ -1327,7 +1327,11 @@
     "sortedDateAsc": "Sorted by date (oldest first)",
     "noResults": "No results found for \"{{query}}\"",
     "noResultsHint": "Try different keywords or navigate to the target folder first",
-    "tryAiSearch": "Try AI-powered search with Claude"
+    "tryAiSearch": "Try AI-powered search with Claude",
+    "searchInContents": "Cari di isi file",
+    "searchingContents": "Mencari isi file...",
+    "contentMatches": "Kecocokan konten ({{count}})",
+    "noContentResults": "Tidak ada kecocokan yang ditemukan di isi file"
   },
   "fileGrid": {
     "emptyFolder": "Folder ini kosong",

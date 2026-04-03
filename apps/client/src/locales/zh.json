@@ -314,7 +314,7 @@
       "autoApproveToggle": "自动批准助手操作",
       "configuration": "配置",
       "apiKey": "API 密钥",
-      "apiKeyDesc": "您的 Anthropic Claude API 密钥",
+      "apiKeyDesc": "您的 API 密钥",
       "model": "模型",
       "modelDesc": "助手使用的 AI 模型",
       "openaiApiKey": "OpenAI API 密钥",
@@ -1327,7 +1327,11 @@
     "sortedDateAsc": "Sorted by date (oldest first)",
     "noResults": "No results found for \"{{query}}\"",
     "noResultsHint": "Try different keywords or navigate to the target folder first",
-    "tryAiSearch": "Try AI-powered search with Claude"
+    "tryAiSearch": "Try AI-powered search with Claude",
+    "searchInContents": "搜索文件内容",
+    "searchingContents": "正在搜索文件内容...",
+    "contentMatches": "内容匹配 ({{count}})",
+    "noContentResults": "文件内容中也未找到匹配项"
   },
   "fileGrid": {
     "emptyFolder": "此文件夹为空",

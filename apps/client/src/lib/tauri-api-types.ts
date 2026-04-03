@@ -640,6 +640,13 @@ export interface SearchMatch {
   line_number?: number;
 }
 
+export interface GrepSearchMatch {
+  file: string;
+  line: number;
+  content: string;
+  filename: string;
+}
+
 // Phase 1: Structured query types
 export type FileTypeFilter = 'Videos' | 'Images' | 'Documents' | 'Code' | 'Audio' | 'Archives';
 

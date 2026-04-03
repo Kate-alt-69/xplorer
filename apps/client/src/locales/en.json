@@ -314,7 +314,7 @@
       "autoApproveToggle": "Auto-Approve Agent Actions",
       "configuration": "Configuration",
       "apiKey": "API Key",
-      "apiKeyDesc": "Your Anthropic Claude API key",
+      "apiKeyDesc": "Your API key",
       "model": "Model",
       "modelDesc": "Which AI model to use for the agent",
       "openaiApiKey": "OpenAI API Key",
@@ -1327,7 +1327,11 @@
     "sortedDateAsc": "Sorted by date (oldest first)",
     "noResults": "No results found for \"{{query}}\"",
     "noResultsHint": "Try different keywords or navigate to the target folder first",
-    "tryAiSearch": "Try AI-powered search with Claude"
+    "tryAiSearch": "Try AI-powered search with Claude",
+    "searchInContents": "Search in file contents",
+    "searchingContents": "Searching file contents...",
+    "contentMatches": "Content matches ({{count}})",
+    "noContentResults": "No matches found in file contents either"
   },
   "fileGrid": {
     "emptyFolder": "This folder is empty",

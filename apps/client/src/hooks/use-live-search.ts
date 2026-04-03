@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
+import { TauriAPI, type FileEntry, type GrepSearchMatch } from '@/lib/tauri-api';
 import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -330,7 +330,41 @@ export const useLiveSearch = (basePath: string) => {
     setQuery('');
     setResults([]);
     setIsSearching(false);
+    setContentResults([]);
+    setIsContentSearching(false);
+    setContentSearchTriggered(false);
   }, []);
+
+  // ── Content (grep) search ───────────────────────────────────────────────
+  const [contentResults, setContentResults] = useState<GrepSearchMatch[]>([]);
+  const [isContentSearching, setIsContentSearching] = useState(false);
+  const [contentSearchTriggered, setContentSearchTriggered] = useState(false);
+
+  // Reset content search when query changes
+  useEffect(() => {
+    setContentResults([]);
+    setIsContentSearching(false);
+    setContentSearchTriggered(false);
+  }, [query, activeFilter]);
+
+  const triggerContentSearch = useCallback(async () => {
+    const trimmed = query.trim();
+    if (!trimmed) return;
+
+    setIsContentSearching(true);
+    setContentSearchTriggered(true);
+    setContentResults([]);
+
+    try {
+      const grepResults = await TauriAPI.grepSearch(trimmed, basePath, 500);
+      setContentResults(grepResults);
+    } catch (err) {
+      console.error('Content search error:', err);
+      setContentResults([]);
+    } finally {
+      setIsContentSearching(false);
+    }
+  }, [query, basePath]);
 
   return {
     query,
@@ -347,5 +381,10 @@ export const useLiveSearch = (basePath: string) => {
     showMore,
     displayLimit,
     clearSearch,
+    // Content search
+    contentResults,
+    isContentSearching,
+    contentSearchTriggered,
+    triggerContentSearch,
   };
 };

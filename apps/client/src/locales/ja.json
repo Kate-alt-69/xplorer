@@ -314,7 +314,7 @@
       "autoApproveToggle": "エージェント操作を自動承認",
       "configuration": "構成",
       "apiKey": "API キー",
-      "apiKeyDesc": "Anthropic Claude の API キー",
+      "apiKeyDesc": "API キー",
       "model": "モデル",
       "modelDesc": "エージェントに使用する AI モデル",
       "openaiApiKey": "OpenAI API キー",
@@ -1327,7 +1327,11 @@
     "sortedDateAsc": "Sorted by date (oldest first)",
     "noResults": "No results found for \"{{query}}\"",
     "noResultsHint": "Try different keywords or navigate to the target folder first",
-    "tryAiSearch": "Try AI-powered search with Claude"
+    "tryAiSearch": "Try AI-powered search with Claude",
+    "searchInContents": "ファイル内容を検索",
+    "searchingContents": "ファイル内容を検索中...",
+    "contentMatches": "コンテンツの一致 ({{count}})",
+    "noContentResults": "ファイル内容にも一致するものが見つかりませんでした"
   },
   "fileGrid": {
     "emptyFolder": "このフォルダは空です",
