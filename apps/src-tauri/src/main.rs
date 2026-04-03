@@ -109,7 +109,22 @@ fn main() {
                 let _ = std::fs::write(&migration_flag, "v2");
             }
 
-            extensions::init_extension_manager(app_data_dir.to_str().unwrap_or("./data"));
+            // Resolve bundled extensions directory (packages/extensions/ in workspace).
+            // In development, CARGO_MANIFEST_DIR points to apps/src-tauri/.
+            let bundled_extensions_dir = {
+                let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+                let workspace_root = manifest_dir.join("../..").canonicalize().ok();
+                workspace_root.map(|root| {
+                    root.join("packages").join("extensions")
+                })
+            };
+            let bundled_str = bundled_extensions_dir
+                .as_ref()
+                .and_then(|p| p.to_str());
+            extensions::init_extension_manager_with_bundled(
+                app_data_dir.to_str().unwrap_or("./data"),
+                bundled_str,
+            );
 
             // Start extension dev mode watcher
             {

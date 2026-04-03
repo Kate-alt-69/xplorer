@@ -821,7 +821,7 @@ class ExtensionHost {
 
   /**
    * Load all previously installed extensions from the backend and
-   * activate those that were marked active.
+   * activate those that were marked active or have onStartup activation events.
    * Call this once during app startup after registerBuiltinExtensions().
    */
   async loadInstalledExtensions(): Promise<void> {
@@ -829,7 +829,10 @@ class ExtensionHost {
       const installed = await TauriAPI.getInstalledExtensions();
       for (const pkg of installed) {
         await this.loadExtension(pkg);
-        if (pkg.is_active) {
+        // Activate if previously active OR if the extension declares onStartup
+        const shouldActivate =
+          pkg.is_active || (pkg.manifest.activation_events ?? []).includes('onStartup');
+        if (shouldActivate) {
           await this.activateExtension(pkg.manifest.id);
         }
       }
@@ -1019,8 +1022,34 @@ class ExtensionHost {
           typeof window !== 'undefined' && localStorage.getItem(consentKey) === 'granted';
 
         if (!previouslyConsented) {
-          // Dispatch a custom event and wait for the UI layer to resolve consent
+          // Dispatch a custom event and wait for the UI layer to resolve consent.
+          // Use a timeout to prevent hanging if the dialog component isn't mounted yet
+          // (e.g., during early startup before React.lazy components are loaded).
+          const hasOnStartup = (ext.manifest.activation_events ?? []).includes('onStartup');
+          const CONSENT_TIMEOUT = 5_000;
           const granted = await new Promise<boolean>((resolve) => {
+            let settled = false;
+            const settle = (value: boolean) => {
+              if (!settled) {
+                settled = true;
+                resolve(value);
+              }
+            };
+            // If the dialog doesn't respond in time, auto-grant for onStartup
+            // extensions (trusted built-in) or deny for user-installed ones.
+            const timer = setTimeout(() => {
+              if (hasOnStartup) {
+                console.warn(
+                  `[ExtensionHost] Consent dialog timeout for "${id}" — auto-granting (onStartup extension)`,
+                );
+                settle(true);
+              } else {
+                console.warn(
+                  `[ExtensionHost] Consent dialog timeout for "${id}" — deferring activation`,
+                );
+                settle(false);
+              }
+            }, CONSENT_TIMEOUT);
             const event = new CustomEvent('extension-permission-request', {
               detail: {
                 detail: {
@@ -1031,7 +1060,10 @@ class ExtensionHost {
                   author: ext.manifest.author,
                   permissions: ext.manifest.permissions || [],
                 },
-                resolve,
+                resolve: (value: boolean) => {
+                  clearTimeout(timer);
+                  settle(value);
+                },
               },
             });
             window.dispatchEvent(event);

@@ -6,22 +6,30 @@ use tracing::{error, info, warn};
 
 pub struct ExtensionManager {
     pub extensions_dir: PathBuf,
+    pub bundled_extensions_dir: Option<PathBuf>,
     pub installed_extensions: Vec<ExtensionPackage>,
     pub active_extensions: Vec<String>,
 }
 
 impl ExtensionManager {
     pub fn new(extensions_dir: &str) -> Self {
+        Self::with_bundled_dir(extensions_dir, None)
+    }
+
+    pub fn with_bundled_dir(extensions_dir: &str, bundled_dir: Option<&str>) -> Self {
         let extensions_path = PathBuf::from(extensions_dir);
         if !extensions_path.exists() {
             fs::create_dir_all(&extensions_path).unwrap_or_default();
         }
+
+        let bundled_path = bundled_dir.map(PathBuf::from).filter(|p| p.exists());
 
         // Load persisted active extensions
         let active = Self::load_active_extensions_from(&extensions_path);
 
         let mut manager = ExtensionManager {
             extensions_dir: extensions_path,
+            bundled_extensions_dir: bundled_path,
             installed_extensions: vec![],
             active_extensions: active,
         };
@@ -296,10 +304,23 @@ impl ExtensionManager {
 
         let active = self.active_extensions.clone();
 
-        // Workspace extensions are loaded on-demand via the dev watcher (.hotreload)
-        // or installed from the marketplace. No bulk scan of packages/extensions/.
+        // Scan bundled extensions first (from packages/extensions/ in workspace).
+        // These are built-in extensions that ship with the app.
+        if let Some(ref bundled_dir) = self.bundled_extensions_dir {
+            if bundled_dir.exists() {
+                Self::scan_extension_dir_into(
+                    bundled_dir,
+                    false,
+                    &active,
+                    &mut self.installed_extensions,
+                    &mut seen_ids,
+                );
+            }
+        }
 
-        // Then scan the user data extensions dir (marketplace installs)
+        // Then scan the user data extensions dir (marketplace installs).
+        // User-installed extensions with the same ID take precedence via seen_ids
+        // only if we reverse the order, but currently bundled take priority.
         if self.extensions_dir.exists() {
             Self::scan_extension_dir_into(
                 &self.extensions_dir,

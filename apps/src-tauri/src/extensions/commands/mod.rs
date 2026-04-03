@@ -31,8 +31,12 @@ pub(crate) fn get_extensions_tmp_dir() -> Result<std::path::PathBuf, String> {
 }
 
 pub fn init_extension_manager(data_dir: &str) {
+    init_extension_manager_with_bundled(data_dir, None);
+}
+
+pub fn init_extension_manager_with_bundled(data_dir: &str, bundled_dir: Option<&str>) {
     let extensions_dir = format!("{}/extensions", data_dir);
-    let manager = ExtensionManager::new(&extensions_dir);
+    let manager = ExtensionManager::with_bundled_dir(&extensions_dir, bundled_dir);
     let mut manager_guard = EXTENSION_MANAGER.lock().unwrap_or_else(|e| e.into_inner());
     *manager_guard = Some(manager);
 }
