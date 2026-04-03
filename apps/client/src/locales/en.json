@@ -292,6 +292,8 @@
       "defaultView": "Default View",
       "defaultViewDesc": "How files are displayed by default",
       "grid": "Grid",
+      "list": "List",
+      "details": "Details",
       "showHidden": "Show Hidden Files",
       "showHiddenDesc": "Display files starting with a dot",
       "fileExtensions": "File Extensions",

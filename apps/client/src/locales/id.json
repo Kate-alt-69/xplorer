@@ -292,6 +292,8 @@
       "defaultView": "Tampilan Default",
       "defaultViewDesc": "Cara file ditampilkan secara default",
       "grid": "Grid",
+      "list": "List",
+      "details": "Details",
       "showHidden": "Tampilkan File Tersembunyi",
       "showHiddenDesc": "Tampilkan file yang diawali titik",
       "fileExtensions": "Ekstensi File",

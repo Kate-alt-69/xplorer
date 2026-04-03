@@ -292,6 +292,8 @@
       "defaultView": "デフォルト表示",
       "defaultViewDesc": "ファイルのデフォルト表示方法",
       "grid": "グリッド",
+      "list": "List",
+      "details": "Details",
       "showHidden": "隠しファイルを表示",
       "showHiddenDesc": "ドットで始まるファイルを表示",
       "fileExtensions": "ファイル拡張子",

@@ -40,19 +40,6 @@ const languageOptions = [
   { value: 'id', label: 'Bahasa Indonesia' },
 ];
 
-const fontSizes = [
-  { value: 'small', label: 'Small' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'large', label: 'Large' },
-  { value: 'xl', label: 'Extra Large' },
-];
-
-const sidebarWidths = [
-  { value: 'narrow', label: 'Narrow' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'wide', label: 'Wide' },
-];
-
 const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettingsProps) => {
   const [, setLocation] = useLocation();
   const { t, i18n } = useTranslation();
@@ -63,12 +50,29 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
     label: th.name,
   }));
 
+  const fontSizes = [
+    { value: 'small', label: t('settings.general.small') },
+    { value: 'medium', label: t('settings.general.medium') },
+    { value: 'large', label: t('settings.general.large') },
+    { value: 'xl', label: t('settings.general.extraLarge') },
+  ];
+
+  const sidebarWidths = [
+    { value: 'narrow', label: t('settings.general.narrow') },
+    { value: 'medium', label: t('settings.general.medium') },
+    { value: 'wide', label: t('settings.general.wide') },
+  ];
+
   return (
     <div className="space-y-1">
-      <SectionTitle title="Appearance" />
-      <SettingRow icon={Palette} label="Theme" description="Color scheme for the application">
+      <SectionTitle title={t('settings.general.appearance')} />
+      <SettingRow
+        icon={Palette}
+        label={t('settings.general.theme')}
+        description={t('settings.general.themeDesc')}
+      >
         <SelectField
-          label="Theme"
+          label={t('settings.general.theme')}
           value={settings.theme}
           onChange={(v) => updateSetting('theme', v)}
           options={themes}
@@ -80,7 +84,7 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
         description={t('settings.general.languageDesc')}
       >
         <SelectField
-          label="Language"
+          label={t('settings.general.language')}
           value={settings.language || i18n.language?.split('-')[0] || 'en'}
           onChange={(v) => {
             updateSetting('language', v);
@@ -89,9 +93,13 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
           options={languageOptions}
         />
       </SettingRow>
-      <SettingRow icon={Type} label="Font Size" description="Base font size across the UI">
+      <SettingRow
+        icon={Type}
+        label={t('settings.general.fontSize')}
+        description={t('settings.general.fontSizeDesc')}
+      >
         <SelectField
-          label="Font Size"
+          label={t('settings.general.fontSize')}
           value={settings.fontSize}
           onChange={(v) => {
             updateSetting('fontSize', v);
@@ -102,26 +110,26 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
       </SettingRow>
       <SettingRow
         icon={Sparkles}
-        label="Animations"
-        description="Enable smooth transitions and effects"
+        label={t('settings.general.animations')}
+        description={t('settings.general.animationsDesc')}
       >
         <Toggle
           id="animations"
-          label="Animations"
+          label={t('settings.general.animations')}
           checked={settings.enableAnimations}
           onChange={(v) => updateSetting('enableAnimations', v)}
         />
       </SettingRow>
 
       <Divider />
-      <SectionTitle title="Layout" />
+      <SectionTitle title={t('settings.general.layout')} />
       <SettingRow
         icon={PanelLeft}
-        label="Sidebar Width"
-        description="Width of the navigation sidebar"
+        label={t('settings.general.sidebarWidth')}
+        description={t('settings.general.sidebarWidthDesc')}
       >
         <SelectField
-          label="Sidebar Width"
+          label={t('settings.general.sidebarWidth')}
           value={settings.sidebarWidth}
           onChange={(v) => updateSetting('sidebarWidth', v)}
           options={sidebarWidths}
@@ -129,38 +137,42 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
       </SettingRow>
 
       <Divider />
-      <SectionTitle title="System" />
+      <SectionTitle title={t('settings.general.system')} />
       <SettingRow
         icon={Bell}
-        label="Notifications"
-        description="Show desktop notifications for events"
+        label={t('settings.general.notifications')}
+        description={t('settings.general.notificationsDesc')}
       >
         <Toggle
           id="notifications"
-          label="Notifications"
+          label={t('settings.general.notifications')}
           checked={settings.enableNotifications}
           onChange={(v) => updateSetting('enableNotifications', v)}
         />
       </SettingRow>
-      <SettingRow icon={Save} label="Auto Save" description="Automatically save changes to files">
+      <SettingRow
+        icon={Save}
+        label={t('settings.general.autoSave')}
+        description={t('settings.general.autoSaveDesc')}
+      >
         <Toggle
           id="autoSave"
-          label="Auto Save"
+          label={t('settings.general.autoSave')}
           checked={settings.autoSave}
           onChange={(v) => updateSetting('autoSave', v)}
         />
       </SettingRow>
 
       <Divider />
-      <SectionTitle title="System Integration" />
+      <SectionTitle title={t('settings.general.systemIntegration')} />
       <SystemIntegrationSettings />
 
       <Divider />
-      <SectionTitle title="Help" />
+      <SectionTitle title={t('settings.general.help')} />
       <SettingRow
         icon={HelpCircle}
-        label="Onboarding Tour"
-        description="Replay the interactive guided tour of the app"
+        label={t('settings.general.onboardingTour')}
+        description={t('settings.general.onboardingTourDesc')}
       >
         <button
           onClick={() => {
@@ -170,13 +182,13 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
           }}
           className="bg-xp-blue flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
-          Replay Tour
+          {t('settings.general.replayTour')}
         </button>
       </SettingRow>
       <SettingRow
         icon={AlertTriangle}
-        label="Beta Warning"
-        description="Show the early beta warning dialog again"
+        label={t('settings.general.betaWarning')}
+        description={t('settings.general.betaWarningDesc')}
       >
         <button
           onClick={() => {
@@ -185,7 +197,7 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
           }}
           className="flex items-center gap-2 rounded-md bg-amber-500 px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
-          Show Warning
+          {t('settings.general.showWarning')}
         </button>
       </SettingRow>
 
@@ -196,7 +208,7 @@ const GeneralSettings = ({ settings, updateSetting, setSettings }: GeneralSettin
           className="text-xp-red hover:bg-xp-red/10 flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
         >
           <RotateCcw size={14} />
-          Reset all settings to defaults
+          {t('settings.resetAll')}
         </button>
       </div>
     </div>
