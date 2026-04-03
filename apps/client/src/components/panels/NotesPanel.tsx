@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileNote, type NoteSearchResult } from '@/lib/tauri-api';
 import { StickyNote, X, RefreshCw, Search, FileText } from 'lucide-react';
 
@@ -23,10 +24,12 @@ const NotesSearchResults = ({
   searching: boolean;
   handleNavigate: (path: string) => void;
 }) => {
+  const { t } = useTranslation();
+
   if (searchResults.length === 0) {
     return (
       <div className="text-xp-text-secondary flex items-center justify-center py-8 text-sm">
-        {searching ? 'Searching...' : 'No matching notes found.'}
+        {searching ? t('panels.notes.searching') : t('panels.notes.noMatchingNotes')}
       </div>
     );
   }
@@ -57,6 +60,7 @@ const NotesSearchResults = ({
 };
 
 const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
+  const { t } = useTranslation();
   const [grouped, setGrouped] = useState<GroupedNotes[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -126,15 +130,17 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
       <div className="border-xp-border flex flex-shrink-0 items-center justify-between border-b px-3 py-2">
         <div className="flex items-center space-x-2">
           <StickyNote className="text-xp-text-muted h-4 w-4" />
-          <span className="text-xp-text text-xs font-semibold uppercase tracking-wider">Notes</span>
+          <span className="text-xp-text text-xs font-semibold uppercase tracking-wider">
+            {t('panels.notes.title')}
+          </span>
         </div>
         <div className="flex items-center space-x-1">
           <button
             onClick={loadAllNotes}
             disabled={loading}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1 transition-colors"
-            title="Refresh"
-            aria-label="Refresh notes"
+            title={t('panels.notes.refreshTitle')}
+            aria-label={t('panels.notes.refreshAria')}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
           </button>
@@ -142,8 +148,8 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
             <button
               onClick={onClose}
               className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1 transition-colors"
-              title="Close panel"
-              aria-label="Close notes panel"
+              title={t('panels.notes.closePanelTitle')}
+              aria-label={t('panels.notes.closePanelAria')}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -159,8 +165,8 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search notes..."
-            aria-label="Search notes"
+            placeholder={t('panels.notes.searchPlaceholder')}
+            aria-label={t('panels.notes.searchAria')}
             className="bg-xp-bg border-xp-border text-xp-text placeholder:text-xp-text-muted focus:border-xp-blue w-full rounded border py-1.5 pl-7 pr-3 text-sm transition-colors focus:outline-none"
           />
         </div>
@@ -170,7 +176,7 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
       <div className="flex-1 overflow-y-auto p-2">
         {loading && grouped.length === 0 ? (
           <div className="text-xp-text-secondary flex items-center justify-center py-8 text-sm">
-            Loading...
+            {t('panels.notes.loading')}
           </div>
         ) : null}
         {!(loading && grouped.length === 0) && searchResults !== null ? (
@@ -183,8 +189,8 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
         {!(loading && grouped.length === 0) && searchResults === null && grouped.length === 0 ? (
           <div className="text-xp-text-secondary flex flex-col items-center justify-center py-8">
             <StickyNote className="mb-2 h-8 w-8 opacity-40" />
-            <p className="text-sm">No notes yet.</p>
-            <p className="mt-1 text-xs opacity-60">Right-click a file and choose Notes...</p>
+            <p className="text-sm">{t('panels.notes.noNotesTitle')}</p>
+            <p className="mt-1 text-xs opacity-60">{t('panels.notes.noNotesHint')}</p>
           </div>
         ) : null}
         {!(loading && grouped.length === 0) && searchResults === null && grouped.length > 0 && (
@@ -203,7 +209,7 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
                     </span>
                   </div>
                   <span className="text-xp-text-muted ml-2 flex-shrink-0 text-xs">
-                    {group.notes.length} note{group.notes.length !== 1 ? 's' : ''}
+                    {t('panels.notes.noteCount', { count: group.notes.length })}
                   </span>
                 </div>
                 {group.notes.length > 0 && (
@@ -221,9 +227,12 @@ const NotesPanel = ({ onClose, navigateToPath }: NotesPanelProps) => {
       {grouped.length > 0 && !searchResults && (
         <div className="border-xp-border flex-shrink-0 border-t px-3 py-1.5">
           <p className="text-xp-text-muted text-xs">
-            {grouped.reduce((sum, g) => sum + g.notes.length, 0)} note
-            {grouped.reduce((sum, g) => sum + g.notes.length, 0) !== 1 ? 's' : ''} across{' '}
-            {grouped.length} file{grouped.length !== 1 ? 's' : ''}
+            {t('panels.notes.footerSummary', {
+              notes: t('panels.notes.noteCount', {
+                count: grouped.reduce((sum, g) => sum + g.notes.length, 0),
+              }),
+              files: t('panels.notes.file', { count: grouped.length }),
+            })}
           </p>
         </div>
       )}

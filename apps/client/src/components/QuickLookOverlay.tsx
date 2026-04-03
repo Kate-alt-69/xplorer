@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { convertAssetUrl } from '@/lib/transport';
 import { getFileIcon, formatFileSize, formatDate } from '@/lib/utils';
@@ -192,6 +193,7 @@ const getExt = (name: string): string => {
 // ── Inline preview renderers ────────────────────────────────────────────────
 
 const ImageQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
+  const { t } = useTranslation();
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const src = convertAssetUrl(file.path);
@@ -208,10 +210,14 @@ const ImageQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
       }}
     >
       {!loaded && !error && (
-        <div style={{ color: 'var(--xp-text-secondary)', fontSize: 12 }}>Loading image...</div>
+        <div style={{ color: 'var(--xp-text-secondary)', fontSize: 12 }}>
+          {t('explorer.quickLook.loadingImage')}
+        </div>
       )}
       {error && (
-        <div style={{ color: 'var(--xp-text-secondary)', fontSize: 12 }}>Failed to load image</div>
+        <div style={{ color: 'var(--xp-text-secondary)', fontSize: 12 }}>
+          {t('explorer.quickLook.failedToLoadImage')}
+        </div>
       )}
       <img
         src={src}
@@ -235,6 +241,7 @@ const ImageQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
 };
 
 const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const language = getLanguageFromExtension(file.name);
@@ -245,7 +252,7 @@ const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
     setError(null);
 
     if (file.size > 2 * 1024 * 1024) {
-      setError('File too large for quick preview');
+      setError(t('explorer.quickLook.fileTooLarge'));
       return;
     }
 
@@ -259,7 +266,8 @@ const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
         setContent(truncated);
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to read file');
+        if (!cancelled)
+          {setError(err instanceof Error ? err.message : t('explorer.quickLook.failedToReadFile'));}
       });
 
     return () => {
@@ -296,7 +304,7 @@ const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
           fontSize: 12,
         }}
       >
-        Loading...
+        {t('common.loading')}
       </div>
     );
   }
@@ -306,7 +314,7 @@ const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
       <Suspense
         fallback={
           <div style={{ color: 'var(--xp-text-secondary)', fontSize: 12, padding: 12 }}>
-            Loading...
+            {t('common.loading')}
           </div>
         }
       >
@@ -334,6 +342,7 @@ const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
 };
 
 const FolderQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
+  const { t } = useTranslation();
   const [itemCount, setItemCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -362,10 +371,12 @@ const FolderQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
       }}
     >
       <div style={{ fontSize: 48 }}>{getFileIcon(file)}</div>
-      <div style={{ color: 'var(--xp-text)', fontSize: 14, fontWeight: 500 }}>Folder</div>
+      <div style={{ color: 'var(--xp-text)', fontSize: 14, fontWeight: 500 }}>
+        {t('common.folder')}
+      </div>
       {itemCount !== null && (
         <div style={{ color: 'var(--xp-text-secondary)', fontSize: 12 }}>
-          {itemCount} item{itemCount !== 1 ? 's' : ''}
+          {t('explorer.quickLook.itemCount', { count: itemCount })}
         </div>
       )}
     </div>
@@ -376,15 +387,16 @@ const GenericQuickPreview: React.FC<{ file: FileEntry; category: PreviewType }> 
   file,
   category,
 }) => {
+  const { t } = useTranslation();
   const ext = getExt(file.name);
   const isVideo = VIDEO_EXTENSIONS.has(ext);
   const isAudio = AUDIO_EXTENSIONS.has(ext);
   const isPdf = ext === 'pdf';
 
-  let typeLabel = category !== 'unknown' ? category : file.file_type || 'File';
-  if (isVideo) typeLabel = 'Video';
-  if (isAudio) typeLabel = 'Audio';
-  if (isPdf) typeLabel = 'PDF Document';
+  let typeLabel = category !== 'unknown' ? category : file.file_type || t('common.file');
+  if (isVideo) typeLabel = t('explorer.quickLook.video');
+  if (isAudio) typeLabel = t('explorer.quickLook.audio');
+  if (isPdf) typeLabel = t('explorer.quickLook.pdfDocument');
 
   return (
     <div
@@ -419,9 +431,9 @@ const GenericQuickPreview: React.FC<{ file: FileEntry; category: PreviewType }> 
           textAlign: 'center',
         }}
       >
-        <div>Size: {formatFileSize(file.size)}</div>
-        <div>Modified: {formatDate(file.modified)}</div>
-        {ext && <div>Extension: .{ext}</div>}
+        <div>{t('explorer.quickLook.size', { size: formatFileSize(file.size) })}</div>
+        <div>{t('explorer.quickLook.modified', { date: formatDate(file.modified) })}</div>
+        {ext && <div>{t('explorer.quickLook.extension', { ext })}</div>}
       </div>
     </div>
   );
@@ -435,6 +447,7 @@ interface QuickLookOverlayProps {
 }
 
 const QuickLookOverlay = ({ file, onClose }: QuickLookOverlayProps) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [closing, setClosing] = useState(false);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -558,7 +571,7 @@ const QuickLookOverlay = ({ file, onClose }: QuickLookOverlayProps) => {
               {file.name}
             </div>
             <div style={{ fontSize: 11, color: 'var(--xp-text-secondary)' }}>
-              {file.is_dir ? 'Folder' : formatFileSize(file.size)}
+              {file.is_dir ? t('common.folder') : formatFileSize(file.size)}
             </div>
           </div>
           <button
@@ -581,7 +594,7 @@ const QuickLookOverlay = ({ file, onClose }: QuickLookOverlayProps) => {
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
             }}
-            title="Close (Space / Escape)"
+            title={t('explorer.quickLook.closeTitle')}
           >
             <svg
               width="14"
@@ -622,7 +635,7 @@ const QuickLookOverlay = ({ file, onClose }: QuickLookOverlayProps) => {
             flexShrink: 0,
           }}
         >
-          Press{' '}
+          {t('explorer.quickLook.pressKey')}{' '}
           <kbd
             style={{
               padding: '1px 5px',
@@ -635,7 +648,7 @@ const QuickLookOverlay = ({ file, onClose }: QuickLookOverlayProps) => {
           >
             Space
           </kbd>{' '}
-          or{' '}
+          {t('explorer.quickLook.orKey')}{' '}
           <kbd
             style={{
               padding: '1px 5px',
@@ -648,7 +661,7 @@ const QuickLookOverlay = ({ file, onClose }: QuickLookOverlayProps) => {
           >
             Esc
           </kbd>{' '}
-          to close
+          {t('explorer.quickLook.toClose')}
         </div>
       </div>
     </div>

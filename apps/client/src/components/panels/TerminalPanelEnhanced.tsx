@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI } from '@/lib/tauri-api';
 import { PATH_SEPARATOR } from '@/lib/constants';
 
@@ -21,6 +22,7 @@ const TerminalPanel = ({
   bottomPanelCollapsed,
   bottomPanelTab,
 }: TerminalPanelProps) => {
+  const { t } = useTranslation();
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalOutputRef = useRef<HTMLDivElement>(null);
   const tabCompletionIndex = useRef(-1);
@@ -167,15 +169,15 @@ const TerminalPanel = ({
           onChange={(e) => setTerminalInput(e.target.value)}
           onKeyDown={handleTerminalKeyDown}
           className="text-xp-text flex-1 bg-transparent font-mono text-xs outline-none"
-          placeholder="Type a command..."
+          placeholder={t('panels.terminal.placeholder')}
           spellCheck={false}
         />
         <button
           onClick={() => executeTerminalCommand('clear')}
           className="text-xp-text-muted hover:text-xp-text ml-2 px-1.5"
-          title="Clear (type 'clear')"
+          title={t('panels.terminal.clearTitle')}
         >
-          Clear
+          {t('panels.terminal.clear')}
         </button>
       </div>
     </div>

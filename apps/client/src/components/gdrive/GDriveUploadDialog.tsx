@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { gdriveManager } from '@/lib/gdrive-plugin';
 import { open } from '@tauri-apps/plugin-dialog';
 import { Upload, CheckCircle, XCircle } from 'lucide-react';
@@ -21,6 +22,7 @@ export const GDriveUploadDialog = ({
   parentFolderId,
   onUploadComplete,
 }: GDriveUploadDialogProps) => {
+  const { t } = useTranslation();
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [selectedFileName, setSelectedFileName] = useState<string>('');
@@ -72,8 +74,8 @@ export const GDriveUploadDialog = ({
       setUploadState('success');
 
       toast({
-        title: 'Upload Complete',
-        description: `"${fileName}" has been uploaded successfully.`,
+        title: t('settings.gdrive.toastUploadCompleteTitle'),
+        description: t('settings.gdrive.toastUploadCompleteDesc', { name: fileName }),
       });
 
       onUploadComplete();
@@ -88,8 +90,8 @@ export const GDriveUploadDialog = ({
       setUploadState('error');
 
       toast({
-        title: 'Upload Failed',
-        description: `Failed to upload file: ${message}`,
+        title: t('settings.gdrive.toastUploadFailedTitle'),
+        description: t('settings.gdrive.toastUploadFailedDesc', { error: message }),
         variant: 'destructive',
       });
     }
@@ -106,12 +108,14 @@ export const GDriveUploadDialog = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-xp-surface border-xp-border w-96 max-w-full rounded-lg border p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xp-text text-lg font-medium">Upload File</h3>
+          <h3 className="text-xp-text text-lg font-medium">
+            {t('settings.gdrive.uploadFileTitle')}
+          </h3>
           <button
             onClick={handleClose}
             disabled={uploadState === 'uploading'}
             className="text-xp-text-muted hover:text-xp-text focus:ring-xp-blue focus:outline-none focus:ring-1 disabled:opacity-50"
-            aria-label="Close upload dialog"
+            aria-label={t('settings.gdrive.ariaCloseUploadDialog')}
           >
             <XCircle className="h-5 w-5" />
           </button>
@@ -121,8 +125,8 @@ export const GDriveUploadDialog = ({
           {(uploadState === 'idle' || uploadState === 'picking') && (
             <>
               <Upload className="text-xp-blue mx-auto mb-3 h-12 w-12 animate-pulse" />
-              <p className="text-xp-text mb-1 text-sm">Select a file to upload...</p>
-              <p className="text-xp-text-muted text-xs">Choose a file from your computer</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.selectFileToUpload')}</p>
+              <p className="text-xp-text-muted text-xs">{t('settings.gdrive.chooseFileHint')}</p>
             </>
           )}
 
@@ -131,7 +135,7 @@ export const GDriveUploadDialog = ({
               <div className="mx-auto mb-3 h-12 w-12">
                 <div className="border-xp-border border-t-tokyo-blue h-12 w-12 animate-spin rounded-full border-4" />
               </div>
-              <p className="text-xp-text mb-1 text-sm">Uploading...</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.uploading')}</p>
               <p className="text-xp-text-muted text-xs">{selectedFileName}</p>
             </>
           )}
@@ -139,7 +143,7 @@ export const GDriveUploadDialog = ({
           {uploadState === 'success' && (
             <>
               <CheckCircle className="text-xp-green mx-auto mb-3 h-12 w-12" />
-              <p className="text-xp-text mb-1 text-sm">Upload complete!</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.uploadComplete')}</p>
               <p className="text-xp-text-muted text-xs">{selectedFileName}</p>
             </>
           )}
@@ -147,22 +151,22 @@ export const GDriveUploadDialog = ({
           {uploadState === 'error' && (
             <>
               <XCircle className="text-xp-red mx-auto mb-3 h-12 w-12" />
-              <p className="text-xp-text mb-1 text-sm">Upload failed</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.uploadFailed')}</p>
               <p className="text-xp-text-muted mb-3 text-xs">{errorMessage}</p>
               <div className="flex justify-center space-x-2">
                 <button
                   onClick={startUpload}
                   className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue rounded px-4 py-2 text-sm text-white transition-colors focus:outline-none focus:ring-1"
-                  aria-label="Retry upload"
+                  aria-label={t('settings.gdrive.ariaRetryUpload')}
                 >
-                  Retry
+                  {t('settings.gdrive.retry')}
                 </button>
                 <button
                   onClick={handleClose}
                   className="border-xp-border hover:bg-xp-surface-light text-xp-text focus:ring-xp-blue rounded border px-4 py-2 text-sm transition-colors focus:outline-none focus:ring-1"
-                  aria-label="Cancel upload"
+                  aria-label={t('settings.gdrive.ariaCancelUpload')}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </>

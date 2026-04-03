@@ -1,4 +1,5 @@
 import React, { useRef, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FileEntry, FolderSizeInfo } from '@/lib/tauri-api';
 import { ViewComponentProps } from './FileGridTypes';
@@ -46,6 +47,7 @@ const FileRow = React.memo(
     isCalculatingSize,
     onCalculateFolderSize,
   }: FileRowProps) => {
+    const { t } = useTranslation();
     const handleClick = useCallback(
       (e: React.MouseEvent) => onFileClick(file.path, e),
       [onFileClick, file.path],
@@ -117,16 +119,16 @@ const FileRow = React.memo(
               <button
                 className="text-xp-text-muted hover:text-xp-accent underline decoration-dotted transition-colors"
                 onClick={handleCalculateClick}
-                title="Click to calculate folder size"
+                title={t('explorer.details.calculateTitle')}
               >
-                Calculate
+                {t('explorer.details.calculate')}
               </button>
             );
           })()}
         </div>
         <div className="text-xp-text-muted col-span-2 text-center text-xs">
           <span className="bg-xp-surface inline-block rounded px-2 py-1 font-mono text-xs capitalize">
-            {file.is_dir ? 'Folder' : file.file_type}
+            {file.is_dir ? t('common.folder') : file.file_type}
           </span>
         </div>
         <div className="text-xp-text-muted col-span-2 text-right font-mono text-xs">
@@ -150,6 +152,7 @@ const GroupHeader = React.memo(({ name, count }: { name: string; count: number }
 ));
 
 const DetailsView = (props: DetailsViewProps) => {
+  const { t } = useTranslation();
   const {
     files,
     selectedFiles,
@@ -243,18 +246,22 @@ const DetailsView = (props: DetailsViewProps) => {
   const header = (
     <div className="bg-xp-surface border-xp-border sticky top-0 z-20 border-b" role="row">
       <div className="text-xp-text-muted grid grid-cols-12 items-center gap-3 px-3 py-3 text-xs font-medium">
-        <div className="col-span-1" role="columnheader" aria-label="Icon" />
+        <div
+          className="col-span-1"
+          role="columnheader"
+          aria-label={t('explorer.details.iconCol')}
+        />
         <div className="col-span-5" role="columnheader">
-          Name
+          {t('explorer.details.nameCol')}
         </div>
         <div className="col-span-2 text-right" role="columnheader">
-          Size
+          {t('explorer.details.sizeCol')}
         </div>
         <div className="col-span-2 text-center" role="columnheader">
-          Type
+          {t('explorer.details.typeCol')}
         </div>
         <div className="col-span-2 text-right" role="columnheader">
-          Modified
+          {t('explorer.details.modifiedCol')}
         </div>
       </div>
     </div>
@@ -286,7 +293,7 @@ const DetailsView = (props: DetailsViewProps) => {
       <div
         className="text-sm"
         role="table"
-        aria-label="File list"
+        aria-label={t('explorer.details.fileListAria')}
         onContextMenu={handleBackgroundRightClick || undefined}
       >
         {header}
@@ -306,7 +313,7 @@ const DetailsView = (props: DetailsViewProps) => {
       ref={scrollRef}
       className="h-full overflow-auto text-sm"
       role="table"
-      aria-label="File list"
+      aria-label={t('explorer.details.fileListAria')}
       onContextMenu={handleBackgroundRightClick || undefined}
     >
       {header}

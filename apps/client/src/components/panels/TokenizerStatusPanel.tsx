@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   TauriAPI,
   type TokenIndex,
@@ -12,6 +13,7 @@ import { TOKENIZER_PANEL_REFRESH_MS } from '@/lib/constants';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 const TokenizerStatusPanel = () => {
+  const { t } = useTranslation();
   const [stats, setStats] = useState<TokenIndex | null>(null);
   const [settings, setSettings] = useState<TokenizerSettings | null>(null);
   const [isIndexing, setIsIndexing] = useState(false);
@@ -71,15 +73,15 @@ const TokenizerStatusPanel = () => {
     try {
       await TauriAPI.rebuildTokenIndex();
       toast({
-        title: 'Rebuilding Index',
-        description: 'Token index is being rebuilt in the background',
+        title: t('panels.tokenizerStatus.toastRebuildTitle'),
+        description: t('panels.tokenizerStatus.toastRebuildDesc'),
       });
       setIsIndexing(true);
       // Refresh stats after a short delay
       setTimeout(loadStats, 1000);
     } catch (error) {
       toast({
-        title: 'Rebuild Failed',
+        title: t('panels.tokenizerStatus.toastRebuildFailedTitle'),
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       });
@@ -89,8 +91,8 @@ const TokenizerStatusPanel = () => {
   const handleTriggerAIIndexing = async () => {
     if (!settings?.whitelisted_paths?.length) {
       toast({
-        title: 'No Paths',
-        description: 'Add indexed paths first before triggering AI indexing.',
+        title: t('panels.tokenizerStatus.toastNoPathsTitle'),
+        description: t('panels.tokenizerStatus.toastNoPathsDesc'),
         variant: 'destructive',
       });
       return;
@@ -100,8 +102,10 @@ const TokenizerStatusPanel = () => {
       const keySet = await hasApiKey(aiProvider);
       if (!keySet) {
         toast({
-          title: 'API Key Not Set',
-          description: `Set your ${aiProvider === 'claude' ? 'Claude' : 'OpenAI'} API key in Settings first.`,
+          title: t('panels.tokenizerStatus.toastApiKeyTitle'),
+          description: t('panels.tokenizerStatus.toastApiKeyDesc', {
+            provider: aiProvider === 'claude' ? 'Claude' : 'OpenAI',
+          }),
           variant: 'destructive',
         });
         return;
@@ -117,13 +121,13 @@ const TokenizerStatusPanel = () => {
         return 'Ollama';
       })();
       toast({
-        title: 'AI Indexing Started',
-        description: `Processing images with ${providerLabel} vision model...`,
+        title: t('panels.tokenizerStatus.toastAIStartedTitle'),
+        description: t('panels.tokenizerStatus.toastAIStartedDesc', { provider: providerLabel }),
       });
       setTimeout(loadStats, 2000);
     } catch (error) {
       toast({
-        title: 'AI Indexing Failed',
+        title: t('panels.tokenizerStatus.toastAIFailedTitle'),
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       });
@@ -143,7 +147,7 @@ const TokenizerStatusPanel = () => {
     } catch (error) {
       console.error('Search failed:', error);
       toast({
-        title: 'Search Failed',
+        title: t('panels.tokenizerStatus.toastSearchFailedTitle'),
         description: error instanceof Error ? error.message : String(error),
         variant: 'destructive',
       });
@@ -175,7 +179,7 @@ const TokenizerStatusPanel = () => {
       <div className="flex h-full items-center justify-center">
         <div className="text-center">
           <div className="border-xp-blue mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-b-2" />
-          <p className="text-xp-text-muted text-sm">Loading tokenizer stats...</p>
+          <p className="text-xp-text-muted text-sm">{t('panels.tokenizerStatus.loadingStats')}</p>
         </div>
       </div>
     );
@@ -186,11 +190,11 @@ const TokenizerStatusPanel = () => {
       {/* Header */}
       <div className="border-xp-border border-b px-4 py-3">
         <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-medium">Search & Indexing</h3>
+          <h3 className="text-sm font-medium">{t('panels.tokenizerStatus.title')}</h3>
           {isIndexing && (
             <div className="text-xp-blue flex items-center gap-2 text-xs">
               <div className="border-xp-blue h-3 w-3 animate-spin rounded-full border-b" />
-              <span>Indexing...</span>
+              <span>{t('panels.tokenizerStatus.indexingLabel')}</span>
             </div>
           )}
         </div>
@@ -199,27 +203,35 @@ const TokenizerStatusPanel = () => {
       {/* Stats */}
       <div className="border-xp-border space-y-2 border-b px-4 py-3">
         <div className="flex justify-between text-sm">
-          <span className="text-xp-text-muted">Status:</span>
+          <span className="text-xp-text-muted">{t('panels.tokenizerStatus.statusLabel')}</span>
           <span className={settings?.enabled ? 'text-xp-green' : 'text-xp-red'}>
-            {settings?.enabled ? 'Enabled' : 'Disabled'}
+            {settings?.enabled
+              ? t('panels.tokenizerStatus.statusEnabled')
+              : t('panels.tokenizerStatus.statusDisabled')}
           </span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-xp-text-muted">Indexed Files:</span>
+          <span className="text-xp-text-muted">
+            {t('panels.tokenizerStatus.indexedFilesLabel')}
+          </span>
           <span className="text-xp-text">{stats?.total_files?.toLocaleString() || 0}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-xp-text-muted">Metadata Files:</span>
+          <span className="text-xp-text-muted">
+            {t('panels.tokenizerStatus.metadataFilesLabel')}
+          </span>
           <span className="text-xp-text">
             {stats?.metadata_files ? Object.keys(stats.metadata_files).length.toLocaleString() : 0}
           </span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-xp-text-muted">Total Tokens:</span>
+          <span className="text-xp-text-muted">{t('panels.tokenizerStatus.totalTokensLabel')}</span>
           <span className="text-xp-text">{stats?.total_tokens?.toLocaleString() || 0}</span>
         </div>
         <div className="flex justify-between text-sm">
-          <span className="text-xp-text-muted">Indexed Paths:</span>
+          <span className="text-xp-text-muted">
+            {t('panels.tokenizerStatus.indexedPathsLabel')}
+          </span>
           <span className="text-xp-text">{settings?.whitelisted_paths?.length || 0}</span>
         </div>
       </div>
@@ -231,17 +243,21 @@ const TokenizerStatusPanel = () => {
           disabled={isIndexing}
           className="bg-xp-blue hover:bg-xp-blue/80 disabled:bg-xp-surface-light disabled:text-xp-text-muted w-full rounded px-3 py-2 text-sm text-white transition-colors"
         >
-          {isIndexing ? 'Rebuilding...' : 'Rebuild Index'}
+          {isIndexing
+            ? t('panels.tokenizerStatus.rebuilding')
+            : t('panels.tokenizerStatus.rebuildIndex')}
         </button>
       </div>
 
       {/* AI Indexing Section (Phase 3) */}
       <div className="border-xp-border border-b px-4 py-3">
-        <h4 className="mb-2 text-sm font-medium">AI Vision Indexing</h4>
+        <h4 className="mb-2 text-sm font-medium">{t('panels.tokenizerStatus.aiVisionTitle')}</h4>
         <div className="space-y-2">
           {/* Provider Selector */}
           <div className="flex items-center gap-2">
-            <span className="text-xp-text-muted whitespace-nowrap text-xs">Provider:</span>
+            <span className="text-xp-text-muted whitespace-nowrap text-xs">
+              {t('panels.tokenizerStatus.providerLabel')}
+            </span>
             <div className="flex flex-1 gap-1">
               {(['ollama', 'claude', 'openai'] as const).map((p) => (
                 <button
@@ -265,18 +281,24 @@ const TokenizerStatusPanel = () => {
 
           {/* Hint for online providers */}
           {aiProvider !== 'ollama' && (
-            <p className="text-xp-text-muted text-[10px]">Uses API key from Settings</p>
+            <p className="text-xp-text-muted text-[10px]">
+              {t('panels.tokenizerStatus.apiKeyFromSettings')}
+            </p>
           )}
 
           {aiStatus ? (
             <>
               <div className="flex justify-between text-xs">
-                <span className="text-xp-text-muted">AI Indexed:</span>
+                <span className="text-xp-text-muted">
+                  {t('panels.tokenizerStatus.aiIndexedLabel')}
+                </span>
                 <span className="text-xp-text">{aiStatus.total_indexed}</span>
               </div>
               {aiStatus.vision_model && (
                 <div className="flex justify-between text-xs">
-                  <span className="text-xp-text-muted">Vision Model:</span>
+                  <span className="text-xp-text-muted">
+                    {t('panels.tokenizerStatus.visionModelLabel')}
+                  </span>
                   <span className="text-xp-text ml-2 truncate">{aiStatus.vision_model}</span>
                 </div>
               )}
@@ -284,13 +306,15 @@ const TokenizerStatusPanel = () => {
                 <div className="flex items-center gap-2 text-xs text-purple-400">
                   <div className="h-3 w-3 animate-spin rounded-full border-b border-purple-400" />
                   <span className="truncate">
-                    Processing: {aiStatus.current_file?.split(/[/\\]/).pop() || '...'}
+                    {t('panels.tokenizerStatus.processingLabel', {
+                      file: aiStatus.current_file?.split(/[/\\]/).pop() || '...',
+                    })}
                   </span>
                 </div>
               )}
               {aiStatus.queue_length > 0 && (
                 <div className="text-xp-text-muted text-xs">
-                  Queue: {aiStatus.queue_length} files remaining
+                  {t('panels.tokenizerStatus.queueLabel', { count: aiStatus.queue_length })}
                 </div>
               )}
               <button
@@ -298,13 +322,15 @@ const TokenizerStatusPanel = () => {
                 disabled={aiStatus.is_processing}
                 className="disabled:bg-xp-surface-light disabled:text-xp-text-muted w-full rounded bg-purple-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-purple-500"
               >
-                {aiStatus.is_processing ? 'Processing...' : 'Index Images with AI'}
+                {aiStatus.is_processing
+                  ? t('panels.tokenizerStatus.processing')
+                  : t('panels.tokenizerStatus.indexImagesWithAI')}
               </button>
             </>
           ) : null}
           {!aiStatus && aiProvider === 'ollama' && (
             <p className="text-xp-text-muted text-xs">
-              Requires Ollama with a vision model (llava, bakllava, moondream)
+              {t('panels.tokenizerStatus.ollamaRequirement')}
             </p>
           )}
           {!aiStatus && aiProvider !== 'ollama' && (
@@ -313,7 +339,7 @@ const TokenizerStatusPanel = () => {
               disabled={!settings?.whitelisted_paths?.length}
               className="disabled:bg-xp-surface-light disabled:text-xp-text-muted w-full rounded bg-purple-600 px-3 py-1.5 text-xs text-white transition-colors hover:bg-purple-500"
             >
-              Index Images with AI
+              {t('panels.tokenizerStatus.indexImagesWithAI')}
             </button>
           )}
         </div>
@@ -321,17 +347,17 @@ const TokenizerStatusPanel = () => {
 
       {/* Search */}
       <div className="border-xp-border border-b px-4 py-3">
-        <h4 className="mb-2 text-sm font-medium">Content Search</h4>
-        <p className="text-xp-text-muted mb-2 text-xs">
-          Try: "large videos from last month" or "recent photos"
-        </p>
+        <h4 className="mb-2 text-sm font-medium">
+          {t('panels.tokenizerStatus.contentSearchTitle')}
+        </h4>
+        <p className="text-xp-text-muted mb-2 text-xs">{t('panels.tokenizerStatus.searchHint')}</p>
         <div className="flex gap-2">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyPress={handleSearchKeyPress}
-            placeholder="Search files by content or metadata..."
+            placeholder={t('panels.tokenizerStatus.searchPlaceholder')}
             className="bg-xp-surface border-xp-border focus:border-xp-blue text-xp-text placeholder:text-xp-text-muted flex-1 rounded border px-3 py-2 text-sm focus:outline-none"
           />
           <button
@@ -359,7 +385,12 @@ const TokenizerStatusPanel = () => {
         {searchResults.length > 0 ? (
           <div>
             <div className="text-xp-text-muted bg-xp-surface px-4 py-2 text-xs">
-              Found {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+              {t(
+                searchResults.length !== 1
+                  ? 'panels.tokenizerStatus.foundResults_plural'
+                  : 'panels.tokenizerStatus.foundResults',
+                { count: searchResults.length },
+              )}
             </div>
             {searchResults.map((result, index) => {
               const badge = getSourceBadge(result.relevance_type);
@@ -397,7 +428,7 @@ const TokenizerStatusPanel = () => {
         ) : null}
         {searchResults.length === 0 && searchQuery && !isSearching && (
           <div className="text-xp-text-muted flex h-32 items-center justify-center text-sm">
-            No results found
+            {t('panels.tokenizerStatus.noResults')}
           </div>
         )}
       </div>
@@ -409,7 +440,7 @@ const TokenizerStatusPanel = () => {
         !searchQuery && (
           <div className="border-xp-border border-t">
             <div className="text-xp-text-muted bg-xp-surface px-4 py-2 text-xs">
-              Indexed Directories
+              {t('panels.tokenizerStatus.indexedDirectories')}
             </div>
             <div className="max-h-32 overflow-y-auto">
               {settings.whitelisted_paths.map((path) => (

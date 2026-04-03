@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FileChangeSet, FileChange } from '@/hooks/use-focus-change-tracker';
 import { formatFileSize } from '@/lib/utils';
 
@@ -138,6 +139,7 @@ const ChangeSection = ({
 
 const ChangeReviewPanel = React.memo(
   ({ changes, onDismiss, onNavigate }: ChangeReviewPanelProps) => {
+    const { t } = useTranslation();
     const handleClickChange = useCallback(
       (change: FileChange) => {
         if (!onNavigate) return;
@@ -200,7 +202,7 @@ const ChangeReviewPanel = React.memo(
             />
           </svg>
           <span style={summaryStyle}>
-            {changes.totalCount} change{changes.totalCount !== 1 ? 's' : ''} detected
+            {t('panels.changeReview.changesDetected', { count: changes.totalCount })}
             {changes.added.length > 0 && (
               <span style={{ color: '#9ece6a', marginLeft: 8 }}>+{changes.added.length}</span>
             )}
@@ -221,14 +223,14 @@ const ChangeReviewPanel = React.memo(
               (e.currentTarget as HTMLButtonElement).style.opacity = '1';
             }}
           >
-            Accept All
+            {t('panels.changeReview.acceptAll')}
           </button>
         </div>
 
         {/* Changes list */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <ChangeSection
-            title="Added"
+            title={t('panels.changeReview.added')}
             color="#9ece6a"
             icon={
               <svg width={12} height={12} fill="currentColor" viewBox="0 0 20 20">
@@ -243,7 +245,7 @@ const ChangeReviewPanel = React.memo(
             onClickChange={handleClickChange}
           />
           <ChangeSection
-            title="Removed"
+            title={t('panels.changeReview.removed')}
             color="#f7768e"
             icon={
               <svg width={12} height={12} fill="currentColor" viewBox="0 0 20 20">
@@ -258,7 +260,7 @@ const ChangeReviewPanel = React.memo(
             onClickChange={handleClickChange}
           />
           <ChangeSection
-            title="Modified"
+            title={t('panels.changeReview.modified')}
             color="#e0af68"
             icon={
               <svg
@@ -291,7 +293,7 @@ const ChangeReviewPanel = React.memo(
                 color: 'var(--xp-text-muted, #565f89)',
               }}
             >
-              No changes detected
+              {t('panels.changeReview.noChanges')}
             </div>
           )}
         </div>

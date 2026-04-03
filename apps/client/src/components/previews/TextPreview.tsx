@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PreviewProps } from '@/lib/preview-factory';
 import { TauriAPI } from '@/lib/tauri-api';
 
 const TextPreview = ({ file, onError, onLoad }: PreviewProps) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,13 +47,13 @@ const TextPreview = ({ file, onError, onLoad }: PreviewProps) => {
 
   return (
     <div className="mt-4">
-      <h4 className="text-xp-text-muted mb-2 text-xs font-medium">Text Preview</h4>
+      <h4 className="text-xp-text-muted mb-2 text-xs font-medium">{t('previews.text.title')}</h4>
 
       {loading && (
         <div className="bg-xp-surface border-xp-border text-xp-text-muted rounded border p-4 text-center">
           <div className="animate-pulse">
             <div className="bg-xp-bg mb-2 h-32 w-full rounded" />
-            <p className="text-xs">Loading text...</p>
+            <p className="text-xs">{t('previews.text.loading')}</p>
           </div>
         </div>
       )}
@@ -65,7 +67,7 @@ const TextPreview = ({ file, onError, onLoad }: PreviewProps) => {
               clipRule="evenodd"
             />
           </svg>
-          <p className="text-xs">Cannot preview text</p>
+          <p className="text-xs">{t('previews.text.cannotPreview')}</p>
           <p className="mt-1 text-xs opacity-70">{error}</p>
         </div>
       ) : null}

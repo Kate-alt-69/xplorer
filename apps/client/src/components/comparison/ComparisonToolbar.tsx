@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { RefreshCw, FileIcon, Columns, Rows, ChevronsDown, ChevronsUp } from 'lucide-react';
 import type { DiffHunk, ViewMode } from '@/pages/file-comparison-helpers';
 
@@ -28,6 +29,7 @@ export const StatsHeader = ({
   similarity,
   formatSize,
 }: StatsHeaderProps) => {
+  const { t } = useTranslation();
   const sizeDiff = file2.size - file1.size;
   let sizeDiffStr: string;
   if (sizeDiff > 0) {
@@ -35,7 +37,7 @@ export const StatsHeader = ({
   } else if (sizeDiff < 0) {
     sizeDiffStr = `-${formatSize(Math.abs(sizeDiff))}`;
   } else {
-    sizeDiffStr = 'same';
+    sizeDiffStr = t('comparison.sizeSame');
   }
 
   let sizeBgColor: string;
@@ -82,14 +84,15 @@ export const StatsHeader = ({
       {/* Change counts */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ color: 'var(--xp-green)', fontWeight: 600 }}>
-          +{metadata.linesAdded} addition{metadata.linesAdded !== 1 ? 's' : ''}
+          +{metadata.linesAdded} {t('comparison.additions', { count: metadata.linesAdded })}
         </span>
         <span style={{ color: 'var(--xp-red)', fontWeight: 600 }}>
-          -{metadata.linesRemoved} deletion{metadata.linesRemoved !== 1 ? 's' : ''}
+          -{metadata.linesRemoved} {t('comparison.deletions', { count: metadata.linesRemoved })}
         </span>
         {metadata.linesModified > 0 && (
           <span style={{ color: 'var(--xp-yellow)', fontWeight: 600 }}>
-            ~{metadata.linesModified} modification{metadata.linesModified !== 1 ? 's' : ''}
+            ~{metadata.linesModified}{' '}
+            {t('comparison.modifications', { count: metadata.linesModified })}
           </span>
         )}
       </div>
@@ -102,7 +105,7 @@ export const StatsHeader = ({
         style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--xp-text-secondary)' }}
       >
         <span>{formatSize(file1.size)}</span>
-        <span style={{ color: 'var(--xp-text-muted)' }}>vs</span>
+        <span style={{ color: 'var(--xp-text-muted)' }}>{t('comparison.vs')}</span>
         <span>{formatSize(file2.size)}</span>
         <span
           style={{
@@ -122,7 +125,7 @@ export const StatsHeader = ({
 
       {/* Similarity */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{ color: 'var(--xp-text-secondary)' }}>Similarity:</span>
+        <span style={{ color: 'var(--xp-text-secondary)' }}>{t('comparison.similarity')}</span>
         <span
           style={{
             fontWeight: 600,
@@ -171,6 +174,7 @@ export const DiffToolbar = ({
   onPrev,
   onRefresh,
 }: DiffToolbarProps) => {
+  const { t } = useTranslation();
   const btnStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
@@ -212,18 +216,18 @@ export const DiffToolbar = ({
         <button
           style={viewMode === 'side-by-side' ? btnActiveStyle : btnStyle}
           onClick={() => onViewModeChange('side-by-side')}
-          title="Side-by-side view"
+          title={t('comparison.sideBySideViewTitle')}
         >
           <Columns style={{ width: 13, height: 13, marginRight: 4 }} />
-          Side by Side
+          {t('comparison.sideBySide')}
         </button>
         <button
           style={viewMode === 'unified' ? btnActiveStyle : btnStyle}
           onClick={() => onViewModeChange('unified')}
-          title="Unified view"
+          title={t('comparison.unifiedViewTitle')}
         >
           <Rows style={{ width: 13, height: 13, marginRight: 4 }} />
-          Unified
+          {t('comparison.unified')}
         </button>
       </div>
 
@@ -241,7 +245,7 @@ export const DiffToolbar = ({
             }}
             onClick={onPrev}
             disabled={currentHunkIdx <= 0}
-            title="Previous change (Ctrl+Up)"
+            title={t('comparison.prevChangeTitle')}
           >
             <ChevronsUp style={{ width: 13, height: 13 }} />
           </button>
@@ -257,7 +261,10 @@ export const DiffToolbar = ({
               textAlign: 'center',
             }}
           >
-            Change {hunks.length > 0 ? currentHunkIdx + 1 : 0} of {hunks.length}
+            {t('comparison.changeOf', {
+              current: hunks.length > 0 ? currentHunkIdx + 1 : 0,
+              total: hunks.length,
+            })}
           </span>
           <button
             style={{
@@ -267,7 +274,7 @@ export const DiffToolbar = ({
             }}
             onClick={onNext}
             disabled={currentHunkIdx >= hunks.length - 1}
-            title="Next change (Ctrl+Down)"
+            title={t('comparison.nextChangeTitle')}
           >
             <ChevronsDown style={{ width: 13, height: 13 }} />
           </button>
@@ -275,7 +282,7 @@ export const DiffToolbar = ({
       )}
 
       {/* Refresh */}
-      <button style={navBtnStyle} onClick={onRefresh} title="Refresh comparison">
+      <button style={navBtnStyle} onClick={onRefresh} title={t('comparison.refreshTitle')}>
         <RefreshCw style={{ width: 13, height: 13 }} />
       </button>
     </div>
@@ -302,6 +309,7 @@ export const FileNameBar = ({
   formatSize,
   viewMode,
 }: FileNameBarProps) => {
+  const { t } = useTranslation();
   if (viewMode === 'unified') {
     return (
       <div
@@ -320,7 +328,7 @@ export const FileNameBar = ({
           {file1.name}
         </span>
         <span style={{ color: 'var(--xp-text-muted)' }}>{formatSize(file1.size)}</span>
-        <span style={{ color: 'var(--xp-text-muted)', margin: '0 4px' }}>vs</span>
+        <span style={{ color: 'var(--xp-text-muted)', margin: '0 4px' }}>{t('comparison.vs')}</span>
         <FileIcon style={{ width: 14, height: 14, color: 'var(--xp-green)', flexShrink: 0 }} />
         <span style={{ color: 'var(--xp-text)', fontWeight: 500 }} title={file2.path}>
           {file2.name}

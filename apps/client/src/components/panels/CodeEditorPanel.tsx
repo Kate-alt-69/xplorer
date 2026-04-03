@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { transport } from '@/lib/transport';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { Save, RotateCcw, WrapText, Copy, Check } from 'lucide-react';
@@ -10,6 +11,7 @@ interface CodeEditorPanelProps {
 }
 
 const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,31 +32,34 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
 
   const isDirty = content !== originalContent;
 
-  const loadFile = useCallback(async (file: FileEntry) => {
-    if (!isEditable(file)) {
-      setError('This file type cannot be edited');
-      setContent('');
-      setOriginalContent('');
-      setCurrentFilePath(null);
-      return;
-    }
+  const loadFile = useCallback(
+    async (file: FileEntry) => {
+      if (!isEditable(file)) {
+        setError(t('panels.codeEditor.notEditable'));
+        setContent('');
+        setOriginalContent('');
+        setCurrentFilePath(null);
+        return;
+      }
 
-    setLoading(true);
-    setError(null);
-    try {
-      const text = await TauriAPI.readTextFile(file.path);
-      setContent(text);
-      setOriginalContent(text);
-      setCurrentFilePath(file.path);
-    } catch (err) {
-      setError(`Failed to read file: ${err}`);
-      setContent('');
-      setOriginalContent('');
-      setCurrentFilePath(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      setLoading(true);
+      setError(null);
+      try {
+        const text = await TauriAPI.readTextFile(file.path);
+        setContent(text);
+        setOriginalContent(text);
+        setCurrentFilePath(file.path);
+      } catch (err) {
+        setError(t('panels.codeEditor.failedToRead', { error: err }));
+        setContent('');
+        setOriginalContent('');
+        setCurrentFilePath(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     if (selectedFile && !selectedFile.is_dir) {
@@ -79,7 +84,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
       });
       setOriginalContent(content);
     } catch (err) {
-      setError(`Failed to save: ${err}`);
+      setError(t('panels.codeEditor.failedToSave', { error: err }));
     } finally {
       setSaving(false);
     }
@@ -128,7 +133,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
   if (!selectedFile || selectedFile.is_dir) {
     return (
       <div className="text-xp-text-muted flex h-full items-center justify-center text-sm">
-        Select a file to edit
+        {t('panels.codeEditor.selectFile')}
       </div>
     );
   }
@@ -146,7 +151,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
   if (loading) {
     return (
       <div className="text-xp-text-muted flex h-full items-center justify-center text-sm">
-        Loading...
+        {t('common.loading')}
       </div>
     );
   }
@@ -159,13 +164,17 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
           <span className="text-xp-text truncate text-xs" title={currentFilePath || ''}>
             {selectedFile.name}
           </span>
-          {isDirty && <span className="text-xp-orange ml-1 text-xs font-medium">Modified</span>}
+          {isDirty && (
+            <span className="text-xp-orange ml-1 text-xs font-medium">
+              {t('panels.codeEditor.modified')}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1.5 transition-colors"
-            title="Copy contents"
+            title={t('panels.codeEditor.copyContents')}
           >
             {copied ? <Check size={14} className="text-xp-green" /> : <Copy size={14} />}
           </button>
@@ -174,7 +183,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
             className={`hover:bg-xp-surface-light rounded p-1.5 transition-colors ${
               wordWrap ? 'text-xp-blue' : 'text-xp-text-muted hover:text-xp-text'
             }`}
-            title="Toggle word wrap"
+            title={t('panels.codeEditor.toggleWordWrap')}
           >
             <WrapText size={14} />
           </button>
@@ -182,7 +191,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
             onClick={handleRevert}
             disabled={!isDirty}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1.5 transition-colors disabled:opacity-30"
-            title="Revert changes"
+            title={t('panels.codeEditor.revertChanges')}
           >
             <RotateCcw size={14} />
           </button>
@@ -190,7 +199,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
             onClick={handleSave}
             disabled={!isDirty || saving}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-blue rounded p-1.5 transition-colors disabled:opacity-30"
-            title="Save (Cmd+S)"
+            title={t('panels.codeEditor.saveCmdS')}
           >
             <Save size={14} />
           </button>
@@ -228,7 +237,7 @@ const CodeEditorPanel = ({ selectedFile }: CodeEditorPanelProps) => {
 
       {/* Status bar */}
       <div className="border-xp-border text-xp-text-muted flex flex-shrink-0 items-center justify-between border-t px-3 py-1 text-[10px]">
-        <span>{lineCount} lines</span>
+        <span>{t('panels.codeEditor.lineCount', { count: lineCount })}</span>
         <span>{getFileExtension(selectedFile.name).toUpperCase() || 'TEXT'}</span>
       </div>
     </div>

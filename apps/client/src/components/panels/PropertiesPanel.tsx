@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI } from '@/lib/tauri-api';
 import { getFileIcon, formatFileSize, formatDate } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
@@ -47,6 +48,7 @@ interface PropertiesPanelProps {
 }
 
 const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [properties, setProperties] = useState<FileProperties | null>(null);
   const [loading, setLoading] = useState(false);
@@ -73,8 +75,8 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
     } catch (err) {
       setError((err as Error).message);
       toast({
-        title: 'Error Loading Properties',
-        description: `Failed to load properties: ${(err as Error).message}`,
+        title: t('panels.properties.toastLoadErrorTitle'),
+        description: t('panels.properties.toastLoadErrorDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     } finally {
@@ -97,13 +99,13 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
       setEditingPermissions(false);
       loadProperties();
       toast({
-        title: 'Permissions Updated',
-        description: 'File permissions have been successfully updated.',
+        title: t('panels.properties.toastPermUpdatedTitle'),
+        description: t('panels.properties.toastPermUpdatedDesc'),
       });
     } catch (err) {
       toast({
-        title: 'Error Updating Permissions',
-        description: `Failed to update permissions: ${(err as Error).message}`,
+        title: t('panels.properties.toastPermErrorTitle'),
+        description: t('panels.properties.toastPermErrorDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     }
@@ -112,7 +114,7 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
   if (!filePath) {
     return (
       <div className="text-xp-text-muted flex h-full items-center justify-center text-xs">
-        No file selected
+        {t('panels.properties.noFileSelected')}
       </div>
     );
   }
@@ -121,7 +123,7 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
     return (
       <div className="text-xp-text-muted flex h-full items-center justify-center text-xs">
         <div className="border-xp-blue mr-2 h-4 w-4 animate-spin rounded-full border-b-2" />
-        Loading properties...
+        {t('panels.properties.loadingProperties')}
       </div>
     );
   }
@@ -129,12 +131,12 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
   if (error) {
     return (
       <div className="text-xp-text-muted flex h-full items-center justify-center gap-2 text-xs">
-        <span className="text-red-400">Error: {error}</span>
+        <span className="text-red-400">{t('panels.properties.errorPrefix', { error })}</span>
         <button
           onClick={loadProperties}
           className="bg-xp-blue hover:bg-xp-blue-dark rounded px-2 py-0.5 text-[10px] text-white"
         >
-          Retry
+          {t('panels.properties.retry')}
         </button>
       </div>
     );
@@ -156,14 +158,14 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
                 : 'text-xp-text-muted hover:bg-xp-surface-light'
             }`}
           >
-            {tab}
+            {t(`panels.properties.tab${tab.charAt(0).toUpperCase()}${tab.slice(1)}`)}
           </button>
         ))}
         <div className="flex-1" />
         <button
           onClick={loadProperties}
           className="text-xp-text-muted hover:bg-xp-surface-light rounded px-2 py-0.5 text-[10px] font-medium"
-          title="Refresh properties"
+          title={t('panels.properties.refreshTitle')}
         >
           <svg
             className="h-3 w-3"
@@ -210,22 +212,22 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
                 <div className="mt-1 flex flex-wrap gap-1">
                   {properties.is_hidden && (
                     <span className="bg-xp-yellow/20 text-xp-yellow rounded px-1 py-0.5 text-[9px]">
-                      Hidden
+                      {t('panels.properties.hiddenBadge')}
                     </span>
                   )}
                   {properties.is_readonly && (
                     <span className="bg-xp-red/20 text-xp-red rounded px-1 py-0.5 text-[9px]">
-                      Read-only
+                      {t('panels.properties.readonlyBadge')}
                     </span>
                   )}
                   {properties.is_directory && (
                     <span className="bg-xp-blue/20 text-xp-blue rounded px-1 py-0.5 text-[9px]">
-                      Directory
+                      {t('panels.properties.directoryBadge')}
                     </span>
                   )}
                   {properties.attributes.symlink_target && (
                     <span className="bg-xp-purple/20 text-xp-purple rounded px-1 py-0.5 text-[9px]">
-                      Symlink
+                      {t('panels.properties.symlinkBadge')}
                     </span>
                   )}
                 </div>
@@ -234,22 +236,43 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
 
             {/* Right: properties grid */}
             <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-0.5 text-xs">
-              <PropRow label="Location" value={properties.path} />
-              <PropRow label="Size" value={properties.size_formatted} />
+              <PropRow label={t('panels.properties.labelLocation')} value={properties.path} />
+              <PropRow label={t('panels.properties.labelSize')} value={properties.size_formatted} />
               {properties.attributes.item_count != null && (
-                <PropRow label="Contains" value={`${properties.attributes.item_count} items`} />
+                <PropRow
+                  label={t('panels.properties.labelContains')}
+                  value={t('panels.properties.containsValue', {
+                    count: properties.attributes.item_count,
+                  })}
+                />
               )}
               {properties.attributes.total_size != null && (
                 <PropRow
-                  label="Disk size"
+                  label={t('panels.properties.labelDiskSize')}
                   value={formatFileSize(properties.attributes.total_size)}
                 />
               )}
-              <PropRow label="Created" value={formatDate(properties.created)} />
-              <PropRow label="Modified" value={formatDate(properties.modified)} />
-              <PropRow label="Accessed" value={formatDate(properties.accessed)} />
-              {properties.extension && <PropRow label="Extension" value={properties.extension} />}
-              {properties.mime_type && <PropRow label="MIME" value={properties.mime_type} />}
+              <PropRow
+                label={t('panels.properties.labelCreated')}
+                value={formatDate(properties.created)}
+              />
+              <PropRow
+                label={t('panels.properties.labelModified')}
+                value={formatDate(properties.modified)}
+              />
+              <PropRow
+                label={t('panels.properties.labelAccessed')}
+                value={formatDate(properties.accessed)}
+              />
+              {properties.extension && (
+                <PropRow
+                  label={t('panels.properties.labelExtension')}
+                  value={properties.extension}
+                />
+              )}
+              {properties.mime_type && (
+                <PropRow label={t('panels.properties.labelMime')} value={properties.mime_type} />
+              )}
             </div>
           </div>
         )}
@@ -257,12 +280,23 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
         {activeTab === 'permissions' && (
           <div className="space-y-2 text-xs">
             <div className="grid grid-cols-3 gap-2">
-              <PermBadge label="Read" value={properties.permissions.readable} />
-              <PermBadge label="Write" value={properties.permissions.writable} />
-              <PermBadge label="Execute" value={properties.permissions.executable} />
+              <PermBadge
+                label={t('panels.properties.labelRead')}
+                value={properties.permissions.readable}
+              />
+              <PermBadge
+                label={t('panels.properties.labelWrite')}
+                value={properties.permissions.writable}
+              />
+              <PermBadge
+                label={t('panels.properties.labelExecute')}
+                value={properties.permissions.executable}
+              />
             </div>
             <div className="mt-2 flex items-center gap-2">
-              <span className="text-xp-text-muted w-20 text-[10px] font-medium">Permissions:</span>
+              <span className="text-xp-text-muted w-20 text-[10px] font-medium">
+                {t('panels.properties.labelPermissions')}
+              </span>
               <input
                 type="text"
                 value={
@@ -271,7 +305,7 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
                 onChange={(e) => setPermissionString(e.target.value)}
                 disabled={!editingPermissions}
                 className="border-xp-border bg-xp-bg text-xp-text focus:ring-xp-blue flex-1 rounded border px-2 py-1 text-[11px] focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="e.g., 755 or readonly"
+                placeholder={t('panels.properties.permPlaceholder')}
               />
               {editingPermissions ? (
                 <>
@@ -279,7 +313,7 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
                     onClick={handleSavePermissions}
                     className="bg-xp-blue hover:bg-xp-blue-dark rounded px-2 py-1 text-[10px] text-white"
                   >
-                    Save
+                    {t('common.save')}
                   </button>
                   <button
                     onClick={() => {
@@ -288,7 +322,7 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
                     }}
                     className="bg-xp-surface-light text-xp-text hover:bg-xp-border rounded px-2 py-1 text-[10px]"
                   >
-                    Cancel
+                    {t('common.cancel')}
                   </button>
                 </>
               ) : (
@@ -296,53 +330,78 @@ const PropertiesPanel = ({ filePath }: PropertiesPanelProps) => {
                   onClick={() => setEditingPermissions(true)}
                   className="bg-xp-surface-light text-xp-text hover:bg-xp-border rounded px-2 py-1 text-[10px]"
                 >
-                  Edit
+                  {t('common.edit')}
                 </button>
               )}
             </div>
-            <p className="text-xp-text-muted text-[9px]">
-              Use octal notation (e.g., 755) on Unix, or &apos;readonly&apos;/&apos;writable&apos;
-              on Windows
-            </p>
+            <p className="text-xp-text-muted text-[9px]">{t('panels.properties.permHint')}</p>
           </div>
         )}
 
         {activeTab === 'details' && (
           <div className="grid grid-cols-2 gap-x-6 gap-y-0.5 text-xs">
             {properties.attributes.device_id != null && (
-              <PropRow label="Device ID" value={String(properties.attributes.device_id)} />
+              <PropRow
+                label={t('panels.properties.labelDeviceId')}
+                value={String(properties.attributes.device_id)}
+              />
             )}
             {properties.attributes.inode != null && (
-              <PropRow label="Inode" value={String(properties.attributes.inode)} />
+              <PropRow
+                label={t('panels.properties.labelInode')}
+                value={String(properties.attributes.inode)}
+              />
             )}
             {properties.attributes.hard_links != null && (
-              <PropRow label="Hard Links" value={String(properties.attributes.hard_links)} />
+              <PropRow
+                label={t('panels.properties.labelHardLinks')}
+                value={String(properties.attributes.hard_links)}
+              />
             )}
             {properties.attributes.symlink_target && (
-              <PropRow label="Symlink Target" value={properties.attributes.symlink_target} />
+              <PropRow
+                label={t('panels.properties.labelSymlinkTarget')}
+                value={properties.attributes.symlink_target}
+              />
             )}
             {properties.permissions.mode != null && (
               <PropRow
-                label="Mode"
-                value={`${Number(properties.permissions.mode).toString(8)} (octal)`}
+                label={t('panels.properties.labelMode')}
+                value={t('panels.properties.modeValue', {
+                  octal: Number(properties.permissions.mode).toString(8),
+                })}
               />
             )}
             {properties.permissions.attributes != null && (
               <PropRow
-                label="Attributes"
-                value={`0x${Number(properties.permissions.attributes).toString(16)} (hex)`}
+                label={t('panels.properties.labelAttributes')}
+                value={t('panels.properties.attributesValue', {
+                  hex: `0x${Number(properties.permissions.attributes).toString(16)}`,
+                })}
               />
             )}
-            <PropRow label="Size (bytes)" value={(properties.size ?? 0).toLocaleString()} />
+            <PropRow
+              label={t('panels.properties.labelSizeBytes')}
+              value={(properties.size ?? 0).toLocaleString()}
+            />
             {properties.attributes.total_size != null && (
               <PropRow
-                label="Total (bytes)"
+                label={t('panels.properties.labelTotalBytes')}
                 value={properties.attributes.total_size.toLocaleString()}
               />
             )}
-            <PropRow label="Created (Unix)" value={String(properties.created ?? '')} />
-            <PropRow label="Modified (Unix)" value={String(properties.modified ?? '')} />
-            <PropRow label="Accessed (Unix)" value={String(properties.accessed ?? '')} />
+            <PropRow
+              label={t('panels.properties.labelCreatedUnix')}
+              value={String(properties.created ?? '')}
+            />
+            <PropRow
+              label={t('panels.properties.labelModifiedUnix')}
+              value={String(properties.modified ?? '')}
+            />
+            <PropRow
+              label={t('panels.properties.labelAccessedUnix')}
+              value={String(properties.accessed ?? '')}
+            />
           </div>
         )}
       </div>

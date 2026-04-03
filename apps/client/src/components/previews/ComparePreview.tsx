@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileEntry, TauriAPI } from '@/lib/tauri-api';
 import { convertAssetUrl } from '@/lib/transport';
 import { computeLineDiff, getDiffStats, type DiffLine } from '@/lib/simple-diff';
@@ -99,6 +100,7 @@ const CompareHeader = React.memo(
     onSwap: () => void;
     onDismiss: () => void;
   }) => {
+    const { t } = useTranslation();
     return (
       <div
         style={{
@@ -131,14 +133,14 @@ const CompareHeader = React.memo(
           <span
             style={{ fontSize: 12, fontWeight: 600, color: 'var(--xp-text)', whiteSpace: 'nowrap' }}
           >
-            Comparing 2 files
+            {t('previews.compare.comparing2Files')}
           </span>
         </div>
 
         {/* Swap button */}
         <button
           onClick={onSwap}
-          title="Swap left and right"
+          title={t('previews.compare.swapTitle')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -171,7 +173,7 @@ const CompareHeader = React.memo(
         {/* Dismiss (X) */}
         <button
           onClick={onDismiss}
-          title="Exit compare mode"
+          title={t('previews.compare.exitTitle')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -235,6 +237,7 @@ const MAX_TEXT_SIZE = 2 * 1024 * 1024; // 2 MB per file
 
 const TextCompare = React.memo(
   ({ leftFile, rightFile }: { leftFile: FileEntry; rightFile: FileEntry }) => {
+    const { t } = useTranslation();
     const [leftContent, setLeftContent] = useState<string | null>(null);
     const [rightContent, setRightContent] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
@@ -316,7 +319,7 @@ const TextCompare = React.memo(
           }}
         >
           <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 12 }}>Loading file contents...</div>
+            <div style={{ fontSize: 12 }}>{t('previews.compare.loadingContents')}</div>
           </div>
         </div>
       );
@@ -355,16 +358,24 @@ const TextCompare = React.memo(
           }}
         >
           <span>
-            {leftLineCount} lines / {formatFileSize(leftFile.size)}
+            {t('previews.compare.linesCount', {
+              count: leftLineCount,
+              size: formatFileSize(leftFile.size),
+            })}
           </span>
-          <span>vs</span>
+          <span>{t('comparison.vs')}</span>
           <span>
-            {rightLineCount} lines / {formatFileSize(rightFile.size)}
+            {t('previews.compare.linesCount', {
+              count: rightLineCount,
+              size: formatFileSize(rightFile.size),
+            })}
           </span>
           <span style={{ marginLeft: 'auto' }}>
             <span style={{ color: 'var(--xp-green)' }}>+{stats.additions}</span>{' '}
             <span style={{ color: 'var(--xp-red)' }}>-{stats.removals}</span>{' '}
-            <span>{stats.unchanged} same</span>
+            <span>
+              {stats.unchanged} {t('previews.compare.same')}
+            </span>
           </span>
         </div>
 
@@ -489,6 +500,7 @@ DiffLineRow.displayName = 'DiffLineRow';
 
 const ImageCompare = React.memo(
   ({ leftFile, rightFile }: { leftFile: FileEntry; rightFile: FileEntry }) => {
+    const { t } = useTranslation();
     const [mode, setMode] = useState<'side-by-side' | 'overlay'>('side-by-side');
     const [opacity, setOpacity] = useState(50);
     const [leftDims, setLeftDims] = useState<{ w: number; h: number } | null>(null);
@@ -525,7 +537,7 @@ const ImageCompare = React.memo(
                 fontSize: 11,
               }}
             >
-              Side-by-side
+              {t('previews.compare.sideBySide')}
             </button>
             <button
               onClick={() => setMode('overlay')}
@@ -539,14 +551,16 @@ const ImageCompare = React.memo(
                 fontSize: 11,
               }}
             >
-              Overlay
+              {t('previews.compare.overlay')}
             </button>
           </div>
 
           {/* Opacity slider (overlay mode only) */}
           {mode === 'overlay' && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
-              <span style={{ color: 'var(--xp-text-secondary)', fontSize: 11 }}>Opacity:</span>
+              <span style={{ color: 'var(--xp-text-secondary)', fontSize: 11 }}>
+                {t('previews.compare.opacity')}
+              </span>
               <input
                 type="range"
                 min={0}
@@ -719,50 +733,51 @@ ImageCompare.displayName = 'ImageCompare';
 
 const MetadataCompare = React.memo(
   ({ leftFile, rightFile }: { leftFile: FileEntry; rightFile: FileEntry }) => {
+    const { t } = useTranslation();
     const rows: Array<{ label: string; left: string; right: string }> = useMemo(
       () => [
-        { label: 'Name', left: leftFile.name, right: rightFile.name },
+        { label: t('previews.compare.metaName'), left: leftFile.name, right: rightFile.name },
         {
-          label: 'Extension',
-          left: getExt(leftFile.name) || '(none)',
-          right: getExt(rightFile.name) || '(none)',
+          label: t('previews.compare.metaExtension'),
+          left: getExt(leftFile.name) || t('previews.compare.metaNone'),
+          right: getExt(rightFile.name) || t('previews.compare.metaNone'),
         },
         {
-          label: 'Size',
+          label: t('previews.compare.metaSize'),
           left: formatFileSize(leftFile.size),
           right: formatFileSize(rightFile.size),
         },
         {
-          label: 'Size (bytes)',
+          label: t('previews.compare.metaSizeBytes'),
           left: leftFile.size.toLocaleString(),
           right: rightFile.size.toLocaleString(),
         },
         {
-          label: 'Modified',
+          label: t('previews.compare.metaModified'),
           left: formatDate(leftFile.modified),
           right: formatDate(rightFile.modified),
         },
         {
-          label: 'Type',
-          left: leftFile.is_dir ? 'Folder' : 'File',
-          right: rightFile.is_dir ? 'Folder' : 'File',
+          label: t('previews.compare.metaType'),
+          left: leftFile.is_dir ? t('common.folder') : t('common.file'),
+          right: rightFile.is_dir ? t('common.folder') : t('common.file'),
         },
         {
-          label: 'File Type',
-          left: leftFile.file_type || '(unknown)',
-          right: rightFile.file_type || '(unknown)',
+          label: t('previews.compare.metaFileType'),
+          left: leftFile.file_type || t('previews.compare.metaUnknown'),
+          right: rightFile.file_type || t('previews.compare.metaUnknown'),
         },
         ...(leftFile.mime_type || rightFile.mime_type
           ? [
               {
-                label: 'MIME Type',
-                left: leftFile.mime_type || '(unknown)',
-                right: rightFile.mime_type || '(unknown)',
+                label: t('previews.compare.metaMimeType'),
+                left: leftFile.mime_type || t('previews.compare.metaUnknown'),
+                right: rightFile.mime_type || t('previews.compare.metaUnknown'),
               },
             ]
           : []),
       ],
-      [leftFile, rightFile],
+      [leftFile, rightFile, t],
     );
 
     return (
@@ -791,7 +806,7 @@ const MetadataCompare = React.memo(
                     fontWeight: 600,
                   }}
                 >
-                  Property
+                  {t('previews.compare.colProperty')}
                 </th>
                 <th
                   style={{
@@ -802,7 +817,7 @@ const MetadataCompare = React.memo(
                     fontWeight: 600,
                   }}
                 >
-                  Left
+                  {t('previews.compare.colLeft')}
                 </th>
                 <th
                   style={{
@@ -813,7 +828,7 @@ const MetadataCompare = React.memo(
                     fontWeight: 600,
                   }}
                 >
-                  Right
+                  {t('previews.compare.colRight')}
                 </th>
               </tr>
             </thead>

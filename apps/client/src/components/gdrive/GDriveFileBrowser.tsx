@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { type FileEntry } from '@/lib/tauri-api';
 import { gdriveManager } from '@/lib/gdrive-plugin';
 import {
@@ -38,13 +39,14 @@ const GDriveFileBrowser = ({
   onNavigate,
   onFileSelect,
 }: GDriveFileBrowserProps) => {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentFolderId, setCurrentFolderId] = useState<string>(initialFolderId || 'root');
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbEntry[]>([
-    { id: 'root', name: 'My Drive' },
+    { id: 'root', name: t('settings.gdrive.myDrive') },
   ]);
   const [selectedFile, setSelectedFile] = useState<FileEntry | null>(null);
   const [sortBy, setSortBy] = useState<SortField>('name');
@@ -101,8 +103,8 @@ const GDriveFileBrowser = ({
           const errorMessage = err instanceof Error ? err.message : String(err);
           setError(errorMessage);
           toast({
-            title: 'Google Drive Error',
-            description: `Failed to load files: ${errorMessage}`,
+            title: t('settings.gdrive.toastLoadErrorTitle'),
+            description: t('settings.gdrive.toastLoadErrorDesc', { error: errorMessage }),
             variant: 'destructive',
           });
         }
@@ -203,20 +205,22 @@ const GDriveFileBrowser = ({
   };
 
   const handleNewFolder = async () => {
-    const folderName = prompt('Enter folder name:');
+    const folderName = prompt(t('settings.gdrive.promptFolderName'));
     if (!folderName?.trim()) return;
 
     try {
       await gdriveManager.createFolder(accountId, folderName.trim(), currentFolderId);
       toast({
-        title: 'Folder Created',
-        description: `Created folder "${folderName.trim()}"`,
+        title: t('settings.gdrive.toastFolderCreatedTitle'),
+        description: t('settings.gdrive.toastFolderCreatedDesc', { name: folderName.trim() }),
       });
       loadFiles(currentFolderId);
     } catch (err) {
       toast({
-        title: 'Error',
-        description: `Failed to create folder: ${(err as Error).message}`,
+        title: t('settings.gdrive.toastErrorTitle'),
+        description: t('settings.gdrive.toastCreateFolderErrorDesc', {
+          error: (err as Error).message,
+        }),
         variant: 'destructive',
       });
     }
@@ -236,21 +240,21 @@ const GDriveFileBrowser = ({
     const targetFile = file || selectedFile;
     if (!targetFile) return;
 
-    const confirmed = confirm(`Are you sure you want to delete "${targetFile.name}"?`);
+    const confirmed = confirm(t('settings.gdrive.confirmDelete', { name: targetFile.name }));
     if (!confirmed) return;
 
     try {
       await gdriveManager.deleteFile(accountId, targetFile.path);
       toast({
-        title: 'Deleted',
-        description: `"${targetFile.name}" has been deleted.`,
+        title: t('settings.gdrive.toastDeletedTitle'),
+        description: t('settings.gdrive.toastDeletedDesc', { name: targetFile.name }),
       });
       setSelectedFile(null);
       loadFiles(currentFolderId);
     } catch (err) {
       toast({
-        title: 'Error',
-        description: `Failed to delete: ${(err as Error).message}`,
+        title: t('settings.gdrive.toastErrorTitle'),
+        description: t('settings.gdrive.toastDeleteErrorDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     }
@@ -260,20 +264,20 @@ const GDriveFileBrowser = ({
     const targetFile = file || selectedFile;
     if (!targetFile) return;
 
-    const newName = prompt('Enter new name:', targetFile.name);
+    const newName = prompt(t('settings.gdrive.promptNewName'), targetFile.name);
     if (!newName?.trim() || newName.trim() === targetFile.name) return;
 
     try {
       await gdriveManager.renameFile(accountId, targetFile.path, newName.trim());
       toast({
-        title: 'Renamed',
-        description: `Renamed to "${newName.trim()}"`,
+        title: t('settings.gdrive.toastRenamedTitle'),
+        description: t('settings.gdrive.toastRenamedDesc', { name: newName.trim() }),
       });
       loadFiles(currentFolderId);
     } catch (err) {
       toast({
-        title: 'Error',
-        description: `Failed to rename: ${(err as Error).message}`,
+        title: t('settings.gdrive.toastErrorTitle'),
+        description: t('settings.gdrive.toastRenameErrorDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     }
@@ -306,12 +310,12 @@ const GDriveFileBrowser = ({
   };
 
   const sortLabels: Record<SortField, string> = {
-    name: 'Name',
-    size: 'Size',
-    dateModified: 'Modified',
-    dateCreated: 'Created',
-    type: 'Type',
-    extension: 'Extension',
+    name: t('settings.gdrive.sortName'),
+    size: t('settings.gdrive.sortSize'),
+    dateModified: t('settings.gdrive.sortModified'),
+    dateCreated: t('settings.gdrive.sortCreated'),
+    type: t('settings.gdrive.sortType'),
+    extension: t('settings.gdrive.sortExtension'),
   };
 
   return (
@@ -326,7 +330,9 @@ const GDriveFileBrowser = ({
                 onClick={() => setIsSortDropdownOpen(!isSortDropdownOpen)}
                 className="bg-xp-bg border-xp-border hover:bg-xp-surface-light flex items-center space-x-2 rounded border px-3 py-2"
               >
-                <span className="text-sm">{sortLabels[sortBy] || 'Name'}</span>
+                <span className="text-sm">
+                  {sortLabels[sortBy] || t('settings.gdrive.sortName')}
+                </span>
                 {sortOrder === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
                 <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
                   <path
@@ -388,7 +394,7 @@ const GDriveFileBrowser = ({
               onClick={handleRefresh}
               disabled={loading}
               className="hover:bg-xp-surface-light rounded p-2"
-              title="Refresh"
+              title={t('common.refresh')}
             >
               <RefreshCw className={`h-4 w-4 ${loading || refreshing ? 'animate-spin' : ''}`} />
             </button>
@@ -396,7 +402,7 @@ const GDriveFileBrowser = ({
               onClick={navigateUp}
               disabled={breadcrumbs.length <= 1}
               className="hover:bg-xp-surface-light rounded p-2 disabled:opacity-50"
-              title="Go Up"
+              title={t('settings.gdrive.goUp')}
             >
               <ChevronUp className="h-4 w-4" />
             </button>
@@ -404,14 +410,14 @@ const GDriveFileBrowser = ({
             <button
               onClick={handleNewFolder}
               className="hover:bg-xp-surface-light rounded p-2"
-              title="New Folder"
+              title={t('settings.gdrive.newFolder')}
             >
               <FolderPlus className="h-4 w-4" />
             </button>
             <button
               onClick={handleUpload}
               className="hover:bg-xp-surface-light rounded p-2"
-              title="Upload"
+              title={t('settings.gdrive.upload')}
             >
               <Upload className="h-4 w-4" />
             </button>
@@ -419,7 +425,7 @@ const GDriveFileBrowser = ({
               onClick={handleDownload}
               disabled={!selectedFile || selectedFile.is_dir}
               className="hover:bg-xp-surface-light rounded p-2 disabled:opacity-50"
-              title="Download"
+              title={t('settings.gdrive.download')}
             >
               <Download className="h-4 w-4" />
             </button>
@@ -428,7 +434,7 @@ const GDriveFileBrowser = ({
               onClick={() => handleRename()}
               disabled={!selectedFile}
               className="hover:bg-xp-surface-light rounded p-2 disabled:opacity-50"
-              title="Rename"
+              title={t('common.rename')}
             >
               <Pencil className="h-4 w-4" />
             </button>
@@ -436,7 +442,7 @@ const GDriveFileBrowser = ({
               onClick={() => handleDelete()}
               disabled={!selectedFile}
               className="hover:bg-xp-surface-light hover:text-xp-red rounded p-2 disabled:opacity-50"
-              title="Delete"
+              title={t('common.delete')}
             >
               <Trash2 className="h-4 w-4" />
             </button>
@@ -451,28 +457,30 @@ const GDriveFileBrowser = ({
             <div className="text-xp-red mb-4 text-6xl">
               <Cloud className="mx-auto h-16 w-16 opacity-50" />
             </div>
-            <h3 className="text-xp-text mb-2 text-lg font-medium">Connection Error</h3>
+            <h3 className="text-xp-text mb-2 text-lg font-medium">
+              {t('settings.gdrive.connectionError')}
+            </h3>
             <p className="text-xp-text-muted mb-4">{error}</p>
             <button
               onClick={handleRefresh}
               className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue rounded px-4 py-2 text-white transition-colors focus:outline-none focus:ring-1"
-              aria-label="Retry loading files"
+              aria-label={t('settings.gdrive.ariaRetryLoading')}
             >
-              Try Again
+              {t('settings.gdrive.tryAgain')}
             </button>
           </div>
         ) : null}
         {!error && loading && (
           <div className="p-8 text-center">
             <RefreshCw className="text-xp-blue mx-auto mb-4 h-8 w-8 animate-spin" />
-            <p className="text-xp-text-muted">Loading files...</p>
+            <p className="text-xp-text-muted">{t('settings.gdrive.loadingFiles')}</p>
           </div>
         )}
         {!error && !loading && sortedFiles.length === 0 ? (
           <div className="text-xp-text-muted p-8 text-center">
             <Cloud className="mx-auto mb-4 h-16 w-16 opacity-30" />
-            <p className="text-lg">This folder is empty</p>
-            <p className="mt-2 text-sm">Upload files or create a new folder to get started.</p>
+            <p className="text-lg">{t('settings.gdrive.emptyFolderTitle')}</p>
+            <p className="mt-2 text-sm">{t('settings.gdrive.emptyFolderDesc')}</p>
           </div>
         ) : (
           <div className="p-2">
@@ -494,7 +502,9 @@ const GDriveFileBrowser = ({
 
                   <div className="min-w-0 flex-1">
                     <div className="text-xp-text truncate font-medium">{file.name}</div>
-                    {file.is_dir && <div className="text-xp-text-muted text-xs">Folder</div>}
+                    {file.is_dir && (
+                      <div className="text-xp-text-muted text-xs">{t('common.folder')}</div>
+                    )}
                   </div>
                 </div>
 
@@ -522,38 +532,38 @@ const GDriveFileBrowser = ({
             <button
               onClick={() => handleContextMenuAction('open')}
               className="text-xp-text hover:bg-xp-surface-light focus:ring-xp-blue flex w-full items-center space-x-2 px-4 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-1"
-              aria-label="Open folder"
+              aria-label={t('settings.gdrive.ariaOpenFolder')}
             >
               <FolderOpen className="h-4 w-4" />
-              <span>Open</span>
+              <span>{t('common.open')}</span>
             </button>
           )}
           {!contextMenu.file.is_dir && (
             <button
               onClick={() => handleContextMenuAction('download')}
               className="text-xp-text hover:bg-xp-surface-light focus:ring-xp-blue flex w-full items-center space-x-2 px-4 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-1"
-              aria-label="Download file"
+              aria-label={t('settings.gdrive.ariaDownloadFile')}
             >
               <Download className="h-4 w-4" />
-              <span>Download</span>
+              <span>{t('settings.gdrive.download')}</span>
             </button>
           )}
           <button
             onClick={() => handleContextMenuAction('rename')}
             className="text-xp-text hover:bg-xp-surface-light focus:ring-xp-blue flex w-full items-center space-x-2 px-4 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-1"
-            aria-label="Rename file"
+            aria-label={t('settings.gdrive.ariaRenameFile')}
           >
             <Pencil className="h-4 w-4" />
-            <span>Rename</span>
+            <span>{t('common.rename')}</span>
           </button>
           <div className="border-xp-border my-1 border-t" />
           <button
             onClick={() => handleContextMenuAction('delete')}
             className="text-xp-red hover:bg-xp-surface-light focus:ring-xp-blue flex w-full items-center space-x-2 px-4 py-2 text-left text-sm transition-colors focus:outline-none focus:ring-1"
-            aria-label="Delete file"
+            aria-label={t('settings.gdrive.ariaDeleteFile')}
           >
             <Trash2 className="h-4 w-4" />
-            <span>Delete</span>
+            <span>{t('common.delete')}</span>
           </button>
         </div>
       )}

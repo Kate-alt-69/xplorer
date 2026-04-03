@@ -194,7 +194,10 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
         query: query.trim(),
         filters: { fileTypes: [], dateRange: null, sizeRange: null, extensions: [] },
       });
-      toast({ title: 'Search Saved', description: `"${name}" saved to your searches.` });
+      toast({
+        title: t('smartSearch.savedTitle'),
+        description: t('smartSearch.savedDesc', { name }),
+      });
     };
 
     // Check index stats periodically
@@ -286,8 +289,10 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                 // AI search failed, fall through to local
                 console.warn('AI search failed, falling back to local:', err);
                 toast({
-                  title: 'AI Search Unavailable',
-                  description: `${PROVIDER_LABELS[searchProvider]} search failed. Using local search.`,
+                  title: t('smartSearch.aiUnavailableTitle'),
+                  description: t('smartSearch.aiUnavailableDesc', {
+                    provider: PROVIDER_LABELS[searchProvider],
+                  }),
                   variant: 'destructive',
                 });
               }
@@ -448,8 +453,8 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
         setParsedQuery(null);
       } catch {
         toast({
-          title: 'Find Similar Failed',
-          description: 'Semantic search requires Ollama with an embedding model.',
+          title: t('smartSearch.findSimilarFailedTitle'),
+          description: t('smartSearch.findSimilarFailedDesc'),
           variant: 'destructive',
         });
       }
@@ -733,10 +738,12 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                   : 'text-xp-text-muted hover:text-xp-text'
               }`}
               title={
-                searchContent ? 'Sorting by content relevance' : 'Sorting by file/folder name match'
+                searchContent
+                  ? t('smartSearch.sortByContentTitle')
+                  : t('smartSearch.sortByNameTitle')
               }
             >
-              {searchContent ? 'Content' : 'Name'}
+              {searchContent ? t('smartSearch.sortByContent') : t('smartSearch.sortByName')}
             </button>
 
             {/* Index Stats */}
@@ -751,7 +758,7 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
               <button
                 onClick={handleSaveSearch}
                 className="text-xp-text-muted transition-colors hover:text-yellow-400"
-                title="Save this search"
+                title={t('smartSearch.saveSearchTitle')}
               >
                 <Star size={14} />
               </button>
@@ -767,7 +774,7 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                 className={`transition-colors ${
                   showSavedSearches ? 'text-yellow-400' : 'text-xp-text-muted hover:text-xp-text'
                 }`}
-                title="Saved searches"
+                title={t('smartSearch.savedSearchesTitle')}
               >
                 <Star size={14} fill={showSavedSearches ? 'currentColor' : 'none'} />
               </button>
@@ -916,9 +923,9 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                     <button
                       onClick={(e) => handleFindSimilar(e, result.path)}
                       className="mt-1 text-xs text-indigo-400 transition-colors hover:text-indigo-300"
-                      title="Find semantically similar files"
+                      title={t('smartSearch.findSimilarTitle')}
                     >
-                      Find Similar
+                      {t('smartSearch.findSimilar')}
                     </button>
                   </div>
                 </div>
@@ -926,13 +933,15 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
             ))}
 
             <div className="bg-xp-bg border-xp-border text-xp-text-muted border-t p-3 text-center text-xs">
-              Found {results.length} results
-              {results.length >= maxResults && ` (showing first ${maxResults})`}
-              {searchProvider !== 'local' && ` via ${PROVIDER_LABELS[searchProvider]}`}
-              {parsedQuery?.sort_hint === 'size_desc' && ' · Sorted by size (largest first)'}
-              {parsedQuery?.sort_hint === 'size_asc' && ' · Sorted by size (smallest first)'}
-              {parsedQuery?.sort_hint === 'date_desc' && ' · Sorted by date (newest first)'}
-              {parsedQuery?.sort_hint === 'date_asc' && ' · Sorted by date (oldest first)'}
+              {t('smartSearch.foundResults', { count: results.length })}
+              {results.length >= maxResults &&
+                ` ${t('smartSearch.showingFirst', { count: maxResults })}`}
+              {searchProvider !== 'local' &&
+                ` ${t('smartSearch.viaProvider', { provider: PROVIDER_LABELS[searchProvider] })}`}
+              {parsedQuery?.sort_hint === 'size_desc' && ` · ${t('smartSearch.sortedSizeDesc')}`}
+              {parsedQuery?.sort_hint === 'size_asc' && ` · ${t('smartSearch.sortedSizeAsc')}`}
+              {parsedQuery?.sort_hint === 'date_desc' && ` · ${t('smartSearch.sortedDateDesc')}`}
+              {parsedQuery?.sort_hint === 'date_asc' && ` · ${t('smartSearch.sortedDateAsc')}`}
             </div>
           </div>
         )}
@@ -952,10 +961,8 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                   clipRule="evenodd"
                 />
               </svg>
-              <p className="text-xp-text text-sm">No results found for "{query}"</p>
-              <p className="text-xp-text-muted mt-1 text-xs">
-                Try different keywords or navigate to the target folder first
-              </p>
+              <p className="text-xp-text text-sm">{t('smartSearch.noResults', { query })}</p>
+              <p className="text-xp-text-muted mt-1 text-xs">{t('smartSearch.noResultsHint')}</p>
               {searchProvider === 'local' && (
                 <button
                   onClick={() => {
@@ -964,7 +971,7 @@ const SmartSearch = forwardRef<SmartSearchHandle, SmartSearchProps>(
                   }}
                   className="mt-2 text-xs text-purple-400 hover:text-purple-300"
                 >
-                  Try AI-powered search with Claude
+                  {t('smartSearch.tryAiSearch')}
                 </button>
               )}
             </div>

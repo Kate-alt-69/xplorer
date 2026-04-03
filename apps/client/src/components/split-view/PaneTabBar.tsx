@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, X, Columns, Rows, Pin, Maximize2, Minimize2, Link, Unlink } from 'lucide-react';
 import type { TabItem } from '@/types/split-view';
 import type { CrossTabSelection } from '@/hooks/use-cross-tab-selection';
@@ -73,6 +74,7 @@ const TabContextMenu = ({
   onCloseTabsToRight?: (tabId: string) => void;
   onCloseAllTabs?: () => void;
 }) => {
+  const { t } = useTranslation();
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,21 +114,21 @@ const TabContextMenu = ({
 
   const items: { label: string; action: () => void; disabled?: boolean; separator?: boolean }[] = [
     {
-      label: tab.isPinned ? 'Unpin Tab' : 'Pin Tab',
+      label: tab.isPinned ? t('splitView.unpinTab') : t('splitView.pinTab'),
       action: () => {
         onTogglePin?.(tab.id);
         onClose();
       },
     },
     {
-      label: 'Duplicate Tab',
+      label: t('splitView.duplicateTab'),
       action: () => {
         onDuplicateTab?.(tab.id);
         onClose();
       },
     },
     {
-      label: 'Close Tab',
+      label: t('splitView.closeTab'),
       action: () => {
         onCloseTab(tab.id);
         onClose();
@@ -135,7 +137,7 @@ const TabContextMenu = ({
       separator: true,
     },
     {
-      label: 'Close Other Tabs',
+      label: t('splitView.closeOtherTabs'),
       action: () => {
         onCloseOtherTabs?.(tab.id);
         onClose();
@@ -143,7 +145,7 @@ const TabContextMenu = ({
       disabled: !hasOtherTabs,
     },
     {
-      label: 'Close Tabs to the Right',
+      label: t('splitView.closeTabsToRight'),
       action: () => {
         onCloseTabsToRight?.(tab.id);
         onClose();
@@ -151,7 +153,7 @@ const TabContextMenu = ({
       disabled: !hasTabsToRight,
     },
     {
-      label: 'Close All Tabs',
+      label: t('splitView.closeAllTabs'),
       action: () => {
         onCloseAllTabs?.();
         onClose();
@@ -257,6 +259,8 @@ const PaneTabBar = ({
   onSwitchPaneSyncMode,
   hasMultiplePanes,
 }: PaneTabBarProps) => {
+  const { t } = useTranslation();
+
   // Maximize/restore toggle
   const handleToggleMaximize = useCallback(() => {
     if (isMaximized) {
@@ -579,7 +583,7 @@ const PaneTabBar = ({
                     marginLeft: 4,
                     boxShadow: '0 0 4px var(--xp-blue)',
                   }}
-                  title="Has files selected for cross-tab operations"
+                  title={t('splitView.crossTabBadgeTitle')}
                 />
               )}
 
@@ -648,7 +652,7 @@ const PaneTabBar = ({
             (e.currentTarget as HTMLElement).style.background = 'transparent';
             (e.currentTarget as HTMLElement).style.color = 'var(--xp-text-muted)';
           }}
-          title="New tab"
+          title={t('splitView.newTab')}
         >
           <Plus size={14} />
         </button>
@@ -692,8 +696,13 @@ const PaneTabBar = ({
             }}
             title={
               paneSyncEnabled
-                ? `Sync Navigation ON (${paneSyncMode === 'mirror' ? 'Mirror' : 'Relative'}) — Click to disable, Right-click to switch mode`
-                : 'Sync Navigation OFF — Click to enable, Right-click to switch mode'
+                ? t('splitView.syncNavOnTitle', {
+                    mode:
+                      paneSyncMode === 'mirror'
+                        ? t('splitView.syncModeMirror')
+                        : t('splitView.syncModeRelative'),
+                  })
+                : t('splitView.syncNavOffTitle')
             }
           >
             {paneSyncEnabled ? <Link size={14} /> : <Unlink size={14} />}
@@ -719,7 +728,7 @@ const PaneTabBar = ({
             (e.currentTarget as HTMLElement).style.background = 'transparent';
             (e.currentTarget as HTMLElement).style.color = 'var(--xp-text-muted)';
           }}
-          title="Split right"
+          title={t('splitView.splitRight')}
         >
           <Columns size={14} />
         </button>
@@ -743,7 +752,7 @@ const PaneTabBar = ({
             (e.currentTarget as HTMLElement).style.background = 'transparent';
             (e.currentTarget as HTMLElement).style.color = 'var(--xp-text-muted)';
           }}
-          title="Split down"
+          title={t('splitView.splitDown')}
         >
           <Rows size={14} />
         </button>
@@ -770,7 +779,7 @@ const PaneTabBar = ({
                 ? 'var(--xp-blue)'
                 : 'var(--xp-text-muted)';
             }}
-            title={isMaximized ? 'Restore pane' : 'Maximize pane'}
+            title={isMaximized ? t('splitView.restorePane') : t('splitView.maximizePane')}
           >
             {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
           </button>
@@ -796,7 +805,7 @@ const PaneTabBar = ({
               (e.currentTarget as HTMLElement).style.background = 'transparent';
               (e.currentTarget as HTMLElement).style.color = 'var(--xp-text-muted)';
             }}
-            title="Close pane"
+            title={t('splitView.closePane')}
           >
             <X size={14} />
           </button>

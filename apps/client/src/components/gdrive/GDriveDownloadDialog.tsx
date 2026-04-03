@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { gdriveManager } from '@/lib/gdrive-plugin';
 import { save } from '@tauri-apps/plugin-dialog';
 import { Download, CheckCircle, XCircle } from 'lucide-react';
@@ -21,6 +22,7 @@ export const GDriveDownloadDialog = ({
   fileId,
   fileName,
 }: GDriveDownloadDialogProps) => {
+  const { t } = useTranslation();
   const [downloadState, setDownloadState] = useState<DownloadState>('idle');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -67,8 +69,8 @@ export const GDriveDownloadDialog = ({
       setDownloadState('success');
 
       toast({
-        title: 'Download Complete',
-        description: `"${fileName}" has been downloaded successfully.`,
+        title: t('settings.gdrive.toastDownloadCompleteTitle'),
+        description: t('settings.gdrive.toastDownloadCompleteDesc', { name: fileName }),
       });
 
       // Auto-close after a short delay on success
@@ -81,8 +83,11 @@ export const GDriveDownloadDialog = ({
       setDownloadState('error');
 
       toast({
-        title: 'Download Failed',
-        description: `Failed to download "${fileName}": ${message}`,
+        title: t('settings.gdrive.toastDownloadFailedTitle'),
+        description: t('settings.gdrive.toastDownloadFailedDesc', {
+          name: fileName,
+          error: message,
+        }),
         variant: 'destructive',
       });
     }
@@ -99,12 +104,14 @@ export const GDriveDownloadDialog = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-xp-surface border-xp-border w-96 max-w-full rounded-lg border p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-xp-text text-lg font-medium">Download File</h3>
+          <h3 className="text-xp-text text-lg font-medium">
+            {t('settings.gdrive.downloadFileTitle')}
+          </h3>
           <button
             onClick={handleClose}
             disabled={downloadState === 'downloading'}
             className="text-xp-text-muted hover:text-xp-text focus:ring-xp-blue focus:outline-none focus:ring-1 disabled:opacity-50"
-            aria-label="Close download dialog"
+            aria-label={t('settings.gdrive.ariaCloseDownloadDialog')}
           >
             <XCircle className="h-5 w-5" />
           </button>
@@ -114,7 +121,7 @@ export const GDriveDownloadDialog = ({
           {(downloadState === 'idle' || downloadState === 'picking') && (
             <>
               <Download className="text-xp-blue mx-auto mb-3 h-12 w-12 animate-pulse" />
-              <p className="text-xp-text mb-1 text-sm">Preparing download...</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.preparingDownload')}</p>
               <p className="text-xp-text-muted text-xs">{fileName}</p>
             </>
           )}
@@ -124,7 +131,7 @@ export const GDriveDownloadDialog = ({
               <div className="mx-auto mb-3 h-12 w-12">
                 <div className="border-xp-border border-t-tokyo-blue h-12 w-12 animate-spin rounded-full border-4" />
               </div>
-              <p className="text-xp-text mb-1 text-sm">Downloading...</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.downloading')}</p>
               <p className="text-xp-text-muted text-xs">{fileName}</p>
             </>
           )}
@@ -132,7 +139,7 @@ export const GDriveDownloadDialog = ({
           {downloadState === 'success' && (
             <>
               <CheckCircle className="text-xp-green mx-auto mb-3 h-12 w-12" />
-              <p className="text-xp-text mb-1 text-sm">Download complete!</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.downloadComplete')}</p>
               <p className="text-xp-text-muted text-xs">{fileName}</p>
             </>
           )}
@@ -140,22 +147,22 @@ export const GDriveDownloadDialog = ({
           {downloadState === 'error' && (
             <>
               <XCircle className="text-xp-red mx-auto mb-3 h-12 w-12" />
-              <p className="text-xp-text mb-1 text-sm">Download failed</p>
+              <p className="text-xp-text mb-1 text-sm">{t('settings.gdrive.downloadFailed')}</p>
               <p className="text-xp-text-muted mb-3 text-xs">{errorMessage}</p>
               <div className="flex justify-center space-x-2">
                 <button
                   onClick={startDownload}
                   className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue rounded px-4 py-2 text-sm text-white transition-colors focus:outline-none focus:ring-1"
-                  aria-label="Retry download"
+                  aria-label={t('settings.gdrive.ariaRetryDownload')}
                 >
-                  Retry
+                  {t('settings.gdrive.retry')}
                 </button>
                 <button
                   onClick={handleClose}
                   className="border-xp-border hover:bg-xp-surface-light text-xp-text focus:ring-xp-blue rounded border px-4 py-2 text-sm transition-colors focus:outline-none focus:ring-1"
-                  aria-label="Cancel download"
+                  aria-label={t('settings.gdrive.ariaCancelDownload')}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
               </div>
             </>

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileEntry, TauriAPI } from '@/lib/tauri-api';
 import { showConfirmationToast, showInputToast } from '@/components/ui/Toast';
 
@@ -73,6 +74,7 @@ const PATH_SEP_RE = /[/\\]/;
  * Renders a compact horizontal row of icon buttons for common file operations.
  */
 const PreviewActionBar = ({ file }: PreviewActionBarProps) => {
+  const { t } = useTranslation();
   const [feedback, showFeedback] = useFeedback();
 
   // ── Actions ────────────────────────────────────────────────────────────
@@ -88,20 +90,20 @@ const PreviewActionBar = ({ file }: PreviewActionBarProps) => {
   const handleCopyPath = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(file.path);
-      showFeedback('Path copied');
+      showFeedback(t('panels.previewAction.pathCopied'));
     } catch (err) {
       console.error('Failed to copy path:', err);
     }
-  }, [file.path, showFeedback]);
+  }, [file.path, showFeedback, t]);
 
   const handleCopyName = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(file.name);
-      showFeedback('Name copied');
+      showFeedback(t('panels.previewAction.nameCopied'));
     } catch (err) {
       console.error('Failed to copy name:', err);
     }
-  }, [file.name, showFeedback]);
+  }, [file.name, showFeedback, t]);
 
   const handleDuplicate = useCallback(async () => {
     try {
@@ -120,19 +122,19 @@ const PreviewActionBar = ({ file }: PreviewActionBarProps) => {
       const destPath = `${parentDir}${sep}${destName}`;
       await TauriAPI.copy(file.path, destPath);
       window.dispatchEvent(new CustomEvent('files-changed'));
-      showFeedback('Duplicated');
+      showFeedback(t('panels.previewAction.duplicated'));
     } catch (err) {
       console.error('Failed to duplicate file:', err);
     }
-  }, [file.path, file.name, file.is_dir, showFeedback]);
+  }, [file.path, file.name, file.is_dir, showFeedback, t]);
 
   const handleRename = useCallback(async () => {
     const newName = await showInputToast({
-      title: 'Rename',
-      description: 'Enter new name:',
+      title: t('panels.previewAction.renameTitle'),
+      description: t('panels.previewAction.renameDescription'),
       placeholder: file.name,
-      submitText: 'Rename',
-      cancelText: 'Cancel',
+      submitText: t('common.rename'),
+      cancelText: t('common.cancel'),
     });
     if (newName && newName !== file.name) {
       try {
@@ -142,30 +144,30 @@ const PreviewActionBar = ({ file }: PreviewActionBarProps) => {
         const newPath = parts.join(sep);
         await TauriAPI.rename(file.path, newPath);
         window.dispatchEvent(new CustomEvent('files-changed'));
-        showFeedback('Renamed');
+        showFeedback(t('panels.previewAction.renamed'));
       } catch (err) {
         console.error('Failed to rename file:', err);
       }
     }
-  }, [file.path, file.name, showFeedback]);
+  }, [file.path, file.name, showFeedback, t]);
 
   const handleDelete = useCallback(async () => {
     const confirmed = await showConfirmationToast({
-      title: 'Delete File',
-      description: `Are you sure you want to delete "${file.name}"?`,
-      confirmText: 'Delete',
-      cancelText: 'Cancel',
+      title: t('panels.previewAction.deleteTitle'),
+      description: t('panels.previewAction.deleteDescription', { name: file.name }),
+      confirmText: t('common.delete'),
+      cancelText: t('common.cancel'),
     });
     if (confirmed) {
       try {
         await TauriAPI.moveToTrash(file.path);
         window.dispatchEvent(new CustomEvent('files-changed'));
-        showFeedback('Deleted');
+        showFeedback(t('panels.previewAction.deleted'));
       } catch (err) {
         console.error('Failed to delete file:', err);
       }
     }
-  }, [file.path, file.name, showFeedback]);
+  }, [file.path, file.name, showFeedback, t]);
 
   // ── Button definitions ─────────────────────────────────────────────────
 
@@ -180,43 +182,43 @@ const PreviewActionBar = ({ file }: PreviewActionBarProps) => {
     {
       key: 'open',
       icon: icons.open,
-      label: 'Open',
-      tooltip: 'Open with default app (Enter / Ctrl+O)',
+      label: t('common.open'),
+      tooltip: t('panels.previewAction.openTooltip'),
       onClick: handleOpen,
     },
     {
       key: 'copy-path',
       icon: icons.copyPath,
-      label: 'Copy Path',
-      tooltip: 'Copy full path (Ctrl+Shift+C)',
+      label: t('panels.previewAction.copyPath'),
+      tooltip: t('panels.previewAction.copyPathTooltip'),
       onClick: handleCopyPath,
     },
     {
       key: 'copy-name',
       icon: icons.copyName,
-      label: 'Copy Name',
-      tooltip: 'Copy filename',
+      label: t('panels.previewAction.copyName'),
+      tooltip: t('panels.previewAction.copyNameTooltip'),
       onClick: handleCopyName,
     },
     {
       key: 'duplicate',
       icon: icons.duplicate,
-      label: 'Duplicate',
-      tooltip: 'Duplicate file',
+      label: t('common.duplicate'),
+      tooltip: t('panels.previewAction.duplicateTooltip'),
       onClick: handleDuplicate,
     },
     {
       key: 'rename',
       icon: icons.rename,
-      label: 'Rename',
-      tooltip: 'Rename file',
+      label: t('common.rename'),
+      tooltip: t('panels.previewAction.renameTooltip'),
       onClick: handleRename,
     },
     {
       key: 'delete',
       icon: icons.delete,
-      label: 'Delete',
-      tooltip: 'Move to trash (Delete)',
+      label: t('common.delete'),
+      tooltip: t('panels.previewAction.deleteTooltip'),
       onClick: handleDelete,
       danger: true,
     },
@@ -265,7 +267,7 @@ const PreviewActionBar = ({ file }: PreviewActionBarProps) => {
   };
 
   return (
-    <div style={barStyle} role="toolbar" aria-label="Quick actions">
+    <div style={barStyle} role="toolbar" aria-label={t('panels.previewAction.quickActions')}>
       {actions.map(({ key, icon, label, tooltip, onClick, danger }) => (
         <button
           key={key}

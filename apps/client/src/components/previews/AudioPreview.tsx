@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Music, Headphones, Volume2, Mic } from 'lucide-react';
 import { PreviewProps } from '@/lib/preview-factory';
 import { convertAssetUrl } from '@/lib/transport';
@@ -33,6 +34,7 @@ const getFormatLabel = (fileName: string): string => {
 };
 
 const AudioPreview = ({ file, onError, onLoad }: PreviewProps) => {
+  const { t } = useTranslation();
   const [audioError, setAudioError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [audioSrc, setAudioSrc] = useState<string>('');
@@ -217,8 +219,8 @@ const AudioPreview = ({ file, onError, onLoad }: PreviewProps) => {
                 clipRule="evenodd"
               />
             </svg>
-            <p className="text-sm">Cannot preview audio</p>
-            <p className="mt-1 text-xs opacity-70">The audio format may not be supported</p>
+            <p className="text-sm">{t('previews.audio.cannotPreview')}</p>
+            <p className="mt-1 text-xs opacity-70">{t('previews.audio.formatNotSupported')}</p>
           </div>
         </div>
       </div>
@@ -245,7 +247,7 @@ const AudioPreview = ({ file, onError, onLoad }: PreviewProps) => {
           <div className="text-xp-text-muted text-center">
             <div className="animate-pulse">
               <div className="bg-xp-bg mx-auto mb-2 h-16 w-16 rounded" />
-              <p className="text-xs">Loading audio...</p>
+              <p className="text-xs">{t('previews.audio.loading')}</p>
             </div>
           </div>
         </div>
@@ -293,7 +295,7 @@ const AudioPreview = ({ file, onError, onLoad }: PreviewProps) => {
             <div className="flex items-center justify-center space-x-4">
               {/* Previous track */}
               <button
-                title="Previous track"
+                title={t('previews.audio.previousTrack')}
                 disabled
                 className="text-xp-text cursor-not-allowed rounded p-1.5 opacity-50"
               >
@@ -305,7 +307,7 @@ const AudioPreview = ({ file, onError, onLoad }: PreviewProps) => {
               {/* Play/Pause */}
               <button
                 onClick={togglePlay}
-                title={isPlaying ? 'Pause' : 'Play'}
+                title={isPlaying ? t('previews.audio.pause') : t('previews.audio.play')}
                 className="hover:bg-xp-surface-light text-xp-text bg-xp-primary/20 rounded-full p-2"
               >
                 {isPlaying ? (
@@ -329,7 +331,7 @@ const AudioPreview = ({ file, onError, onLoad }: PreviewProps) => {
 
               {/* Next track */}
               <button
-                title="Next track"
+                title={t('previews.audio.nextTrack')}
                 disabled
                 className="text-xp-text cursor-not-allowed rounded p-1.5 opacity-50"
               >

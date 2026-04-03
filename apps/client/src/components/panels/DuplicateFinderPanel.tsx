@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type DuplicateFinderResult } from '@/lib/tauri-api';
 import { listenToEvent } from '@/lib/transport';
 import { useToast } from '@/hooks/use-toast';
@@ -30,6 +31,7 @@ interface DuplicateFinderPanelProps {
 }
 
 const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
 
   // State
@@ -52,8 +54,8 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
   const handleStartScan = useCallback(async () => {
     if (!scanPath.trim()) {
       toast({
-        title: 'Error',
-        description: 'Please specify a path to scan',
+        title: t('panels.duplicateFinder.toastErrorTitle'),
+        description: t('panels.duplicateFinder.toastErrorDesc'),
         variant: 'destructive',
       });
       return;
@@ -77,23 +79,34 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
       setResults(result);
 
       toast({
-        title: 'Scan Complete',
-        description: `Found ${result.duplicate_groups.length} duplicate groups | ${result.total_duplicates} files | ${formatFileSize(result.total_wasted_space)} wasted`,
+        title: t('panels.duplicateFinder.toastScanCompleteTitle'),
+        description: t('panels.duplicateFinder.toastScanCompleteDesc', {
+          groups: result.duplicate_groups.length,
+          files: result.total_duplicates,
+          size: formatFileSize(result.total_wasted_space),
+        }),
       });
     } catch (error) {
       const msg = `${error}`;
       if (msg.includes('cancelled')) {
-        toast({ title: 'Scan Cancelled', description: 'Duplicate scan was cancelled' });
+        toast({
+          title: t('panels.duplicateFinder.toastCancelledTitle'),
+          description: t('panels.duplicateFinder.toastCancelledDesc'),
+        });
       } else {
         console.error('Duplicate scan error:', error);
-        toast({ title: 'Scan Failed', description: msg, variant: 'destructive' });
+        toast({
+          title: t('panels.duplicateFinder.toastScanFailedTitle'),
+          description: msg,
+          variant: 'destructive',
+        });
       }
     } finally {
       if (unlisten) unlisten();
       setIsScanning(false);
       setProgress(null);
     }
-  }, [scanPath, minFileSize, toast]);
+  }, [scanPath, minFileSize, toast, t]);
 
   const handleCancelScan = useCallback(async () => {
     try {
@@ -102,11 +115,11 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
       console.error('Failed to cancel scan:', error);
       toast({
         variant: 'destructive',
-        title: 'Cancel Failed',
-        description: `Failed to cancel scan: ${error}`,
+        title: t('panels.duplicateFinder.toastCancelFailedTitle'),
+        description: t('panels.duplicateFinder.toastCancelFailedDesc', { error: `${error}` }),
       });
     }
-  }, [toast]);
+  }, [toast, t]);
 
   // ── Selection helpers ───────────────────────────────────────────────────────
   const toggleFile = useCallback((path: string) => {
@@ -149,21 +162,23 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
   const handleMoveToTrash = useCallback(async () => {
     if (selectedFiles.size === 0) {
       toast({
-        title: 'No files selected',
-        description: 'Select duplicate files to move to trash',
+        title: t('panels.duplicateFinder.toastNoFilesTitle'),
+        description: t('panels.duplicateFinder.toastNoFilesDesc'),
         variant: 'destructive',
       });
       return;
     }
 
-    const confirmed = window.confirm(`Move ${selectedFiles.size} duplicate file(s) to trash?`);
+    const confirmed = window.confirm(
+      t('panels.duplicateFinder.confirmMoveToTrash', { count: selectedFiles.size }),
+    );
     if (!confirmed) return;
 
     try {
       await TauriAPI.moveDuplicateFilesToTrash(Array.from(selectedFiles));
       toast({
-        title: 'Moved to Trash',
-        description: `${selectedFiles.size} file(s) moved to trash`,
+        title: t('panels.duplicateFinder.toastMovedTitle'),
+        description: t('panels.duplicateFinder.toastMovedDesc', { count: selectedFiles.size }),
       });
 
       // Remove deleted files from results
@@ -191,9 +206,13 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
       setSelectedFiles(new Set());
       window.dispatchEvent(new CustomEvent('files-changed'));
     } catch (error) {
-      toast({ title: 'Failed', description: `${error}`, variant: 'destructive' });
+      toast({
+        title: t('panels.duplicateFinder.toastMoveFailedTitle'),
+        description: `${error}`,
+        variant: 'destructive',
+      });
     }
-  }, [selectedFiles, results, toast]);
+  }, [selectedFiles, results, toast, t]);
 
   const handleExportReport = useCallback(() => {
     if (!results || results.duplicate_groups.length === 0) return;
@@ -221,15 +240,19 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
     });
 
     navigator.clipboard.writeText(lines.join('\n')).then(
-      () => toast({ title: 'Copied', description: 'Report copied to clipboard' }),
       () =>
         toast({
-          title: 'Failed',
-          description: 'Could not copy to clipboard',
+          title: t('panels.duplicateFinder.toastCopiedTitle'),
+          description: t('panels.duplicateFinder.toastCopiedDesc'),
+        }),
+      () =>
+        toast({
+          title: t('panels.duplicateFinder.toastClipboardFailedTitle'),
+          description: t('panels.duplicateFinder.toastClipboardFailedDesc'),
           variant: 'destructive',
         }),
     );
-  }, [results, scanPath, toast]);
+  }, [results, scanPath, toast, t]);
 
   const handleOpenFolder = useCallback(
     async (filePath: string) => {
@@ -243,12 +266,12 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
         console.error('Failed to open folder:', error);
         toast({
           variant: 'destructive',
-          title: 'Open Folder Failed',
-          description: `Failed to open containing folder: ${error}`,
+          title: t('panels.duplicateFinder.toastOpenFolderFailedTitle'),
+          description: t('panels.duplicateFinder.toastOpenFolderFailedDesc', { error: `${error}` }),
         });
       }
     },
-    [toast],
+    [toast, t],
   );
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -259,7 +282,7 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
         <div className="flex items-center gap-2">
           <Copy className="text-xp-blue h-4 w-4" />
           <h3 className="text-xp-text text-xs font-semibold uppercase tracking-wider">
-            Duplicate Finder
+            {t('panels.duplicateFinder.title')}
           </h3>
         </div>
         {scanPath && (
@@ -276,44 +299,44 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
             type="text"
             value={scanPath}
             onChange={(e) => setScanPath(e.target.value)}
-            placeholder="Path to scan..."
+            placeholder={t('panels.duplicateFinder.pathPlaceholder')}
             className="bg-xp-surface border-xp-border focus:border-xp-blue flex-1 rounded border px-2 py-1.5 text-xs transition-colors focus:outline-none"
             disabled={isScanning}
-            aria-label="Path to scan for duplicates"
+            aria-label={t('panels.duplicateFinder.pathAriaLabel')}
           />
         </div>
 
         <div className="flex items-center gap-3">
           <label className="text-xp-text-muted flex items-center gap-1 text-xs">
-            <span>Min:</span>
+            <span>{t('panels.duplicateFinder.minLabel')}</span>
             <input
               type="number"
               value={minFileSize}
               onChange={(e) => setMinFileSize(parseInt(e.target.value) || 0)}
               className="bg-xp-surface border-xp-border focus:border-xp-blue w-20 rounded border px-1.5 py-1 text-xs focus:outline-none"
               disabled={isScanning}
-              aria-label="Minimum file size in bytes"
+              aria-label={t('panels.duplicateFinder.minAriaLabel')}
             />
-            <span>B</span>
+            <span>{t('panels.duplicateFinder.bytesUnit')}</span>
           </label>
 
           {isScanning ? (
             <button
               onClick={handleCancelScan}
               className="bg-xp-red/10 text-xp-red border-xp-red/20 hover:bg-xp-red/20 flex items-center gap-1.5 rounded border px-3 py-1.5 text-xs font-medium transition-colors"
-              aria-label="Cancel duplicate scan"
+              aria-label={t('panels.duplicateFinder.cancelAriaLabel')}
             >
               <X className="h-3 w-3" />
-              Cancel
+              {t('panels.duplicateFinder.cancel')}
             </button>
           ) : (
             <button
               onClick={handleStartScan}
               className="bg-xp-blue hover:bg-xp-blue/80 flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-medium text-white transition-colors"
-              aria-label="Start duplicate scan"
+              aria-label={t('panels.duplicateFinder.scanAriaLabel')}
             >
               <Search className="h-3 w-3" />
-              Scan
+              {t('panels.duplicateFinder.scan')}
             </button>
           )}
         </div>
@@ -326,7 +349,8 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
             <span className="capitalize">{progress.currentPhase}</span>
             <span>
               {progress.processedFiles}
-              {progress.totalFiles > 0 ? ` / ${progress.totalFiles}` : ''} files
+              {progress.totalFiles > 0 ? ` / ${progress.totalFiles}` : ''}{' '}
+              {t('panels.duplicateFinder.files')}
             </span>
           </div>
           <div className="bg-xp-surface h-1.5 w-full rounded-full">
@@ -360,22 +384,27 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
         <div className="border-xp-border bg-xp-surface/30 border-b px-4 py-2">
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-xp-text-muted">
-              Found{' '}
+              {t('panels.duplicateFinder.foundLabel')}{' '}
               <span className="text-xp-text font-medium">{results.duplicate_groups.length}</span>{' '}
-              duplicate groups
+              {t('panels.duplicateFinder.duplicateGroupsLabel')}
             </span>
             <span className="text-xp-border">|</span>
             <span className="text-xp-text-muted">
-              <span className="text-xp-text font-medium">{results.total_duplicates}</span> duplicate
-              files
+              <span className="text-xp-text font-medium">{results.total_duplicates}</span>{' '}
+              {t('panels.duplicateFinder.duplicateFilesLabel')}
             </span>
             <span className="text-xp-border">|</span>
             <span className="text-xp-red font-medium">
-              {formatFileSize(results.total_wasted_space)} wasted
+              {t('panels.duplicateFinder.wasted', {
+                size: formatFileSize(results.total_wasted_space),
+              })}
             </span>
           </div>
           <div className="text-xp-text-muted mt-0.5 text-[10px]">
-            Scanned {results.files_scanned} files in {results.scan_time_ms}ms
+            {t('panels.duplicateFinder.scannedSummary', {
+              files: results.files_scanned,
+              ms: results.scan_time_ms,
+            })}
           </div>
         </div>
       )}
@@ -421,7 +450,9 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
                     </span>
 
                     {/* File count */}
-                    <span className="text-xp-text-muted text-xs">{fileCount} files</span>
+                    <span className="text-xp-text-muted text-xs">
+                      {fileCount} {t('panels.duplicateFinder.files')}
+                    </span>
 
                     <span className="flex-1" />
 
@@ -442,14 +473,18 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
                           ? 'bg-xp-blue/20 text-xp-blue border-xp-blue/30'
                           : 'bg-xp-surface border-xp-border text-xp-text-muted hover:border-xp-blue/50',
                       )}
-                      title={allDupsSelected ? 'Deselect duplicates' : 'Select all duplicates'}
+                      title={
+                        allDupsSelected
+                          ? t('panels.duplicateFinder.deselectAllTitle')
+                          : t('panels.duplicateFinder.selectAllTitle')
+                      }
                       aria-label={
                         allDupsSelected
-                          ? 'Deselect all duplicates in group'
-                          : 'Select all duplicates in group'
+                          ? t('panels.duplicateFinder.deselectAllAriaLabel')
+                          : t('panels.duplicateFinder.selectAllAriaLabel')
                       }
                     >
-                      {allDupsSelected ? 'Deselect' : 'Select'}
+                      {allDupsSelected ? t('panels.duplicateFinder.deselect') : t('common.select')}
                     </button>
                   </div>
 
@@ -474,7 +509,9 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
                               checked={selectedFiles.has(file.path)}
                               onChange={() => toggleFile(file.path)}
                               className="accent-xp-blue h-3 w-3 flex-shrink-0"
-                              aria-label={`Select ${file.name} for deletion`}
+                              aria-label={t('panels.duplicateFinder.selectFileAriaLabel', {
+                                name: file.name,
+                              })}
                             />
 
                             {isKeep ? (
@@ -487,7 +524,9 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
                               <div className="text-xp-text truncate">
                                 {file.name}
                                 {isKeep && (
-                                  <span className="text-xp-green ml-1 text-[10px]">(keep)</span>
+                                  <span className="text-xp-green ml-1 text-[10px]">
+                                    {t('panels.duplicateFinder.keepBadge')}
+                                  </span>
                                 )}
                               </div>
                               <div className="text-xp-text-muted truncate text-[10px]">
@@ -498,8 +537,10 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
                             <button
                               onClick={() => handleOpenFolder(file.path)}
                               className="hover:bg-xp-surface-light flex-shrink-0 rounded p-1 transition-colors"
-                              title="Open containing folder"
-                              aria-label={`Open folder containing ${file.name}`}
+                              title={t('panels.duplicateFinder.openFolderTitle')}
+                              aria-label={t('panels.duplicateFinder.openFolderAriaLabel', {
+                                name: file.name,
+                              })}
                             >
                               <FolderOpen className="text-xp-text-muted h-3 w-3" />
                             </button>
@@ -518,8 +559,10 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
         {results && results.duplicate_groups.length === 0 && (
           <div className="text-xp-text-secondary flex flex-col items-center justify-center py-12">
             <Check className="text-xp-green mb-3 h-10 w-10" />
-            <div className="text-sm font-medium">No duplicates found</div>
-            <div className="mt-1 text-xs">All files in this directory are unique</div>
+            <div className="text-sm font-medium">
+              {t('panels.duplicateFinder.noDuplicatesTitle')}
+            </div>
+            <div className="mt-1 text-xs">{t('panels.duplicateFinder.noDuplicatesHint')}</div>
           </div>
         )}
 
@@ -527,8 +570,8 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
         {!isScanning && !results && (
           <div className="text-xp-text-secondary flex flex-col items-center justify-center py-12">
             <Search className="mb-3 h-10 w-10 opacity-40" />
-            <div className="text-sm">Configure path and click Scan</div>
-            <div className="mt-1 text-xs">to find duplicate files</div>
+            <div className="text-sm">{t('panels.duplicateFinder.emptyStateHint')}</div>
+            <div className="mt-1 text-xs">{t('panels.duplicateFinder.emptyStateHint2')}</div>
           </div>
         )}
       </div>
@@ -539,15 +582,17 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
           {selectedFiles.size > 0 && (
             <>
               <span className="text-xp-text-muted mr-1 text-[10px]">
-                {selectedFiles.size} selected
+                {t('panels.duplicateFinder.selectedCount', { count: selectedFiles.size })}
               </span>
               <button
                 onClick={handleMoveToTrash}
                 className="bg-xp-red/10 text-xp-red border-xp-red/20 hover:bg-xp-red/20 flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors"
-                aria-label={`Delete ${selectedFiles.size} selected duplicate files`}
+                aria-label={t('panels.duplicateFinder.deleteSelectedAriaLabel', {
+                  count: selectedFiles.size,
+                })}
               >
                 <Trash2 className="h-3 w-3" />
-                Delete Selected
+                {t('panels.duplicateFinder.deleteSelected')}
               </button>
             </>
           )}
@@ -555,10 +600,10 @@ const DuplicateFinderPanel = ({ currentPath = '' }: DuplicateFinderPanelProps) =
           <button
             onClick={handleExportReport}
             className="bg-xp-surface border-xp-border text-xp-text-muted hover:text-xp-text hover:border-xp-blue/50 flex items-center gap-1 rounded border px-2 py-1 text-[11px] font-medium transition-colors"
-            aria-label="Export duplicate report to clipboard"
+            aria-label={t('panels.duplicateFinder.exportReportAriaLabel')}
           >
             <ClipboardCopy className="h-3 w-3" />
-            Export Report
+            {t('panels.duplicateFinder.exportReport')}
           </button>
         </div>
       )}

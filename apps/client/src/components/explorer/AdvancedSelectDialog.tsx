@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileEntry } from '@/lib/tauri-api';
 import {
   Select,
@@ -56,6 +57,8 @@ const AdvancedSelectDialog = ({
   setSelectedFiles,
   showToast,
 }: AdvancedSelectDialogProps) => {
+  const { t } = useTranslation();
+
   // Selection mode
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('select');
 
@@ -273,14 +276,20 @@ const AdvancedSelectDialog = ({
       const inverted = new Set(invertSelection(files, selectedFiles));
       setSelectedFiles(inverted);
       showToast({
-        title: 'Selection Inverted',
-        description: `Now selecting ${inverted.size} of ${files.length} files`,
+        title: t('explorer.advancedSelect.toastInvertedTitle'),
+        description: t('explorer.advancedSelect.toastInvertedDesc', {
+          selected: inverted.size,
+          total: files.length,
+        }),
       });
     } else if (selectionMode === 'select') {
       setSelectedFiles(matchingPaths);
       showToast({
-        title: 'Selection Updated',
-        description: `Selected ${matchingPaths.size} of ${files.length} files`,
+        title: t('explorer.advancedSelect.toastUpdatedTitle'),
+        description: t('explorer.advancedSelect.toastSelectedDesc', {
+          selected: matchingPaths.size,
+          total: files.length,
+        }),
       });
     } else {
       // deselect mode: remove matching from current selection
@@ -288,8 +297,11 @@ const AdvancedSelectDialog = ({
       matchingPaths.forEach((p) => remaining.delete(p));
       setSelectedFiles(remaining);
       showToast({
-        title: 'Selection Updated',
-        description: `Deselected ${matchingPaths.size} files, ${remaining.size} remain selected`,
+        title: t('explorer.advancedSelect.toastUpdatedTitle'),
+        description: t('explorer.advancedSelect.toastDeselectedDesc', {
+          deselected: matchingPaths.size,
+          remaining: remaining.size,
+        }),
       });
     }
     onClose();
@@ -322,12 +334,14 @@ const AdvancedSelectDialog = ({
                 d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
               />
             </svg>
-            <h2 className="text-xp-text text-lg font-semibold">Advanced Selection</h2>
+            <h2 className="text-xp-text text-lg font-semibold">
+              {t('explorer.advancedSelect.title')}
+            </h2>
           </div>
           <button
             onClick={onClose}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1"
-            aria-label="Close advanced selection dialog"
+            aria-label={t('explorer.advancedSelect.closeAria')}
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -344,12 +358,23 @@ const AdvancedSelectDialog = ({
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
           {/* Selection Mode */}
           <div>
-            <h3 className="text-xp-text-muted mb-2 text-sm font-medium">Selection Mode</h3>
+            <h3 className="text-xp-text-muted mb-2 text-sm font-medium">
+              {t('explorer.advancedSelect.selectionMode')}
+            </h3>
             <div className="flex gap-2">
               {[
-                { value: 'select' as SelectionMode, label: 'Select matching' },
-                { value: 'deselect' as SelectionMode, label: 'Deselect matching' },
-                { value: 'invert' as SelectionMode, label: 'Invert selection' },
+                {
+                  value: 'select' as SelectionMode,
+                  label: t('explorer.advancedSelect.selectMatching'),
+                },
+                {
+                  value: 'deselect' as SelectionMode,
+                  label: t('explorer.advancedSelect.deselectMatching'),
+                },
+                {
+                  value: 'invert' as SelectionMode,
+                  label: t('explorer.advancedSelect.invertSelection'),
+                },
               ].map((opt) => (
                 <button
                   key={opt.value}
@@ -371,7 +396,7 @@ const AdvancedSelectDialog = ({
             <>
               {/* ---- By Extension ---- */}
               <FilterSection
-                title="By Extension"
+                title={t('explorer.advancedSelect.byExtension')}
                 enabled={extensionEnabled}
                 onToggle={setExtensionEnabled}
               >
@@ -389,9 +414,9 @@ const AdvancedSelectDialog = ({
                     onClick={addExtensionsFromInput}
                     disabled={!extensionInput.trim()}
                     className="bg-xp-primary rounded-md px-3 py-2 text-sm text-white disabled:opacity-50"
-                    aria-label="Add file extensions"
+                    aria-label={t('explorer.advancedSelect.addExtensionsAria')}
                   >
-                    Add
+                    {t('common.add')}
                   </button>
                 </div>
 
@@ -444,16 +469,22 @@ const AdvancedSelectDialog = ({
                       onClick={() => setSelectedExtensions(new Set())}
                       className="text-xp-text-muted hover:text-xp-text px-1 text-xs"
                     >
-                      Clear
+                      {t('common.clear')}
                     </button>
                   </div>
                 )}
               </FilterSection>
 
               {/* ---- By Size Range ---- */}
-              <FilterSection title="By Size Range" enabled={sizeEnabled} onToggle={setSizeEnabled}>
+              <FilterSection
+                title={t('explorer.advancedSelect.bySizeRange')}
+                enabled={sizeEnabled}
+                onToggle={setSizeEnabled}
+              >
                 <div className="flex items-center gap-2">
-                  <span className="text-xp-text-muted w-8 text-xs">Min</span>
+                  <span className="text-xp-text-muted w-8 text-xs">
+                    {t('explorer.advancedSelect.min')}
+                  </span>
                   <input
                     type="number"
                     value={minSizeValue}
@@ -474,13 +505,15 @@ const AdvancedSelectDialog = ({
                   </Select>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
-                  <span className="text-xp-text-muted w-8 text-xs">Max</span>
+                  <span className="text-xp-text-muted w-8 text-xs">
+                    {t('explorer.advancedSelect.max')}
+                  </span>
                   <input
                     type="number"
                     value={maxSizeValue}
                     onChange={(e) => setMaxSizeValue(e.target.value)}
                     min="0"
-                    placeholder="No limit"
+                    placeholder={t('explorer.advancedSelect.noLimit')}
                     className="bg-xp-bg border-xp-border text-xp-text focus:ring-xp-blue focus:border-xp-blue flex-1 rounded-md border px-3 py-1.5 text-sm focus:outline-none focus:ring-2"
                   />
                   <Select value={maxSizeUnit} onValueChange={(v) => setMaxSizeUnit(v as SizeUnit)}>
@@ -497,10 +530,16 @@ const AdvancedSelectDialog = ({
               </FilterSection>
 
               {/* ---- By Date Range ---- */}
-              <FilterSection title="By Date Range" enabled={dateEnabled} onToggle={setDateEnabled}>
+              <FilterSection
+                title={t('explorer.advancedSelect.byDateRange')}
+                enabled={dateEnabled}
+                onToggle={setDateEnabled}
+              >
                 <div className="mb-3 grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xp-text-muted mb-1 block text-xs">Modified after</label>
+                    <label className="text-xp-text-muted mb-1 block text-xs">
+                      {t('explorer.advancedSelect.modifiedAfter')}
+                    </label>
                     <input
                       type="date"
                       value={dateAfter}
@@ -509,7 +548,9 @@ const AdvancedSelectDialog = ({
                     />
                   </div>
                   <div>
-                    <label className="text-xp-text-muted mb-1 block text-xs">Modified before</label>
+                    <label className="text-xp-text-muted mb-1 block text-xs">
+                      {t('explorer.advancedSelect.modifiedBefore')}
+                    </label>
                     <input
                       type="date"
                       value={dateBefore}
@@ -536,7 +577,7 @@ const AdvancedSelectDialog = ({
 
               {/* ---- By Name Pattern ---- */}
               <FilterSection
-                title="By Name Pattern"
+                title={t('explorer.advancedSelect.byNamePattern')}
                 enabled={patternEnabled}
                 onToggle={setPatternEnabled}
               >
@@ -575,15 +616,24 @@ const AdvancedSelectDialog = ({
 
               {/* ---- Hidden Files ---- */}
               <FilterSection
-                title="Hidden Files"
+                title={t('explorer.advancedSelect.hiddenFiles')}
                 enabled={hiddenEnabled}
                 onToggle={setHiddenEnabled}
               >
                 <div className="flex gap-2">
                   {[
-                    { value: 'include' as HiddenFileMode, label: 'Include hidden' },
-                    { value: 'only' as HiddenFileMode, label: 'Only hidden' },
-                    { value: 'exclude' as HiddenFileMode, label: 'Exclude hidden' },
+                    {
+                      value: 'include' as HiddenFileMode,
+                      label: t('explorer.advancedSelect.includeHidden'),
+                    },
+                    {
+                      value: 'only' as HiddenFileMode,
+                      label: t('explorer.advancedSelect.onlyHidden'),
+                    },
+                    {
+                      value: 'exclude' as HiddenFileMode,
+                      label: t('explorer.advancedSelect.excludeHidden'),
+                    },
                   ].map((opt) => (
                     <button
                       key={opt.value}
@@ -608,11 +658,15 @@ const AdvancedSelectDialog = ({
           {/* Match preview */}
           <div className="bg-xp-primary/10 border-xp-primary/30 mb-3 flex items-center justify-between rounded-md border px-3 py-2">
             <span className="text-xp-text text-sm">
-              {selectionMode === 'invert' ? 'Files after invert:' : 'Files matching:'}
+              {selectionMode === 'invert'
+                ? t('explorer.advancedSelect.filesAfterInvert')
+                : t('explorer.advancedSelect.filesMatching')}
             </span>
             <span className="text-xp-primary text-lg font-semibold">
               {matchCount}{' '}
-              <span className="text-xp-text-muted text-sm font-normal">of {files.length}</span>
+              <span className="text-xp-text-muted text-sm font-normal">
+                {t('explorer.advancedSelect.ofTotal', { total: files.length })}
+              </span>
             </span>
           </div>
 
@@ -621,17 +675,17 @@ const AdvancedSelectDialog = ({
             <button
               onClick={onClose}
               className="text-xp-text-muted hover:text-xp-text border-xp-border hover:bg-xp-surface-light rounded-md border px-4 py-2 text-sm transition-colors"
-              aria-label="Cancel selection"
+              aria-label={t('explorer.advancedSelect.cancelAria')}
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleApply}
               disabled={matchCount === 0 && selectionMode !== 'deselect'}
               className="bg-xp-primary hover:bg-xp-primary/90 rounded-md px-4 py-2 text-sm text-white transition-colors disabled:opacity-50"
-              aria-label="Apply file selection"
+              aria-label={t('explorer.advancedSelect.applyAria')}
             >
-              Apply Selection
+              {t('explorer.advancedSelect.applySelection')}
             </button>
           </div>
         </div>

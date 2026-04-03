@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileEntry, type DuplicateFinderResult } from '@/lib/tauri-api';
 import { getFileIcon, cn, formatFileSize } from '@/lib/utils';
 import { sizeBadgeColor } from '@/lib/format-utils';
@@ -51,6 +52,7 @@ const SimilarFilesTab = ({
   selectedFile: FileEntry | null;
   onFileClick?: (path: string) => void;
 }) => {
+  const { t } = useTranslation();
   const [recommendations, setRecommendations] = useState<FileRecommendation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,7 @@ const SimilarFilesTab = ({
       <div className="text-xp-text-muted flex flex-1 items-center justify-center text-sm">
         <div className="px-4 text-center">
           <Search className="mx-auto mb-2 h-10 w-10 opacity-40" />
-          <p>Select a file to see similar files</p>
+          <p>{t('panels.recommendations.selectFileSimilar')}</p>
         </div>
       </div>
     );
@@ -104,7 +106,7 @@ const SimilarFilesTab = ({
       <div className="text-xp-text-muted flex flex-1 items-center justify-center">
         <div className="text-center">
           <Loader2 className="text-xp-blue mx-auto mb-2 h-8 w-8 animate-spin" />
-          <p className="text-sm">Finding similar files...</p>
+          <p className="text-sm">{t('panels.recommendations.findingSimilar')}</p>
         </div>
       </div>
     );
@@ -115,7 +117,7 @@ const SimilarFilesTab = ({
       <div className="text-xp-red flex flex-1 items-center justify-center p-4 text-sm">
         <div className="text-center">
           <X className="mx-auto mb-2 h-8 w-8" />
-          <p>Failed to load recommendations</p>
+          <p>{t('panels.recommendations.failedLoad')}</p>
           <p className="text-xp-text-muted mt-1 text-xs">{error}</p>
         </div>
       </div>
@@ -127,8 +129,8 @@ const SimilarFilesTab = ({
       <div className="text-xp-text-muted flex flex-1 items-center justify-center text-sm">
         <div className="px-4 text-center">
           <Search className="mx-auto mb-2 h-10 w-10 opacity-40" />
-          <p>No similar files found</p>
-          <p className="mt-1 text-xs">Try indexing more directories</p>
+          <p>{t('panels.recommendations.noSimilar')}</p>
+          <p className="mt-1 text-xs">{t('panels.recommendations.tryIndexing')}</p>
         </div>
       </div>
     );
@@ -138,7 +140,8 @@ const SimilarFilesTab = ({
     <div className="flex flex-1 flex-col overflow-hidden">
       <div className="border-xp-border bg-xp-surface/30 border-b px-4 py-2">
         <p className="text-xp-text-muted text-xs">
-          Similar to <span className="text-xp-blue">{selectedFile.name}</span>
+          {t('panels.recommendations.similarTo')}{' '}
+          <span className="text-xp-blue">{selectedFile.name}</span>
         </p>
       </div>
 
@@ -177,7 +180,7 @@ const SimilarFilesTab = ({
 
       <div className="border-xp-border bg-xp-surface/30 border-t px-4 py-1.5">
         <p className="text-xp-text-muted text-[10px]">
-          {recommendations.length} similar file{recommendations.length !== 1 ? 's' : ''}
+          {t('panels.recommendations.similarFileCount', { count: recommendations.length })}
         </p>
       </div>
     </div>
@@ -187,6 +190,7 @@ const SimilarFilesTab = ({
 // ── Duplicates Tab ──────────────────────────────────────────────────────────
 
 const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
+  const { t } = useTranslation();
   const [isScanning, setIsScanning] = useState(false);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [results, setResults] = useState<DuplicateFinderResult | null>(null);
@@ -274,7 +278,9 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
 
   const handleMoveToTrash = useCallback(async () => {
     if (selectedFiles.size === 0) return;
-    const confirmed = window.confirm(`Move ${selectedFiles.size} duplicate file(s) to trash?`);
+    const confirmed = window.confirm(
+      t('panels.recommendations.confirmMoveToTrash', { count: selectedFiles.size }),
+    );
     if (!confirmed) return;
 
     try {
@@ -305,7 +311,7 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
     } catch (err) {
       console.error('Failed to move duplicate files to trash:', err);
     }
-  }, [selectedFiles, results]);
+  }, [selectedFiles, results, t]);
 
   const handleOpenFolder = useCallback(async (filePath: string) => {
     try {
@@ -325,13 +331,13 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
           type="text"
           value={scanPath}
           onChange={(e) => setScanPath(e.target.value)}
-          placeholder="Path to scan..."
+          placeholder={t('panels.recommendations.pathPlaceholder')}
           className="bg-xp-surface border-xp-border focus:border-xp-blue w-full rounded border px-2 py-1 text-xs transition-colors focus:outline-none"
           disabled={isScanning}
         />
         <div className="flex items-center gap-2">
           <label className="text-xp-text-muted flex items-center gap-1 text-[10px]">
-            <span>Min:</span>
+            <span>{t('panels.recommendations.minSize')}</span>
             <input
               type="number"
               value={minFileSize}
@@ -348,7 +354,7 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
               className="bg-xp-red/10 text-xp-red border-xp-red/20 hover:bg-xp-red/20 flex items-center gap-1 rounded border px-2 py-1 text-[10px] font-medium transition-colors"
             >
               <X className="h-3 w-3" />
-              Cancel
+              {t('common.cancel')}
             </button>
           ) : (
             <button
@@ -356,7 +362,7 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
               className="bg-xp-blue hover:bg-xp-blue/80 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-medium text-white transition-colors"
             >
               <Search className="h-3 w-3" />
-              Scan
+              {t('panels.recommendations.scan')}
             </button>
           )}
         </div>
@@ -369,7 +375,8 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
             <span className="capitalize">{progress.currentPhase}</span>
             <span>
               {progress.processedFiles}
-              {progress.totalFiles > 0 ? ` / ${progress.totalFiles}` : ''} files
+              {progress.totalFiles > 0 ? ` / ${progress.totalFiles}` : ''}{' '}
+              {t('panels.recommendations.files')}
             </span>
           </div>
           <div className="bg-xp-surface h-1 w-full rounded-full">
@@ -396,15 +403,16 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
           <div className="flex flex-wrap items-center gap-2 text-[10px]">
             <span className="text-xp-text-muted">
               <span className="text-xp-text font-medium">{results.duplicate_groups.length}</span>{' '}
-              groups
+              {t('panels.recommendations.groups')}
             </span>
             <span className="text-xp-border">|</span>
             <span className="text-xp-text-muted">
-              <span className="text-xp-text font-medium">{results.total_duplicates}</span> files
+              <span className="text-xp-text font-medium">{results.total_duplicates}</span>{' '}
+              {t('panels.recommendations.files')}
             </span>
             <span className="text-xp-border">|</span>
             <span className="text-xp-red font-medium">
-              {formatSize(results.total_wasted_space)} wasted
+              {formatSize(results.total_wasted_space)} {t('panels.recommendations.wasted')}
             </span>
           </div>
         </div>
@@ -461,7 +469,7 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
                           : 'bg-xp-surface border-xp-border text-xp-text-muted hover:border-xp-blue/50',
                       )}
                     >
-                      {allDupsSelected ? 'Undo' : 'Select'}
+                      {allDupsSelected ? t('panels.recommendations.undo') : t('common.select')}
                     </button>
                   </div>
 
@@ -494,7 +502,9 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
                               <div className="text-xp-text truncate">
                                 {file.name}
                                 {isKeep && (
-                                  <span className="text-xp-green ml-1 text-[10px]">(keep)</span>
+                                  <span className="text-xp-green ml-1 text-[10px]">
+                                    ({t('panels.recommendations.keep')})
+                                  </span>
                                 )}
                               </div>
                               <div className="text-xp-text-muted truncate text-[10px]">
@@ -504,7 +514,7 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
                             <button
                               onClick={() => handleOpenFolder(file.path)}
                               className="hover:bg-xp-surface flex-shrink-0 rounded p-0.5 transition-colors"
-                              title="Open folder"
+                              title={t('panels.recommendations.openFolder')}
                             >
                               <FolderOpen className="text-xp-text-muted h-3 w-3" />
                             </button>
@@ -522,14 +532,14 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
         {results && results.duplicate_groups.length === 0 && (
           <div className="text-xp-text-muted flex flex-col items-center justify-center py-10">
             <Check className="text-xp-green mb-2 h-8 w-8" />
-            <div className="text-xs font-medium">No duplicates found</div>
+            <div className="text-xs font-medium">{t('panels.recommendations.noDuplicates')}</div>
           </div>
         )}
 
         {!isScanning && !results && (
           <div className="text-xp-text-muted flex flex-col items-center justify-center py-10">
             <Search className="mb-2 h-8 w-8 opacity-40" />
-            <div className="text-xs">Set path and click Scan</div>
+            <div className="text-xs">{t('panels.recommendations.setPathHint')}</div>
           </div>
         )}
       </div>
@@ -537,13 +547,15 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
       {/* Actions */}
       {results && results.duplicate_groups.length > 0 && selectedFiles.size > 0 && (
         <div className="border-xp-border bg-xp-surface/30 flex items-center gap-2 border-t px-3 py-1.5">
-          <span className="text-xp-text-muted text-[10px]">{selectedFiles.size} selected</span>
+          <span className="text-xp-text-muted text-[10px]">
+            {t('common.selected', { count: selectedFiles.size })}
+          </span>
           <button
             onClick={handleMoveToTrash}
             className="bg-xp-red/10 text-xp-red border-xp-red/20 hover:bg-xp-red/20 flex items-center gap-1 rounded border px-2 py-0.5 text-[10px] font-medium transition-colors"
           >
             <Trash2 className="h-3 w-3" />
-            Delete
+            {t('common.delete')}
           </button>
           <span className="flex-1" />
           <button
@@ -557,7 +569,7 @@ const DuplicatesTab = ({ currentPath }: { currentPath: string }) => {
               navigator.clipboard.writeText(lines.join('\n'));
             }}
             className="hover:bg-xp-surface rounded p-1 transition-colors"
-            title="Copy report"
+            title={t('panels.recommendations.copyReport')}
           >
             <ClipboardCopy className="text-xp-text-muted h-3 w-3" />
           </button>
@@ -576,6 +588,7 @@ const RecommendationsPanel = ({
   currentPath = '',
   onFileClick,
 }: RecommendationsPanelProps) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabMode>('similar');
 
   return (
@@ -591,7 +604,7 @@ const RecommendationsPanel = ({
               : 'text-xp-text-muted hover:text-xp-text hover:bg-xp-surface/30',
           )}
         >
-          Similar
+          {t('panels.recommendations.tabSimilar')}
         </button>
         <button
           onClick={() => setActiveTab('duplicates')}
@@ -602,7 +615,7 @@ const RecommendationsPanel = ({
               : 'text-xp-text-muted hover:text-xp-text hover:bg-xp-surface/30',
           )}
         >
-          Duplicates
+          {t('panels.recommendations.tabDuplicates')}
         </button>
       </div>
 

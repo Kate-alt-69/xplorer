@@ -1,14 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNotificationHistory, type AppNotification } from '@/hooks/use-notification-history';
 
 type FilterTab = 'all' | 'error' | 'warning' | 'success';
-
-const filterTabs: { key: FilterTab; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'error', label: 'Errors' },
-  { key: 'warning', label: 'Warnings' },
-  { key: 'success', label: 'Success' },
-];
 
 const typeToFilterKey = (type: AppNotification['type']): FilterTab | null => {
   if (type === 'error') return 'error';
@@ -100,9 +94,17 @@ const relativeTime = (timestamp: number): string => {
 };
 
 const NotificationCenter = () => {
+  const { t } = useTranslation();
   const { notifications, clearAll, clearById, markAllAsRead } = useNotificationHistory();
   const [filter, setFilter] = useState<FilterTab>('all');
   const [, setTick] = useState(0);
+
+  const filterTabs: { key: FilterTab; label: string }[] = [
+    { key: 'all', label: t('panels.notifications.filterAll') },
+    { key: 'error', label: t('panels.notifications.filterErrors') },
+    { key: 'warning', label: t('panels.notifications.filterWarnings') },
+    { key: 'success', label: t('panels.notifications.filterSuccess') },
+  ];
 
   // Mark everything as read when this panel is visible
   useEffect(() => {
@@ -111,7 +113,7 @@ const NotificationCenter = () => {
 
   // Tick every 15s so relative timestamps update
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 15_000);
+    const id = setInterval(() => setTick((prev) => prev + 1), 15_000);
     return () => clearInterval(id);
   }, []);
 
@@ -180,9 +182,9 @@ const NotificationCenter = () => {
               background: 'transparent',
               color: 'var(--xp-text-muted, #6b7280)',
             }}
-            title="Clear all notifications"
+            title={t('panels.notifications.clearAllTitle')}
           >
-            Clear All
+            {t('panels.notifications.clearAll')}
           </button>
         )}
       </div>
@@ -200,7 +202,7 @@ const NotificationCenter = () => {
               color: 'var(--xp-text-muted, #6b7280)',
             }}
           >
-            No notifications
+            {t('panels.notifications.noNotifications')}
           </div>
         ) : (
           filtered.map((n) => (
@@ -279,7 +281,7 @@ const NotificationCenter = () => {
                   flexShrink: 0,
                   marginTop: 1,
                 }}
-                title="Dismiss"
+                title={t('panels.notifications.dismiss')}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLButtonElement).style.opacity = '1';
                 }}

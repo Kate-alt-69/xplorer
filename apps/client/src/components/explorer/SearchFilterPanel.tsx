@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, ChevronRight, X, Clock, Filter, FolderOpen } from 'lucide-react';
 import type {
   FileTypeFilter,
@@ -300,6 +301,7 @@ interface SearchHistoryDropdownProps {
 }
 
 export const SearchHistoryDropdown = ({ onSelect, onClear }: SearchHistoryDropdownProps) => {
+  const { t } = useTranslation();
   const history = getSearchHistory();
   if (history.length === 0) return null;
 
@@ -308,7 +310,7 @@ export const SearchHistoryDropdown = ({ onSelect, onClear }: SearchHistoryDropdo
       <div className="border-xp-border flex items-center justify-between border-b px-3 py-2">
         <span className="text-xp-text-muted flex items-center gap-1.5 text-xs font-medium">
           <Clock size={12} />
-          Recent Searches
+          {t('explorer.searchFilter.recentSearches')}
         </span>
         <button
           onClick={(e) => {
@@ -318,7 +320,7 @@ export const SearchHistoryDropdown = ({ onSelect, onClear }: SearchHistoryDropdo
           }}
           className="text-xp-text-muted hover:text-xp-red text-xs transition-colors"
         >
-          Clear
+          {t('common.clear')}
         </button>
       </div>
       {history.map((item) => (
@@ -347,6 +349,7 @@ interface SearchFilterPanelProps {
 }
 
 const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProps) => {
+  const { t } = useTranslation();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     fileType: true,
     dateRange: true,
@@ -395,7 +398,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
       <div className="border-xp-border flex items-center justify-between border-b px-3 py-2">
         <span className="flex items-center gap-1.5 text-xs font-medium">
           <Filter size={12} className="text-xp-blue" />
-          Search Filters
+          {t('explorer.searchFilter.title')}
           {activeCount > 0 && (
             <span className="bg-xp-blue text-xp-blue rounded-full bg-opacity-20 px-1.5 py-0.5 text-xs font-semibold">
               {activeCount}
@@ -408,7 +411,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
               onClick={clearAll}
               className="text-xp-text-muted hover:text-xp-red text-xs transition-colors"
             >
-              Clear all
+              {t('explorer.searchFilter.clearAll')}
             </button>
           )}
           <button
@@ -423,7 +426,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
       <div className="max-h-80 space-y-1 overflow-y-auto p-2">
         {/* File Type Section */}
         <FilterSection
-          title="File Type"
+          title={t('explorer.searchFilter.fileType')}
           expanded={expandedSections.fileType}
           onToggle={() => toggleSection('fileType')}
           badge={filters.fileTypes.length > 0 ? String(filters.fileTypes.length) : undefined}
@@ -450,7 +453,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
 
         {/* Date Range Section */}
         <FilterSection
-          title="Date Modified"
+          title={t('explorer.searchFilter.dateModified')}
           expanded={expandedSections.dateRange}
           onToggle={() => toggleSection('dateRange')}
           badge={filters.dateRange !== 'any' ? '1' : undefined}
@@ -479,7 +482,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
                 className="bg-xp-bg border-xp-border focus:ring-xp-blue flex-1 rounded border px-2 py-1 text-xs focus:outline-none focus:ring-1"
                 placeholder="From"
               />
-              <span className="text-xp-text-muted text-xs">to</span>
+              <span className="text-xp-text-muted text-xs">{t('explorer.searchFilter.to')}</span>
               <input
                 type="date"
                 value={filters.customDateBefore || ''}
@@ -493,7 +496,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
 
         {/* Size Range Section */}
         <FilterSection
-          title="File Size"
+          title={t('explorer.searchFilter.fileSize')}
           expanded={expandedSections.sizeRange}
           onToggle={() => toggleSection('sizeRange')}
           badge={filters.sizeRange !== 'any' ? '1' : undefined}
@@ -517,7 +520,7 @@ const SearchFilterPanel = ({ filters, onChange, onClose }: SearchFilterPanelProp
 
         {/* Extension Filter Section */}
         <FilterSection
-          title="File Extensions"
+          title={t('explorer.searchFilter.fileExtensions')}
           expanded={expandedSections.extensions}
           onToggle={() => toggleSection('extensions')}
           badge={filters.extensions.trim() ? '1' : undefined}
@@ -606,6 +609,7 @@ export const GroupedSearchResults = ({
   searchProvider,
   parsedQuery,
 }: GroupedSearchResultsProps) => {
+  const { t } = useTranslation();
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
 
   const groups = useMemo(() => groupResultsByFolder(results), [results]);
@@ -714,7 +718,9 @@ export const GroupedSearchResults = ({
                           <div className="mt-1 space-y-0.5">
                             {result.matches.slice(0, 2).map((match) => (
                               <div key={match.token} className="text-xs">
-                                <span className="text-xp-text-muted">Match: </span>
+                                <span className="text-xp-text-muted">
+                                  {t('explorer.searchFilter.matchLabel')}{' '}
+                                </span>
                                 <span className="rounded bg-yellow-300 bg-opacity-20 px-1">
                                   {match.token}
                                 </span>
@@ -725,7 +731,9 @@ export const GroupedSearchResults = ({
                             ))}
                             {result.matches.length > 2 && (
                               <div className="text-xp-text-muted text-xs">
-                                +{result.matches.length - 2} more
+                                {t('explorer.searchFilter.moreMatches', {
+                                  count: result.matches.length - 2,
+                                })}
                               </div>
                             )}
                           </div>
@@ -733,9 +741,9 @@ export const GroupedSearchResults = ({
                         <button
                           onClick={(e) => onFindSimilar(e, result.path)}
                           className="mt-1 text-xs text-indigo-400 transition-colors hover:text-indigo-300"
-                          title="Find semantically similar files"
+                          title={t('explorer.searchFilter.findSimilarTitle')}
                         >
-                          Find Similar
+                          {t('explorer.searchFilter.findSimilar')}
                         </button>
                       </div>
                     </div>
@@ -750,13 +758,19 @@ export const GroupedSearchResults = ({
       })}
 
       <div className="bg-xp-bg border-xp-border text-xp-text-muted border-t p-3 text-center text-xs">
-        Found {results.length} results in {groups.length} folder{groups.length !== 1 ? 's' : ''}
-        {results.length >= maxResults && ` (showing first ${maxResults})`}
-        {searchProvider !== 'local' && ` via ${searchProvider}`}
-        {parsedQuery?.sort_hint === 'size_desc' && ' \u00B7 Sorted by size (largest first)'}
-        {parsedQuery?.sort_hint === 'size_asc' && ' \u00B7 Sorted by size (smallest first)'}
-        {parsedQuery?.sort_hint === 'date_desc' && ' \u00B7 Sorted by date (newest first)'}
-        {parsedQuery?.sort_hint === 'date_asc' && ' \u00B7 Sorted by date (oldest first)'}
+        {t('explorer.searchFilter.foundResults', { count: results.length, folders: groups.length })}
+        {results.length >= maxResults &&
+          ` (${t('explorer.searchFilter.showingFirst', { max: maxResults })})`}
+        {searchProvider !== 'local' &&
+          ` ${t('explorer.searchFilter.viaProvider', { provider: searchProvider })}`}
+        {parsedQuery?.sort_hint === 'size_desc' &&
+          ` \u00B7 ${t('explorer.searchFilter.sortSizeDesc')}`}
+        {parsedQuery?.sort_hint === 'size_asc' &&
+          ` \u00B7 ${t('explorer.searchFilter.sortSizeAsc')}`}
+        {parsedQuery?.sort_hint === 'date_desc' &&
+          ` \u00B7 ${t('explorer.searchFilter.sortDateDesc')}`}
+        {parsedQuery?.sort_hint === 'date_asc' &&
+          ` \u00B7 ${t('explorer.searchFilter.sortDateAsc')}`}
       </div>
     </div>
   );
