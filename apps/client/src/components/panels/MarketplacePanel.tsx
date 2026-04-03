@@ -565,7 +565,7 @@ const MarketplacePanel = () => {
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           <button
-            onClick={() => window.open('https://xplorer.space', '_blank')}
+            onClick={() => TauriAPI.openUrl('https://xplorer.space')}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1.5 transition-colors"
             title="Open Marketplace Website"
           >
@@ -763,7 +763,7 @@ const MarketplacePanel = () => {
       {/* Footer */}
       <div className="border-xp-border border-t px-3 py-1.5">
         <button
-          onClick={() => window.open('https://xplorer.space/publish', '_blank')}
+          onClick={() => TauriAPI.openUrl('https://xplorer.space/publish')}
           className="text-xp-blue hover:text-xp-blue/80 w-full text-center text-xs transition-colors"
         >
           Publish Your Extension

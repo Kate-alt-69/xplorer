@@ -1,4 +1,5 @@
 import { MARKETPLACE_API_URL } from '@/lib/constants';
+import { TauriAPI } from '@/lib/tauri-api';
 import React from 'react';
 import { X, Download, Star, ExternalLink, Shield, Loader2, User, Tag } from 'lucide-react';
 import type { MarketplaceExtension } from './MarketplacePanel';
@@ -162,7 +163,7 @@ const ExtensionDetailDialog = ({
           <button
             onClick={() => {
               const baseUrl = MARKETPLACE_API_URL.replace(/\/api$/, '');
-              window.open(`${baseUrl}/extensions/${extension.slug || extension.id}`, '_blank');
+              TauriAPI.openUrl(`${baseUrl}/extensions/${extension.slug || extension.id}`);
             }}
             className="text-xp-text-muted hover:text-xp-text border-xp-border hover:bg-xp-surface-light flex items-center gap-1.5 rounded border px-3 py-1.5 text-sm transition-colors"
           >

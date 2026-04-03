@@ -435,6 +435,40 @@ fn walk_files(root: &PathBuf, out: &mut Vec<PathBuf>) -> Result<(), String> {
 }
 
 #[command]
+pub async fn open_url(url: String) -> Result<(), String> {
+    // Only allow http/https URLs
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err("Only http and https URLs are allowed".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Failed to open URL: {}", e))?;
+    }
+
+    Ok(())
+}
+
+#[command]
 pub async fn open_file(path: String) -> Result<(), String> {
     validate_file_path(&path)?;
     let path = std::path::Path::new(&path);
@@ -833,6 +867,145 @@ pub async fn search_in_files(
                     if matches.len() >= MAX_RESULTS {
                         break 'outer;
                     }
+                }
+            }
+        }
+
+        Ok(matches)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// Directory names to skip during grep search — common large/irrelevant dirs.
+const GREP_SKIP_DIRS: &[&str] = &[
+    ".git",
+    "node_modules",
+    "target",
+    ".next",
+    ".nuxt",
+    "dist",
+    "build",
+    ".cache",
+    "__pycache__",
+    ".venv",
+    "venv",
+    ".tox",
+    "vendor",
+    ".svn",
+    ".hg",
+    ".DS_Store",
+    "coverage",
+    ".idea",
+    ".vscode",
+];
+
+/// Walk files recursively, skipping directories in GREP_SKIP_DIRS and hidden dirs.
+fn walk_files_filtered(root: &PathBuf, out: &mut Vec<PathBuf>, max_files: usize) -> Result<(), String> {
+    if out.len() >= max_files {
+        return Ok(());
+    }
+    let entries = std::fs::read_dir(root)
+        .map_err(|e| format!("Failed to read directory {}: {}", root.display(), e))?;
+    for entry in entries {
+        if out.len() >= max_files {
+            return Ok(());
+        }
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+        if path.is_dir() {
+            let dir_name = path.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            // Skip hidden directories and known noisy directories
+            if dir_name.starts_with('.') || GREP_SKIP_DIRS.contains(&dir_name.as_str()) {
+                continue;
+            }
+            walk_files_filtered(&path, out, max_files)?;
+        } else if path.is_file() {
+            out.push(path);
+        }
+    }
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct GrepSearchMatch {
+    /// Absolute path to the file
+    pub file: String,
+    /// 1-based line number
+    pub line: usize,
+    /// The matching line content (trimmed to reasonable length)
+    pub content: String,
+    /// File name only (for display)
+    pub filename: String,
+}
+
+#[command]
+pub async fn grep_search(
+    query: String,
+    search_path: String,
+    max_results: Option<usize>,
+) -> Result<Vec<GrepSearchMatch>, String> {
+    validate_file_path(&search_path)?;
+    let root = PathBuf::from(&search_path);
+    if !root.exists() || !root.is_dir() {
+        return Err("Search path does not exist or is not a directory".to_string());
+    }
+
+    let limit = max_results.unwrap_or(1000).min(2000);
+
+    tokio::task::spawn_blocking(move || {
+        // Cap file discovery to avoid walking enormous trees forever
+        const MAX_FILES: usize = 50_000;
+        const MAX_FILE_SIZE: u64 = 5 * 1024 * 1024; // 5 MB
+
+        let mut files = Vec::new();
+        walk_files_filtered(&root, &mut files, MAX_FILES)?;
+
+        let query_lower = query.to_lowercase();
+        let mut matches: Vec<GrepSearchMatch> = Vec::new();
+
+        'outer: for file_path in files {
+            let Ok(metadata) = std::fs::metadata(&file_path) else {
+                continue;
+            };
+            // Skip files larger than 5 MB
+            if metadata.len() > MAX_FILE_SIZE {
+                continue;
+            }
+            // Skip binary files: try reading as UTF-8, skip if it fails
+            let Ok(content) = std::fs::read_to_string(&file_path) else {
+                continue;
+            };
+
+            let filename = file_path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+
+            for (index, line) in content.lines().enumerate() {
+                if line.to_lowercase().contains(&query_lower) {
+                    // Trim very long lines for display
+                    let trimmed = if line.len() > 500 {
+                        format!("{}...", &line[..500])
+                    } else {
+                        line.to_string()
+                    };
+                    matches.push(GrepSearchMatch {
+                        file: file_path.to_string_lossy().to_string(),
+                        line: index + 1,
+                        content: trimmed,
+                        filename,
+                    });
+                    if matches.len() >= limit {
+                        break 'outer;
+                    }
+                    // Break after finding first match in this file to avoid
+                    // flooding results from a single file — but only if we
+                    // already have enough breadth. If < 50 results, keep scanning
+                    // the same file for more matches.
+                    break;
                 }
             }
         }

@@ -11,6 +11,7 @@ vi.mock('@/lib/tauri-api', () => ({
     downloadAndInstallExtension: vi.fn(),
     showOpenDialog: vi.fn(),
     installXtensionFile: vi.fn(),
+    openUrl: vi.fn(),
   },
 }));
 
@@ -322,7 +323,7 @@ describe('MarketplacePanel', () => {
       fireEvent.click(externalLinkButton);
     });
 
-    expect(window.open).toHaveBeenCalledWith('https://xplorer.space', '_blank');
+    expect(TauriAPI.openUrl).toHaveBeenCalledWith('https://xplorer.space');
   });
 
   it('displays extension details correctly', async () => {
@@ -408,7 +409,7 @@ describe('MarketplacePanel', () => {
       });
     });
 
-    expect(window.open).toHaveBeenCalledWith('https://xplorer.space/publish', '_blank');
+    expect(TauriAPI.openUrl).toHaveBeenCalledWith('https://xplorer.space/publish');
   });
 
   describe('Extension Packs', () => {

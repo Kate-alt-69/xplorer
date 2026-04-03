@@ -31,6 +31,8 @@ export const executeCommandStream = async (command: string, workingDir: string):
 
 export const getCurrentShell = async (): Promise<string> => await transport('get_current_shell');
 
+export const openUrl = async (url: string): Promise<void> => await transport('open_url', { url });
+
 export const openInTerminal = async (path: string): Promise<void> =>
   await transport('open_in_terminal', { path });
 

@@ -52,6 +52,10 @@ export const getCurrentShell = async (): Promise<string> => {
   return await transport('get_current_shell');
 };
 
+export const openUrl = async (url: string): Promise<void> => {
+  return await transport('open_url', { url });
+};
+
 export const openInTerminal = async (path: string): Promise<void> => {
   return await transport('open_in_terminal', { path });
 };
