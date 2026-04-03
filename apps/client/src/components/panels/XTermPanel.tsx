@@ -58,6 +58,10 @@ const getTermTheme = () => ({
 const TermInstance = ({ tab, cwd, isActive }: { tab: TermTab; cwd: string; isActive: boolean }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const spawnedRef = useRef(false);
+  // Capture cwd at mount time so the spawn effect doesn't depend on it.
+  // Terminal sessions are independent of folder navigation — they should
+  // never be killed just because the user browses to a different directory.
+  const initialCwdRef = useRef(cwd);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -84,7 +88,7 @@ const TermInstance = ({ tab, cwd, isActive }: { tab: TermTab; cwd: string; isAct
     const cols = tab.terminal.cols || 80;
     const rows = tab.terminal.rows || 24;
 
-    TauriAPI.ptySpawn(tab.id, cwd, cols, rows).catch((err) => {
+    TauriAPI.ptySpawn(tab.id, initialCwdRef.current, cols, rows).catch((err) => {
       console.error(`[XTerm] Failed to spawn PTY ${tab.id}:`, err);
       tab.terminal.writeln(`\r\nFailed to start terminal: ${err}`);
     });
@@ -96,7 +100,7 @@ const TermInstance = ({ tab, cwd, isActive }: { tab: TermTab; cwd: string; isAct
     return () => {
       TauriAPI.ptyKill(tab.id).catch(() => {});
     };
-  }, [tab, cwd]);
+  }, [tab]);
 
   useEffect(() => {
     if (!isActive || !containerRef.current) return;
