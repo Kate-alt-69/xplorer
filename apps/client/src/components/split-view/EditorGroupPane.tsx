@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useMemo, useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { sortFiles, groupFilesByDate, type FileGroup, type SortField } from '@/lib/utils';
@@ -17,6 +17,7 @@ import {
   emitPaneSyncNavigate,
   computeRelativeSyncPath,
 } from '@/hooks/use-pane-sync';
+import { useFolderViewSettings } from '@/hooks/use-folder-view-settings';
 
 // Re-export components needed by the pane content
 import HomePage from '@/pages/HomePage';
@@ -140,11 +141,11 @@ const EditorGroupPane = ({
   selectedFile: _selectedFile,
   setSelectedFile,
   viewMode,
-  setViewMode,
-  sortBy,
-  setSortBy,
-  sortOrder,
-  setSortOrder,
+  setViewMode: _setViewMode,
+  sortBy: _sortBy,
+  setSortBy: _setSortBy,
+  sortOrder: _sortOrder,
+  setSortOrder: _setSortOrder,
   onSwitchTab,
   onCloseTab,
   onAddTab,
@@ -187,15 +188,18 @@ const EditorGroupPane = ({
     renameFileInline,
   } = sharedActions;
 
-  // Per-pane state (most state is controlled from parent)
-  const toggleSortOrder = useCallback(
-    () => setSortOrder((prev) => (prev === 'asc' ? 'desc' : 'asc')),
-    [setSortOrder],
-  );
-  const [groupByDate, setGroupByDate] = useState(false);
-
   const activeTab = group.tabs.find((t) => t.id === group.activeTabId);
   const { currentPath } = group;
+
+  // Per-pane, per-folder view & sort settings (persisted in localStorage)
+  const folderSettings = useFolderViewSettings(currentPath, viewMode);
+  const localViewMode = folderSettings.viewMode;
+  const localSetViewMode = folderSettings.setViewMode;
+  const localSortBy = folderSettings.sortBy;
+  const localSetSortBy = folderSettings.setSortBy;
+  const localSortOrder = folderSettings.sortOrder;
+  const _localSetSortOrder = folderSettings.setSortOrder;
+  const { groupByDate, setGroupByDate, toggleSortOrder } = folderSettings;
 
   // Detect collection paths
   const isCollectionPath = currentPath.startsWith('collection://');
@@ -304,23 +308,10 @@ const EditorGroupPane = ({
     return () => window.removeEventListener('files-changed', onFilesChanged);
   }, [queryClient]);
 
-  // Auto-enable date grouping for Downloads / Desktop / Documents
-  useEffect(() => {
-    const lowerPath = currentPath.toLowerCase().replace(/\\/g, '/');
-    const isDateFolder = /\/(downloads|desktop|documents)\/?$/i.test(lowerPath);
-    if (isDateFolder) {
-      setSortBy('dateModified');
-      setSortOrder('desc');
-      setGroupByDate(true);
-    } else {
-      setGroupByDate(false);
-    }
-  }, [currentPath, setSortBy, setSortOrder]);
-
-  // Sort files
+  // Sort files using per-folder settings
   const sortedFilesRaw = useMemo(
-    () => sortFiles(files, sortBy, sortOrder),
-    [files, sortBy, sortOrder],
+    () => sortFiles(files, localSortBy, localSortOrder),
+    [files, localSortBy, localSortOrder],
   );
 
   // Apply filter preset if one is active
@@ -593,11 +584,11 @@ const EditorGroupPane = ({
     // Default: file explorer
     return (
       <PaneFileExplorer
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        sortBy={sortBy}
-        setSortBy={setSortBy}
-        sortOrder={sortOrder}
+        viewMode={localViewMode}
+        setViewMode={localSetViewMode}
+        sortBy={localSortBy}
+        setSortBy={localSetSortBy}
+        sortOrder={localSortOrder}
         toggleSortOrder={toggleSortOrder}
         groupByDate={groupByDate}
         setGroupByDate={setGroupByDate}

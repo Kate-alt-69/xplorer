@@ -21,13 +21,13 @@ import { useSmartView } from '@/hooks/use-smart-view';
 
 interface PaneFileExplorerProps {
   viewMode: string;
-  setViewMode: React.Dispatch<React.SetStateAction<string>>;
+  setViewMode: (mode: string) => void;
   sortBy: SortField;
-  setSortBy: React.Dispatch<React.SetStateAction<SortField>>;
+  setSortBy: (field: SortField) => void;
   sortOrder: 'asc' | 'desc';
   toggleSortOrder: () => void;
   groupByDate: boolean;
-  setGroupByDate: React.Dispatch<React.SetStateAction<boolean>>;
+  setGroupByDate: (enabled: boolean) => void;
   sortedFiles: FileEntry[];
   fileGroups: FileGroup[] | null;
   isLoading: boolean;

@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   FONT_SIZE: 'xplorer:font-size',
   SPLIT_LAYOUT: 'xplorer:split-layout',
   SMART_VIEW: 'xplorer:folder-views',
+  FOLDER_SETTINGS: 'xplorer:folder-settings',
 
   // Marketplace / extensions
   MARKETPLACE_URL: 'xplorer:marketplace-url',
