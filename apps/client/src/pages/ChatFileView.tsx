@@ -1,4 +1,4 @@
-import { useEffect, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useRef, useMemo } from 'react';
 import { useChatFile } from '@/hooks/use-chat-file';
 import {
   MessageBubble,
@@ -72,6 +72,25 @@ const ChatFileView = ({ filePath }: ChatFileViewProps) => {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   const title = useMemo(() => deriveTitleFromPath(filePath), [filePath]);
+
+  /**
+   * Dispatch a CustomEvent to replace the currently selected code in the editor.
+   * The code-editor extension listens for this event.
+   */
+  const handleApplyCode = useCallback((code: string) => {
+    window.dispatchEvent(new CustomEvent('xplorer-apply-to-editor', { detail: { code } }));
+  }, []);
+
+  /**
+   * Only show "Apply to editor" when there is an active editor selection.
+   * This is checked at render time so the button disappears once the selection is cleared.
+   */
+  const hasEditorSelection = Boolean(
+    (window as unknown as { __xplorer_state__?: { editorSelection?: unknown } }).__xplorer_state__
+      ?.editorSelection,
+  );
+
+  const onApplyCode = hasEditorSelection ? handleApplyCode : undefined;
 
   // Auto-scroll to bottom on new messages / streaming
   useEffect(() => {
@@ -164,6 +183,7 @@ const ChatFileView = ({ filePath }: ChatFileViewProps) => {
               <MessageBubble
                 key={`${message.role}-${message.timestamp || idx}`}
                 message={message}
+                onApplyCode={message.role === 'assistant' ? onApplyCode : undefined}
               />
             ))
           )}

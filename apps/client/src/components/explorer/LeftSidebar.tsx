@@ -13,6 +13,7 @@ import { extensionHost } from '@/lib/extension-host';
 import { type FileCollection } from '@/lib/collections';
 import { useSidebarResize } from '@/hooks/use-sidebar-resize';
 import SidebarTabBar from '@/components/explorer/sidebar/SidebarTabBar';
+const ArchitectPanel = React.lazy(() => import('@/components/panels/ArchitectPanel'));
 import SidebarQuickAccess from '@/components/explorer/sidebar/SidebarQuickAccess';
 import SidebarRecent from '@/components/explorer/sidebar/SidebarRecent';
 import SidebarBookmarks from '@/components/explorer/sidebar/SidebarBookmarks';
@@ -100,6 +101,9 @@ const LeftSidebar = forwardRef<LeftSidebarHandle, LeftSidebarProps>(function Lef
     } else if (tabId === '__search__') {
       setActiveExtensionTab(null);
       if (!searchPanelOpen && onToggleSearchPanel) onToggleSearchPanel();
+    } else if (tabId === '__architect__') {
+      setActiveExtensionTab('__architect__');
+      if (searchPanelOpen && onToggleSearchPanel) onToggleSearchPanel();
     } else {
       if (searchPanelOpen && onToggleSearchPanel) onToggleSearchPanel();
       setActiveExtensionTab(tabId);
@@ -137,8 +141,22 @@ const LeftSidebar = forwardRef<LeftSidebarHandle, LeftSidebarProps>(function Lef
         />
       )}
 
+      {/* Architecture AI analysis */}
+      {activeTabId === '__architect__' && (
+        <React.Suspense
+          fallback={
+            <div className="text-xp-text-muted flex flex-1 items-center justify-center text-xs">
+              Loading...
+            </div>
+          }
+        >
+          <ArchitectPanel currentPath={currentPath} />
+        </React.Suspense>
+      )}
+
       {/* Extension sidebar tab content */}
       {activeExtensionTab &&
+        activeExtensionTab !== '__architect__' &&
         (() => {
           const renderer = extensionHost.getSidebarTabRenderer(activeExtensionTab);
           if (!renderer) {

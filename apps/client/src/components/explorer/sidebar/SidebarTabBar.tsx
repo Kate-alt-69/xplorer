@@ -1,5 +1,5 @@
 import React from 'react';
-import { FolderTree, Search } from 'lucide-react';
+import { FolderTree, Search, Network } from 'lucide-react';
 
 interface SidebarTab {
   id: string;
@@ -59,6 +59,19 @@ const SidebarTabBar = ({ activeTabId, onTabClick, extensionTabs }: SidebarTabBar
         title="Search (Ctrl+Shift+F)"
       >
         <Search size={15} />
+      </button>
+
+      {/* Architecture tab */}
+      <button
+        role="tab"
+        onClick={() => onTabClick('__architect__')}
+        className={tabClass('__architect__')}
+        style={{ width: 28, height: 28, padding: 0 }}
+        aria-label="Architecture Analysis"
+        aria-selected={activeTabId === '__architect__'}
+        title="Architecture (AI)"
+      >
+        <Network size={15} />
       </button>
 
       {/* Extension-registered sidebar tabs */}

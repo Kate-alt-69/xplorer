@@ -12,6 +12,7 @@ const TokenizerStatusPanel = React.lazy(() => import('./TokenizerStatusPanel'));
 const ExtensionsPanel = React.lazy(() => import('./ExtensionsPanel'));
 const MarketplacePanel = React.lazy(() => import('./MarketplacePanel'));
 const PerformanceDashboard = React.lazy(() => import('./PerformanceDashboard'));
+const StandaloneChatPanel = React.lazy(() => import('./StandaloneChatPanel'));
 const ComparePreview = React.lazy(() => import('@/components/previews/ComparePreview'));
 
 interface Theme {
@@ -271,6 +272,7 @@ const RightSidebar = ({
     if (scrubberCompareFiles) return 'Compare Files';
     if (rightPanelTab === 'preview') return 'File Preview';
     if (rightPanelTab === 'tokenizer') return 'Content Search';
+    if (rightPanelTab === 'chat') return 'AI Chat';
     if (rightPanelTab === 'performance') return 'Performance';
     if (rightPanelTab === 'extensions') return 'Extensions';
     if (rightPanelTab === 'marketplace') return 'Marketplace';
@@ -413,6 +415,13 @@ const RightSidebar = ({
                 return (
                   <ErrorBoundary>
                     <ExtensionsPanel themes={themes} theme={theme} applyTheme={applyTheme} />
+                  </ErrorBoundary>
+                );
+              }
+              if (rightPanelTab === 'chat') {
+                return (
+                  <ErrorBoundary>
+                    <StandaloneChatPanel />
                   </ErrorBoundary>
                 );
               }

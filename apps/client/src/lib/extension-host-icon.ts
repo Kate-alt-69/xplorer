@@ -37,6 +37,7 @@ import {
   Layers,
   Hash,
   List,
+  ListTree,
   CheckSquare,
   Clock,
   Download,
@@ -47,6 +48,7 @@ import {
   Link,
   Lock,
   Unlock,
+  Network,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -70,6 +72,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   puzzle: Puzzle,
   package: Package,
   cpu: Cpu,
+  network: Network,
   // Search & Navigation
   search: Search,
   target: Target,
@@ -105,6 +108,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   zap: Zap,
   // Actions
   list: List,
+  'list-tree': ListTree,
   'check-square': CheckSquare,
   clock: Clock,
   download: Download,

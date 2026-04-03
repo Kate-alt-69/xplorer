@@ -701,32 +701,39 @@ class ExtensionHost {
           const stConfig = (
             obj.getSidebarTabConfig as () => { id: string; title: string; icon?: string }
           )();
+          const sidebarTabRenderFn = (props: { currentPath?: string; isActive?: boolean }) => {
+            try {
+              return (
+                obj.renderSidebarTab as (props: {
+                  currentPath?: string;
+                  isActive?: boolean;
+                }) => React.ReactElement
+              )(props);
+            } catch (err) {
+              console.error(`[ExtensionHost] Sidebar tab render failed for "${stConfig.id}":`, err);
+              return React.createElement(
+                'div',
+                { className: 'p-4 text-sm text-red-400' },
+                `Tab "${stConfig.title}" failed to render.`,
+              );
+            }
+          };
           this.sidebarTabRegistry.set(stConfig.id, {
             id: stConfig.id,
             extensionId: pkg.manifest.id,
             title: stConfig.title,
             icon: resolveIcon(stConfig.icon),
-            render: (props: { currentPath?: string; isActive?: boolean }) => {
-              try {
-                return (
-                  obj.renderSidebarTab as (props: {
-                    currentPath?: string;
-                    isActive?: boolean;
-                  }) => React.ReactElement
-                )(props);
-              } catch (err) {
-                console.error(
-                  `[ExtensionHost] Sidebar tab render failed for "${stConfig.id}":`,
-                  err,
-                );
-                return React.createElement(
-                  'div',
-                  { className: 'p-4 text-sm text-red-400' },
-                  `Tab "${stConfig.title}" failed to render.`,
-                );
-              }
-            },
+            render: sidebarTabRenderFn,
           });
+
+          // Also update matching panel in panelRegistry so getRegisteredPanels()
+          // returns the real render function instead of the manifest placeholder
+          const existingPanel = this.panelRegistry.get(stConfig.id);
+          if (existingPanel && existingPanel.extensionId === pkg.manifest.id) {
+            existingPanel.render = sidebarTabRenderFn as (
+              props: PanelRenderProps,
+            ) => React.ReactElement;
+          }
         }
 
         // Register bottom tabs from marketplace extensions (renderBottomTab + getBottomTabConfig)

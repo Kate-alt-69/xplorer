@@ -9,6 +9,13 @@ declare global {
       currentPath: string;
       selectedFiles: Array<{ name: string; path: string; is_dir: boolean }>;
       navigateTo?: (path: string) => void;
+      /** Currently selected text in the code editor, updated by the code-editor extension. */
+      editorSelection?: {
+        text: string;
+        filePath: string;
+        startLine: number;
+        endLine: number;
+      } | null;
     };
   }
 }

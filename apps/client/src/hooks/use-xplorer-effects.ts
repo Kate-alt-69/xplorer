@@ -782,16 +782,30 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
     (e: Event) => {
       const { path } = (e as CustomEvent).detail;
       if (!path) return;
-      const name = path.split(/[/\\]/).pop() || path;
-      const sl = splitLayoutRef.current;
-      const group = sl.state.groups[sl.state.activeGroupId];
-      const existing = group?.tabs.find((t: TabItem) => t.type === 'editor' && t.path === path);
-      if (existing) {
-        sl.switchTab(group.id, existing.id);
-        return;
-      }
-      const tab: TabItem = { id: `editor-${path}-${Date.now()}`, name, path, type: 'editor' };
-      sl.addTab(sl.state.activeGroupId, tab, true);
+      // Check if path is a directory — if so, navigate instead of opening editor
+      TauriAPI.readDirectory(path)
+        .then(() => {
+          // Success means it's a directory — navigate to it
+          window.__xplorer_state__?.navigateTo?.(path);
+        })
+        .catch(() => {
+          // Not a directory — open as editor tab
+          const name = path.split(/[/\\]/).pop() || path;
+          const sl = splitLayoutRef.current;
+          const group = sl.state.groups[sl.state.activeGroupId];
+          const existing = group?.tabs.find((t: TabItem) => t.type === 'editor' && t.path === path);
+          if (existing) {
+            sl.switchTab(group.id, existing.id);
+            return;
+          }
+          const tab: TabItem = {
+            id: `editor-${path}-${Date.now()}`,
+            name,
+            path,
+            type: 'editor',
+          };
+          sl.addTab(sl.state.activeGroupId, tab, true);
+        });
     },
     [splitLayoutRef],
   );

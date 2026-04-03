@@ -3,6 +3,8 @@ import React from 'react';
 interface MarkdownRendererProps {
   content: string;
   className?: string;
+  /** Called when the user clicks "Apply to editor" on a fenced code block. */
+  onApplyCode?: (code: string) => void;
 }
 
 /**
@@ -19,8 +21,8 @@ interface MarkdownRendererProps {
  * - Blockquotes (> text)
  * - Tables (| col | col |)
  */
-const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererProps) => {
-  const elements = parseMarkdown(content);
+const MarkdownRenderer = ({ content, className = '', onApplyCode }: MarkdownRendererProps) => {
+  const elements = parseMarkdown(content, onApplyCode);
   return (
     <div
       className={`markdown-content ${className}`}
@@ -31,7 +33,7 @@ const MarkdownRenderer = ({ content, className = '' }: MarkdownRendererProps) =>
   );
 };
 
-const parseMarkdown = (text: string): React.ReactNode[] => {
+const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): React.ReactNode[] => {
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
   let i = 0;
@@ -49,13 +51,22 @@ const parseMarkdown = (text: string): React.ReactNode[] => {
         i++;
       }
       i++; // skip closing ```
+      const codeText = codeLines.join('\n');
       elements.push(
-        <pre
-          key={key++}
-          className="bg-xp-bg border-xp-border my-2 overflow-x-auto rounded-md border p-3 text-xs"
-        >
-          <code className="text-xp-text">{codeLines.join('\n')}</code>
-        </pre>,
+        <div key={key++} className="group relative my-2">
+          <pre className="bg-xp-bg border-xp-border overflow-x-auto rounded-md border p-3 text-xs">
+            <code className="text-xp-text">{codeText}</code>
+          </pre>
+          {onApplyCode && (
+            <button
+              onClick={() => onApplyCode(codeText)}
+              className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text absolute right-2 top-2 rounded border px-2 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
+              title="Replace selected code in editor"
+            >
+              Apply to editor
+            </button>
+          )}
+        </div>,
       );
       continue;
     }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { FolderOpen, FolderClosed, FileText, X, Settings, ChevronDown } from 'lucide-react';
 import { AIService, type ChatMessage, type FileContext } from '@/lib/ai-service';
 import { AgentService, type AgentEvent } from '@/lib/agent-service';
@@ -304,6 +304,30 @@ const ChatPanel = ({
         contextParts.push(`--- ${f.name} (${f.path}) --- [binary/unreadable]`);
       }
     }
+
+    // Include currently selected text from the code editor, if any
+    const editorSelection = (
+      window as unknown as {
+        __xplorer_state__?: {
+          editorSelection?: {
+            text: string;
+            filePath: string;
+            startLine: number;
+            endLine: number;
+          } | null;
+        };
+      }
+    ).__xplorer_state__?.editorSelection;
+
+    if (editorSelection) {
+      contextParts.push(
+        `\nCurrently selected code in editor (${editorSelection.filePath}, lines ${editorSelection.startLine}–${editorSelection.endLine}):\n\`\`\`\n${editorSelection.text}\n\`\`\``,
+      );
+      contextParts.push(
+        'The user may be asking about this selected code. When suggesting edits, provide the replacement code in a code block and mention it replaces the selection.',
+      );
+    }
+
     const filesystemContext = contextParts.length > 0 ? contextParts.join('\n\n') : undefined;
 
     try {
@@ -450,6 +474,18 @@ const ChatPanel = ({
       return '';
     }
   };
+
+  // Dispatch to the code editor extension to replace the currently selected code
+  const handleApplyCode = useCallback((code: string) => {
+    window.dispatchEvent(new CustomEvent('xplorer-apply-to-editor', { detail: { code } }));
+  }, []);
+
+  const hasEditorSelection = Boolean(
+    (window as unknown as { __xplorer_state__?: { editorSelection?: unknown } }).__xplorer_state__
+      ?.editorSelection,
+  );
+
+  const onApplyCode = hasEditorSelection ? handleApplyCode : undefined;
 
   return (
     <div
@@ -878,7 +914,11 @@ const ChatPanel = ({
             <EmptyState agentEnabled={state.agentEnabled} />
           ) : (
             chatMessages.map((message) => (
-              <MessageBubble key={`${message.role}-${message.timestamp}`} message={message} />
+              <MessageBubble
+                key={`${message.role}-${message.timestamp}`}
+                message={message}
+                onApplyCode={message.role === 'assistant' ? onApplyCode : undefined}
+              />
             ))
           )}
 

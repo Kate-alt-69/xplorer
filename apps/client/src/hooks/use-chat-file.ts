@@ -190,7 +190,7 @@ export const useChatFile = ({ filePath }: UseChatFileOptions) => {
     let accumulatedText = '';
     let accumulatedThinking = '';
 
-    // Build filesystem context from context files
+    // Build filesystem context from context files and editor selection
     const contextParts: string[] = [];
     if (state.contextFiles.length > 0) {
       contextParts.push('Context files:');
@@ -198,6 +198,30 @@ export const useChatFile = ({ filePath }: UseChatFileOptions) => {
         contextParts.push(`- ${f.name} (${f.path})`);
       }
     }
+
+    // Include currently selected text from the code editor, if any
+    const editorSelection = (
+      window as unknown as {
+        __xplorer_state__?: {
+          editorSelection?: {
+            text: string;
+            filePath: string;
+            startLine: number;
+            endLine: number;
+          } | null;
+        };
+      }
+    ).__xplorer_state__?.editorSelection;
+
+    if (editorSelection) {
+      contextParts.push(
+        `\nCurrently selected code in editor (${editorSelection.filePath}, lines ${editorSelection.startLine}–${editorSelection.endLine}):\n\`\`\`\n${editorSelection.text}\n\`\`\``,
+      );
+      contextParts.push(
+        'The user may be asking about this selected code. When suggesting edits, provide the replacement code in a code block and mention it replaces the selection.',
+      );
+    }
+
     const filesystemContext = contextParts.length > 0 ? contextParts.join('\n') : undefined;
 
     try {

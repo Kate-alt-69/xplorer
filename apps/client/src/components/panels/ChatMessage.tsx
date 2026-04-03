@@ -146,9 +146,11 @@ const ThinkingBlock = ({ content }: { content: string }) => {
 
 interface MessageBubbleProps {
   message: ChatMessageType;
+  /** Optional handler for "Apply to editor" on code blocks in assistant messages. */
+  onApplyCode?: (code: string) => void;
 }
 
-export const MessageBubble = React.memo(({ message }: MessageBubbleProps) => {
+export const MessageBubble = React.memo(({ message, onApplyCode }: MessageBubbleProps) => {
   const modelLabel = message.model
     ? message.model.replace('claude-', '').replace('deepseek-', 'ds-').substring(0, 20)
     : null;
@@ -163,7 +165,7 @@ export const MessageBubble = React.memo(({ message }: MessageBubbleProps) => {
         {message.role === 'assistant' ? (
           <>
             {message.thinking && <ThinkingBlock content={message.thinking} />}
-            <MarkdownRenderer content={message.content} />
+            <MarkdownRenderer content={message.content} onApplyCode={onApplyCode} />
             {modelLabel && (
               <div className="text-xp-text-muted mt-1.5 text-[10px] opacity-60">{modelLabel}</div>
             )}
