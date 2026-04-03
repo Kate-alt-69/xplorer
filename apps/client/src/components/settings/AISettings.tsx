@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Bot,
   Shield,
@@ -46,6 +47,7 @@ const AISettings = ({
   openaiKeyInput,
   setOpenaiKeyInput,
 }: AISettingsProps) => {
+  const { t } = useTranslation();
   const [showApiKey, setShowApiKey] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
 
@@ -62,61 +64,61 @@ const AISettings = ({
 
   const resolveThirdPartyKeyInfo = (): { label: string; desc: string } => {
     if (agentSettings.model.startsWith('gemini-')) {
-      return { label: 'Google AI API Key', desc: 'Required for Google Gemini models' };
+      return { label: t('settings.ai.googleApiKey'), desc: t('settings.ai.googleApiKeyDesc') };
     }
     if (agentSettings.model.startsWith('deepseek-')) {
-      return { label: 'DeepSeek API Key', desc: 'Required for DeepSeek models' };
+      return { label: t('settings.ai.deepseekApiKey'), desc: t('settings.ai.deepseekApiKeyDesc') };
     }
     if (agentSettings.model.startsWith('mistral-') || agentSettings.model.startsWith('codestral')) {
-      return { label: 'Mistral API Key', desc: 'Required for Mistral models' };
+      return { label: t('settings.ai.mistralApiKey'), desc: t('settings.ai.mistralApiKeyDesc') };
     }
-    return { label: 'OpenAI API Key', desc: 'Required for GPT / OpenAI models' };
+    return { label: t('settings.ai.openaiApiKey'), desc: t('settings.ai.openaiApiKeyDesc') };
   };
   const { label: thirdPartyKeyLabel, desc: thirdPartyKeyDesc } = resolveThirdPartyKeyInfo();
 
   return (
     <div className="space-y-1">
-      <SectionTitle title="Agent" />
+      <SectionTitle title={t('settings.ai.agent')} />
       <SettingRow
         icon={Bot}
-        label="Enable Agent"
-        description="Activate AI-powered file management assistant"
+        label={t('settings.ai.enableAgent')}
+        description={t('settings.ai.enableAgentDesc')}
       >
         <Toggle
           id="agentEnabled"
-          label="Enable Agent"
+          label={t('settings.ai.enableAgent')}
           checked={agentSettings.enabled}
           onChange={(v) => updateAgentSetting('enabled', v)}
         />
       </SettingRow>
       <SettingRow
         icon={Shield}
-        label="Auto-Approve Actions"
+        label={t('settings.ai.autoApprove')}
         description={
           agentSettings.auto_approve
-            ? 'Writes, deletes, and commands run without asking'
-            : 'Destructive actions require your approval'
+            ? t('settings.ai.autoApproveDescOn')
+            : t('settings.ai.autoApproveDescOff')
         }
       >
         <Toggle
           id="autoApprove"
-          label="Auto-Approve Agent Actions"
+          label={t('settings.ai.autoApproveToggle')}
           checked={agentSettings.auto_approve}
           onChange={(v) => updateAgentSetting('auto_approve', v)}
         />
       </SettingRow>
 
       <Divider />
-      <SectionTitle title="Configuration" />
+      <SectionTitle title={t('settings.ai.configuration')} />
 
       {/* Anthropic API Key */}
       <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
         <div className="mb-2 flex items-center gap-3">
           <Key size={18} className="text-xp-text-secondary shrink-0" />
           <div>
-            <div className="text-xp-text text-sm font-medium">API Key</div>
+            <div className="text-xp-text text-sm font-medium">{t('settings.ai.apiKey')}</div>
             <div className="text-xp-text-secondary mt-0.5 text-xs">
-              Your Anthropic Claude API key
+              {t('settings.ai.apiKeyDesc')}
             </div>
           </div>
         </div>
@@ -126,7 +128,9 @@ const AISettings = ({
             type={showApiKey ? 'text' : 'password'}
             value={apiKeyInput}
             onChange={(e) => setApiKeyInput(e.target.value)}
-            placeholder={agentSettings.has_api_key ? '••••••••  (key is set)' : 'sk-ant-...'}
+            placeholder={
+              agentSettings.has_api_key ? `••••••••  (${t('settings.ai.keyIsSet')})` : 'sk-ant-...'
+            }
             className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 pr-16 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
           />
           <button
@@ -135,26 +139,30 @@ const AISettings = ({
             className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
           >
             {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-            {showApiKey ? 'Hide' : 'Show'}
+            {showApiKey ? t('settings.ai.hideKey') : t('settings.ai.showKey')}
           </button>
         </div>
       </div>
 
-      <SettingRow icon={Cpu} label="Model" description="Which AI model to use for the agent">
+      <SettingRow
+        icon={Cpu}
+        label={t('settings.ai.model')}
+        description={t('settings.ai.modelDesc')}
+      >
         <Select value={agentSettings.model} onValueChange={(v) => updateAgentSetting('model', v)}>
           <SelectTrigger className="h-9 min-w-[180px]" aria-label="AI Model">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
             <SelectGroup>
-              <SelectLabel>Anthropic</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupAnthropic')}</SelectLabel>
               <SelectItem value="claude-sonnet-4-6">Claude Sonnet 4.6</SelectItem>
               <SelectItem value="claude-opus-4-6">Claude Opus 4.6</SelectItem>
               <SelectItem value="claude-haiku-4-5-20251001">Claude Haiku 4.5</SelectItem>
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>OpenAI</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupOpenAI')}</SelectLabel>
               <SelectItem value="gpt-4o">GPT-4o</SelectItem>
               <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
               <SelectItem value="gpt-4.1">GPT-4.1</SelectItem>
@@ -165,33 +173,33 @@ const AISettings = ({
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>Google</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupGoogle')}</SelectLabel>
               <SelectItem value="gemini-2.5-pro">Gemini 2.5 Pro</SelectItem>
               <SelectItem value="gemini-2.5-flash">Gemini 2.5 Flash</SelectItem>
               <SelectItem value="gemini-2.0-flash">Gemini 2.0 Flash</SelectItem>
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>DeepSeek</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupDeepSeek')}</SelectLabel>
               <SelectItem value="deepseek-chat">DeepSeek V3</SelectItem>
               <SelectItem value="deepseek-reasoner">DeepSeek R1</SelectItem>
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>Meta (via Ollama)</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupMetaOllama')}</SelectLabel>
               <SelectItem value="llama3.3">Llama 3.3 70B</SelectItem>
               <SelectItem value="llama3.1">Llama 3.1 8B</SelectItem>
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>Mistral</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupMistral')}</SelectLabel>
               <SelectItem value="mistral-large-latest">Mistral Large</SelectItem>
               <SelectItem value="mistral-small-latest">Mistral Small</SelectItem>
               <SelectItem value="codestral-latest">Codestral</SelectItem>
             </SelectGroup>
             <SelectSeparator />
             <SelectGroup>
-              <SelectLabel>Local (Ollama)</SelectLabel>
+              <SelectLabel>{t('settings.ai.modelGroupLocalOllama')}</SelectLabel>
               <SelectItem value="ollama:custom">Custom Ollama Model</SelectItem>
             </SelectGroup>
           </SelectContent>
@@ -213,7 +221,11 @@ const AISettings = ({
               type={showOpenaiKey ? 'text' : 'password'}
               value={openaiKeyInput}
               onChange={(e) => setOpenaiKeyInput(e.target.value)}
-              placeholder={agentSettings.has_openai_api_key ? '••••••••  (key is set)' : 'sk-...'}
+              placeholder={
+                agentSettings.has_openai_api_key
+                  ? `••••••••  (${t('settings.ai.keyIsSet')})`
+                  : 'sk-...'
+              }
               className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 pr-16 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
             />
             <button
@@ -222,23 +234,23 @@ const AISettings = ({
               className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
             >
               {showOpenaiKey ? <EyeOff size={14} /> : <Eye size={14} />}
-              {showOpenaiKey ? 'Hide' : 'Show'}
+              {showOpenaiKey ? t('settings.ai.hideKey') : t('settings.ai.showKey')}
             </button>
           </div>
         </div>
       )}
 
       <Divider />
-      <SectionTitle title="AI Search" />
+      <SectionTitle title={t('settings.ai.aiSearch')} />
 
       {/* OpenAI API Key for search */}
       <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
         <div className="mb-2 flex items-center gap-3">
           <Key size={18} className="text-xp-text-secondary shrink-0" />
           <div>
-            <div className="text-xp-text text-sm font-medium">OpenAI API Key</div>
+            <div className="text-xp-text text-sm font-medium">{t('settings.ai.openaiApiKey')}</div>
             <div className="text-xp-text-secondary mt-0.5 text-xs">
-              For GPT-powered search (optional)
+              {t('settings.ai.openaiApiKeySearchDesc')}
             </div>
           </div>
         </div>
@@ -258,9 +270,11 @@ const AISettings = ({
         <div className="mb-2 flex items-center gap-3">
           <Cpu size={18} className="text-xp-text-secondary shrink-0" />
           <div>
-            <div className="text-xp-text text-sm font-medium">Ollama Endpoint</div>
+            <div className="text-xp-text text-sm font-medium">
+              {t('settings.ai.ollamaEndpoint')}
+            </div>
             <div className="text-xp-text-secondary mt-0.5 text-xs">
-              Local Ollama server URL for AI search
+              {t('settings.ai.ollamaEndpointDesc')}
             </div>
           </div>
         </div>
@@ -276,7 +290,7 @@ const AISettings = ({
       </div>
 
       <Divider />
-      <SectionTitle title="Agent" />
+      <SectionTitle title={t('settings.ai.agentSection')} />
 
       {/* Max Turns */}
       <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
@@ -284,9 +298,9 @@ const AISettings = ({
           <div className="flex items-center gap-3">
             <SlidersHorizontal size={18} className="text-xp-text-secondary shrink-0" />
             <div>
-              <div className="text-xp-text text-sm font-medium">Max Turns</div>
+              <div className="text-xp-text text-sm font-medium">{t('settings.ai.maxTurns')}</div>
               <div className="text-xp-text-secondary mt-0.5 text-xs">
-                Maximum conversation turns per task
+                {t('settings.ai.maxTurnsDesc')}
               </div>
             </div>
           </div>
@@ -314,12 +328,12 @@ const AISettings = ({
       {/* Extended Thinking */}
       <SettingRow
         icon={Brain}
-        label="Extended Thinking"
-        description="Enable deeper reasoning for complex tasks (Claude only)"
+        label={t('settings.ai.extendedThinking')}
+        description={t('settings.ai.extendedThinkingDesc')}
       >
         <Toggle
           id="thinkingEnabled"
-          label="Extended Thinking"
+          label={t('settings.ai.extendedThinking')}
           checked={agentSettings.thinking_enabled}
           onChange={(v) => updateAgentSetting('thinking_enabled', v)}
         />
@@ -332,9 +346,11 @@ const AISettings = ({
             <div className="flex items-center gap-3">
               <SlidersHorizontal size={18} className="text-xp-text-secondary shrink-0" />
               <div>
-                <div className="text-xp-text text-sm font-medium">Thinking Budget</div>
+                <div className="text-xp-text text-sm font-medium">
+                  {t('settings.ai.thinkingBudget')}
+                </div>
                 <div className="text-xp-text-secondary mt-0.5 text-xs">
-                  Max tokens for reasoning
+                  {t('settings.ai.thinkingBudgetDesc')}
                 </div>
               </div>
             </div>
@@ -378,7 +394,7 @@ const AISettings = ({
           className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
         >
           <RotateCcw size={14} />
-          Reset agent settings
+          {t('settings.ai.resetAgent')}
         </button>
       </div>
     </div>

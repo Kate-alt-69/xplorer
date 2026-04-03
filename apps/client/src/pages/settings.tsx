@@ -62,50 +62,87 @@ type SettingsTab =
   | 'audit'
   | 'versioning';
 
-const tabs: { id: SettingsTab; label: string; icon: React.ElementType; description: string }[] = [
-  { id: 'general', label: 'General', icon: Settings2, description: 'Appearance, layout & system' },
-  { id: 'explorer', label: 'File Explorer', icon: FolderOpen, description: 'Views & file display' },
+type TabDef = { id: SettingsTab; label: string; icon: React.ElementType; description: string };
+
+const buildTabs = (t: (key: string) => string): TabDef[] => [
+  {
+    id: 'general',
+    label: t('settings.tabs.general'),
+    icon: Settings2,
+    description: t('settings.tabs.generalDesc'),
+  },
+  {
+    id: 'explorer',
+    label: t('settings.tabs.explorer'),
+    icon: FolderOpen,
+    description: t('settings.tabs.explorerDesc'),
+  },
   {
     id: 'file-associations',
-    label: 'File Associations',
+    label: t('settings.tabs.fileAssociations'),
     icon: FileCode,
-    description: 'Open-with defaults',
+    description: t('settings.tabs.fileAssociationsDesc'),
   },
   {
     id: 'context-menu',
-    label: 'Context Menu',
+    label: t('settings.tabs.contextMenu'),
     icon: MousePointerClick,
-    description: 'Right-click menu rules',
+    description: t('settings.tabs.contextMenuDesc'),
   },
-  { id: 'ai', label: 'AI Agent', icon: Bot, description: 'AI provider settings' },
+  {
+    id: 'ai',
+    label: t('settings.tabs.ai'),
+    icon: Bot,
+    description: t('settings.tabs.aiDesc'),
+  },
   {
     id: 'permissions',
-    label: 'Permissions',
+    label: t('settings.tabs.permissions'),
     icon: Shield,
-    description: 'Agent tool & path access',
+    description: t('settings.tabs.permissionsDesc'),
   },
-  { id: 'indexing', label: 'Indexing', icon: Search, description: 'File search & tokenizer' },
-  { id: 'shortcuts', label: 'Shortcuts', icon: Keyboard, description: 'Key bindings & profiles' },
+  {
+    id: 'indexing',
+    label: t('settings.tabs.indexing'),
+    icon: Search,
+    description: t('settings.tabs.indexingDesc'),
+  },
+  {
+    id: 'shortcuts',
+    label: t('settings.tabs.shortcuts'),
+    icon: Keyboard,
+    description: t('settings.tabs.shortcutsDesc'),
+  },
   {
     id: 'marketplace',
-    label: 'Marketplace',
+    label: t('settings.tabs.marketplace'),
     icon: Store,
-    description: 'Extension marketplace URL',
+    description: t('settings.tabs.marketplaceDesc'),
   },
   {
     id: 'accessibility',
-    label: 'Accessibility',
+    label: t('settings.tabs.accessibility'),
     icon: Accessibility,
-    description: 'Motion & focus',
+    description: t('settings.tabs.accessibilityDesc'),
   },
   {
     id: 'backup',
-    label: 'Backup & Restore',
+    label: t('settings.tabs.backup'),
     icon: HardDrive,
-    description: 'Import & export settings',
+    description: t('settings.tabs.backupDesc'),
   },
-  { id: 'audit', label: 'Audit Log', icon: ClipboardList, description: 'File operation history' },
-  { id: 'versioning', label: 'Versioning', icon: History, description: 'File version history' },
+  {
+    id: 'audit',
+    label: t('settings.tabs.audit'),
+    icon: ClipboardList,
+    description: t('settings.tabs.auditDesc'),
+  },
+  {
+    id: 'versioning',
+    label: t('settings.tabs.versioning'),
+    icon: History,
+    description: t('settings.tabs.versioningDesc'),
+  },
 ];
 
 const MarketplaceSettings = ({
@@ -120,7 +157,7 @@ const MarketplaceSettings = ({
   <div className="space-y-1">
     <div className="mb-1 px-4 pb-1 pt-2">
       <h3 className="text-xp-text-secondary text-xs font-semibold uppercase tracking-wider">
-        Updates
+        {t('settings.marketplace.updatesSection')}
       </h3>
     </div>
     <SettingRow
@@ -141,6 +178,7 @@ const MarketplaceSettings = ({
 const Settings = () => {
   const [, setLocation] = useLocation();
   const { t } = useTranslation();
+  const tabs = buildTabs(t);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
 
   const [settings, setSettings] = useState<AppSettings>(() => {
@@ -352,13 +390,15 @@ const Settings = () => {
           <button
             onClick={() => setLocation('/')}
             className="text-xp-text-secondary hover:bg-xp-surface hover:text-xp-text flex h-8 w-8 items-center justify-center rounded-md transition-colors"
-            title="Back to Home"
+            title={t('settings.backToApp')}
           >
             <ArrowLeft size={18} />
           </button>
           <div>
-            <h1 className="text-xp-text text-lg font-semibold leading-tight">Settings</h1>
-            <p className="text-xp-text-secondary text-xs">Customize your Xplorer experience</p>
+            <h1 className="text-xp-text text-lg font-semibold leading-tight">
+              {t('settings.title')}
+            </h1>
+            <p className="text-xp-text-secondary text-xs">{t('settings.subtitle')}</p>
           </div>
         </div>
       </div>

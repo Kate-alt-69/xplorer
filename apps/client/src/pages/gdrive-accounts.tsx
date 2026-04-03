@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { gdriveManager, type GoogleDriveAccount } from '@/lib/gdrive-plugin';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
@@ -24,6 +25,7 @@ interface GoogleDriveAccountsPageProps {
 
 const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
   const { className, mode = 'page' } = props;
+  const { t } = useTranslation();
   const [accounts, setAccounts] = useState<GoogleDriveAccount[]>([]);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -84,8 +86,8 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
   const handleSaveCredentials = async () => {
     if (!clientId.trim() || !clientSecret.trim()) {
       toast({
-        title: 'Missing Fields',
-        description: 'Both Client ID and Client Secret are required.',
+        title: t('pages.gdrive.toastMissingFieldsTitle'),
+        description: t('pages.gdrive.toastMissingFieldsDesc'),
         variant: 'destructive',
       });
       return;
@@ -96,13 +98,15 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
       await TauriAPI.updateGdriveSettings(clientId.trim(), clientSecret.trim());
       setCredentialsConfigured(true);
       toast({
-        title: 'Credentials Saved',
-        description: 'Google Drive API credentials have been saved.',
+        title: t('pages.gdrive.toastCredentialsSavedTitle'),
+        description: t('pages.gdrive.toastCredentialsSavedDesc'),
       });
     } catch (err) {
       toast({
-        title: 'Save Failed',
-        description: `Failed to save credentials: ${err instanceof Error ? err.message : String(err)}`,
+        title: t('pages.gdrive.toastSaveFailedTitle'),
+        description: t('pages.gdrive.toastSaveFailedDesc', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
         variant: 'destructive',
       });
     } finally {
@@ -113,8 +117,8 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
   const handleAddAccount = async () => {
     if (!credentialsConfigured) {
       toast({
-        title: 'Credentials Required',
-        description: 'Please configure your Google API credentials first.',
+        title: t('pages.gdrive.toastCredentialsRequiredTitle'),
+        description: t('pages.gdrive.toastCredentialsRequiredDesc'),
         variant: 'destructive',
       });
       setShowSetup(true);
@@ -128,13 +132,15 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
       await loadAccounts();
 
       toast({
-        title: 'Account Connected',
-        description: 'Google Drive account has been connected successfully.',
+        title: t('pages.gdrive.toastAccountConnectedTitle'),
+        description: t('pages.gdrive.toastAccountConnectedDesc'),
       });
     } catch (err) {
       toast({
-        title: 'Authentication Failed',
-        description: `Failed to connect Google account: ${err instanceof Error ? err.message : String(err)}`,
+        title: t('pages.gdrive.toastAuthFailedTitle'),
+        description: t('pages.gdrive.toastAuthFailedDesc', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
         variant: 'destructive',
       });
     } finally {
@@ -169,33 +175,37 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
       await loadAccounts();
 
       toast({
-        title: 'Disconnected',
-        description: `Disconnected from ${account.email}.`,
+        title: t('pages.gdrive.toastDisconnectedTitle'),
+        description: t('pages.gdrive.toastDisconnectedDesc', { email: account.email }),
       });
     } catch (err) {
       toast({
-        title: 'Error',
-        description: `Failed to disconnect: ${err instanceof Error ? err.message : String(err)}`,
+        title: t('pages.gdrive.toastDisconnectErrorTitle'),
+        description: t('pages.gdrive.toastDisconnectErrorDesc', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
         variant: 'destructive',
       });
     }
   };
 
   const handleRemoveAccount = async (account: GoogleDriveAccount) => {
-    if (!confirm(`Are you sure you want to remove the account "${account.email}"?`)) return;
+    if (!confirm(t('pages.gdrive.removeAccountConfirm', { email: account.email }))) return;
 
     try {
       await gdriveManager.removeAccount(account.id);
       await loadAccounts();
 
       toast({
-        title: 'Account Removed',
-        description: `${account.email} has been removed.`,
+        title: t('pages.gdrive.toastRemovedTitle'),
+        description: t('pages.gdrive.toastRemovedDesc', { email: account.email }),
       });
     } catch (err) {
       toast({
-        title: 'Error',
-        description: `Failed to remove account: ${err instanceof Error ? err.message : String(err)}`,
+        title: t('pages.gdrive.toastRemoveErrorTitle'),
+        description: t('pages.gdrive.toastRemoveErrorDesc', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
         variant: 'destructive',
       });
     }
@@ -209,11 +219,10 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
           <div className="bg-xp-surface-light mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
             <Cloud className="h-8 w-8" />
           </div>
-          <h3 className="text-xp-text mb-2 text-lg font-medium">Configure API credentials first</h3>
-          <p className="text-xp-text-muted">
-            Set up your Google Cloud OAuth credentials above to start connecting Google Drive
-            accounts.
-          </p>
+          <h3 className="text-xp-text mb-2 text-lg font-medium">
+            {t('pages.gdrive.noCredentialsTitle')}
+          </h3>
+          <p className="text-xp-text-muted">{t('pages.gdrive.noCredentialsDesc')}</p>
         </div>
       </div>
     );
@@ -224,25 +233,24 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
           <div className="bg-xp-surface-light mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
             <Cloud className="h-8 w-8" />
           </div>
-          <h3 className="text-xp-text mb-2 text-lg font-medium">Connect your Google Drive</h3>
-          <p className="text-xp-text-muted mb-4">
-            Sign in with your Google account to browse and manage your Drive files directly from
-            Xplorer.
-          </p>
+          <h3 className="text-xp-text mb-2 text-lg font-medium">
+            {t('pages.gdrive.noAccountsTitle')}
+          </h3>
+          <p className="text-xp-text-muted mb-4">{t('pages.gdrive.noAccountsDesc')}</p>
 
           <button
             onClick={handleAddAccount}
             disabled={isAuthenticating}
             className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue rounded-md px-6 py-2 text-white transition-colors focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Sign in with Google"
+            aria-label={t('pages.gdrive.ariaSignIn')}
           >
             {isAuthenticating ? (
               <span className="flex items-center space-x-2">
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>Connecting...</span>
+                <span>{t('pages.gdrive.connecting')}</span>
               </span>
             ) : (
-              'Sign in with Google'
+              t('pages.gdrive.signInWithGoogle')
             )}
           </button>
         </div>
@@ -268,8 +276,8 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                   <button
                     onClick={() => handleRemoveAccount(account)}
                     className="text-xp-text-muted hover:text-xp-red focus:ring-xp-blue p-1 transition-colors focus:outline-none focus:ring-1"
-                    title="Remove Account"
-                    aria-label={`Remove account ${account.email}`}
+                    title={t('pages.gdrive.ariaRemoveAccount', { email: account.email })}
+                    aria-label={t('pages.gdrive.ariaRemoveAccount', { email: account.email })}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -309,7 +317,9 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                       />
                     </svg>
                     <span className="text-xs">
-                      Last synced: {new Date(account.lastSynced).toLocaleString()}
+                      {t('pages.gdrive.lastSynced', {
+                        date: new Date(account.lastSynced).toLocaleString(),
+                      })}
                     </span>
                   </div>
                 )}
@@ -320,18 +330,18 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                 <button
                   onClick={() => openAccountInExplorer(account)}
                   className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue flex flex-1 items-center justify-center space-x-2 rounded px-3 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-1"
-                  aria-label={`Open Google Drive for ${account.email}`}
+                  aria-label={t('pages.gdrive.ariaOpenAccount', { email: account.email })}
                 >
                   <ExternalLink className="h-4 w-4" />
-                  <span>Open</span>
+                  <span>{t('pages.gdrive.openAccount')}</span>
                 </button>
 
                 <button
                   onClick={() => handleDisconnect(account)}
                   className="bg-xp-red hover:bg-xp-red/80 focus:ring-xp-blue rounded px-3 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-1"
-                  aria-label={`Disconnect ${account.email}`}
+                  aria-label={t('pages.gdrive.ariaDisconnect', { email: account.email })}
                 >
-                  Disconnect
+                  {t('pages.gdrive.disconnect')}
                 </button>
               </div>
             </div>
@@ -350,8 +360,8 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
             <button
               onClick={() => setLocation('/explorer')}
               className="hover:bg-xp-surface-light focus:ring-xp-blue rounded-md p-2 transition-colors focus:outline-none focus:ring-1"
-              title="Back to Explorer"
-              aria-label="Back to Explorer"
+              title={t('pages.gdrive.backToExplorer')}
+              aria-label={t('pages.gdrive.ariaBackToExplorer')}
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path
@@ -363,10 +373,8 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
             </button>
           )}
           <div>
-            <h1 className="text-xp-text text-xl font-semibold">Google Drive</h1>
-            <p className="text-xp-text-muted text-sm">
-              Configure API credentials and manage connected accounts
-            </p>
+            <h1 className="text-xp-text text-xl font-semibold">{t('pages.gdrive.pageTitle')}</h1>
+            <p className="text-xp-text-muted text-sm">{t('pages.gdrive.pageSubtitle')}</p>
           </div>
         </div>
 
@@ -375,17 +383,17 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
             onClick={handleAddAccount}
             disabled={isAuthenticating || !credentialsConfigured}
             className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue flex items-center space-x-2 rounded-md px-4 py-2 text-white transition-colors focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Add Google account"
+            aria-label={t('pages.gdrive.ariaAddAccount')}
           >
             {isAuthenticating ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>Connecting...</span>
+                <span>{t('pages.gdrive.connecting')}</span>
               </>
             ) : (
               <>
                 <Plus className="h-4 w-4" />
-                <span>Add Google Account</span>
+                <span>{t('pages.gdrive.addAccount')}</span>
               </>
             )}
           </button>
@@ -399,23 +407,25 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
           <button
             onClick={() => setShowSetup(!showSetup)}
             className="focus:ring-xp-blue mb-2 flex w-full items-center space-x-2 text-left focus:outline-none focus:ring-1"
-            aria-label="Toggle API credentials section"
+            aria-label={t('pages.gdrive.ariaToggleCredentials')}
           >
             {showSetup ? (
               <ChevronDown className="text-xp-text-muted h-4 w-4" />
             ) : (
               <ChevronRight className="text-xp-text-muted h-4 w-4" />
             )}
-            <h2 className="text-xp-text text-sm font-semibold">API Credentials</h2>
+            <h2 className="text-xp-text text-sm font-semibold">
+              {t('pages.gdrive.apiCredentials')}
+            </h2>
             {credentialsConfigured ? (
               <span className="text-xp-green flex items-center space-x-1 text-xs">
                 <CheckCircle className="h-3 w-3" />
-                <span>Configured</span>
+                <span>{t('pages.gdrive.configured')}</span>
               </span>
             ) : (
               <span className="text-xp-yellow flex items-center space-x-1 text-xs">
                 <AlertCircle className="h-3 w-3" />
-                <span>Not configured</span>
+                <span>{t('pages.gdrive.notConfigured')}</span>
               </span>
             )}
           </button>
@@ -424,7 +434,9 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
             <div className="mt-4 space-y-4">
               {/* Setup Guide */}
               <div className="bg-xp-surface border-xp-border rounded-lg border p-4">
-                <h3 className="text-xp-text mb-3 text-sm font-medium">Setup Guide</h3>
+                <h3 className="text-xp-text mb-3 text-sm font-medium">
+                  {t('pages.gdrive.setupGuide')}
+                </h3>
                 <ol className="text-xp-text-muted list-inside list-decimal space-y-2 text-sm">
                   <li>
                     Go to the{' '}
@@ -439,8 +451,8 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                   </li>
                   <li>Create a new project or select an existing one</li>
                   <li>
-                    Navigate to <strong className="text-xp-text">APIs & Services</strong> and enable
-                    the <strong className="text-xp-text">Google Drive API</strong>
+                    Navigate to <strong className="text-xp-text">APIs &amp; Services</strong> and
+                    enable the <strong className="text-xp-text">Google Drive API</strong>
                   </li>
                   <li>
                     Go to <strong className="text-xp-text">Credentials</strong> &rarr;{' '}
@@ -464,7 +476,7 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                     htmlFor="gdrive-client-id"
                     className="text-xp-text mb-1 block text-sm font-medium"
                   >
-                    Client ID
+                    {t('pages.gdrive.clientIdLabel')}
                   </label>
                   <input
                     id="gdrive-client-id"
@@ -481,7 +493,7 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                     htmlFor="gdrive-client-secret"
                     className="text-xp-text mb-1 block text-sm font-medium"
                   >
-                    Client Secret
+                    {t('pages.gdrive.clientSecretLabel')}
                   </label>
                   <div className="relative">
                     <input
@@ -496,10 +508,14 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                       type="button"
                       onClick={() => setShowSecret(!showSecret)}
                       className="text-xp-text-muted hover:text-xp-text hover:bg-xp-surface-light focus:ring-xp-blue absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded px-2 py-1 text-xs transition-colors focus:outline-none focus:ring-1"
-                      aria-label={showSecret ? 'Hide secret' : 'Show secret'}
+                      aria-label={
+                        showSecret
+                          ? t('pages.gdrive.ariaHideSecret')
+                          : t('pages.gdrive.ariaShowSecret')
+                      }
                     >
                       {showSecret ? <EyeOff size={14} /> : <Eye size={14} />}
-                      {showSecret ? 'Hide' : 'Show'}
+                      {showSecret ? t('pages.gdrive.hideSecret') : t('pages.gdrive.showSecret')}
                     </button>
                   </div>
                 </div>
@@ -508,9 +524,9 @@ const GoogleDriveAccountsPage = (props: GoogleDriveAccountsPageProps) => {
                   onClick={handleSaveCredentials}
                   disabled={credentialsSaving || !clientId.trim() || !clientSecret.trim()}
                   className="bg-xp-blue hover:bg-xp-blue-dark focus:ring-xp-blue rounded-md px-4 py-2 text-sm text-white transition-colors focus:outline-none focus:ring-1 disabled:cursor-not-allowed disabled:opacity-50"
-                  aria-label="Save API credentials"
+                  aria-label={t('pages.gdrive.saveCredentials')}
                 >
-                  {credentialsSaving ? 'Saving...' : 'Save Credentials'}
+                  {credentialsSaving ? t('pages.gdrive.saving') : t('pages.gdrive.saveCredentials')}
                 </button>
               </div>
             </div>

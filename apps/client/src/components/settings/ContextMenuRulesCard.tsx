@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, Pencil, RotateCcw, X, Check } from 'lucide-react';
 import {
   getContextMenuRules,
@@ -40,20 +41,26 @@ const RuleToggle = ({
 
 // ── Condition label helpers ────────────────────────────────────────
 
-const conditionLabel = (c: ContextMenuRule['condition']): string => {
-  return c === 'show_only_for' ? 'Show only for' : 'Hide for';
+type TFunction = (key: string, options?: Record<string, unknown>) => string;
+
+const conditionLabel = (c: ContextMenuRule['condition'], t: TFunction): string => {
+  return c === 'show_only_for'
+    ? t('settings.contextMenuRules.showOnlyFor')
+    : t('settings.contextMenuRules.hideFor');
 };
 
-const matcherLabel = (m: RuleMatcher): string => {
+const matcherLabel = (m: RuleMatcher, t: TFunction): string => {
   switch (m.type) {
     case 'extension':
-      return `extensions ${m.value}`;
+      return t('settings.contextMenuRules.matcherExtensions', { value: m.value });
     case 'file_type':
-      return `type ${m.value}`;
+      return t('settings.contextMenuRules.matcherType', { value: m.value });
     case 'name_pattern':
-      return `names matching ${m.value}`;
+      return t('settings.contextMenuRules.matcherNamePattern', { value: m.value });
     case 'is_directory':
-      return m.value === 'true' ? 'directories' : 'files';
+      return m.value === 'true'
+        ? t('settings.contextMenuRules.matcherDirectories')
+        : t('settings.contextMenuRules.matcherFiles');
   }
 };
 
@@ -83,6 +90,7 @@ const RuleForm = React.memo(
     onSave: (data: RuleFormData) => void;
     onCancel: () => void;
   }) => {
+    const { t } = useTranslation();
     const [form, setForm] = useState<RuleFormData>(initial || INITIAL_FORM);
     const menuItems = getAvailableMenuItems();
 
@@ -102,7 +110,9 @@ const RuleForm = React.memo(
       <div className="border-xp-border bg-xp-surface/50 space-y-3 rounded-lg border p-3">
         {/* Menu item selector */}
         <div>
-          <label className="text-xp-text-secondary mb-1 block text-xs font-medium">Menu Item</label>
+          <label className="text-xp-text-secondary mb-1 block text-xs font-medium">
+            {t('settings.contextMenuRules.menuItemLabel')}
+          </label>
           <select
             value={form.menuItemId}
             onChange={(e) => setForm((f) => ({ ...f, menuItemId: e.target.value }))}
@@ -118,7 +128,9 @@ const RuleForm = React.memo(
 
         {/* Condition */}
         <div>
-          <label className="text-xp-text-secondary mb-1 block text-xs font-medium">Condition</label>
+          <label className="text-xp-text-secondary mb-1 block text-xs font-medium">
+            {t('settings.contextMenuRules.conditionLabel')}
+          </label>
           <div className="flex gap-3">
             {(['show_only_for', 'hide_for'] as const).map((cond) => (
               <label
@@ -132,7 +144,7 @@ const RuleForm = React.memo(
                   onChange={() => setForm((f) => ({ ...f, condition: cond }))}
                   className="accent-xp-accent"
                 />
-                {conditionLabel(cond)}
+                {conditionLabel(cond, t)}
               </label>
             ))}
           </div>
@@ -142,7 +154,7 @@ const RuleForm = React.memo(
         <div className="flex gap-2">
           <div className="w-1/3">
             <label className="text-xp-text-secondary mb-1 block text-xs font-medium">
-              Match By
+              {t('settings.contextMenuRules.matchByLabel')}
             </label>
             <select
               value={form.matcherType}
@@ -156,22 +168,28 @@ const RuleForm = React.memo(
               }}
               className="border-xp-border bg-xp-bg text-xp-text focus:border-xp-accent h-8 w-full rounded border px-2 text-sm focus:outline-none"
             >
-              <option value="extension">Extension</option>
-              <option value="file_type">File Type</option>
-              <option value="name_pattern">Name Pattern</option>
-              <option value="is_directory">Is Directory</option>
+              <option value="extension">{t('settings.contextMenuRules.matchExtension')}</option>
+              <option value="file_type">{t('settings.contextMenuRules.matchFileType')}</option>
+              <option value="name_pattern">
+                {t('settings.contextMenuRules.matchNamePattern')}
+              </option>
+              <option value="is_directory">
+                {t('settings.contextMenuRules.matchIsDirectory')}
+              </option>
             </select>
           </div>
           <div className="flex-1">
-            <label className="text-xp-text-secondary mb-1 block text-xs font-medium">Value</label>
+            <label className="text-xp-text-secondary mb-1 block text-xs font-medium">
+              {t('settings.contextMenuRules.valueLabel')}
+            </label>
             {form.matcherType === 'is_directory' ? (
               <select
                 value={form.matcherValue || 'true'}
                 onChange={(e) => setForm((f) => ({ ...f, matcherValue: e.target.value }))}
                 className="border-xp-border bg-xp-bg text-xp-text focus:border-xp-accent h-8 w-full rounded border px-2 text-sm focus:outline-none"
               >
-                <option value="true">Yes (directories)</option>
-                <option value="false">No (files only)</option>
+                <option value="true">{t('settings.contextMenuRules.dirYes')}</option>
+                <option value="false">{t('settings.contextMenuRules.dirNo')}</option>
               </select>
             ) : (
               <input
@@ -192,7 +210,7 @@ const RuleForm = React.memo(
             className="text-xp-text-secondary hover:bg-xp-surface-light flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium transition-colors"
           >
             <X size={12} />
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
@@ -200,7 +218,7 @@ const RuleForm = React.memo(
             className="bg-xp-accent flex items-center gap-1 rounded px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
           >
             <Check size={12} />
-            Save
+            {t('common.save')}
           </button>
         </div>
       </div>
@@ -223,6 +241,7 @@ const RuleRow = React.memo(
     onEdit: () => void;
     onDelete: () => void;
   }) => {
+    const { t } = useTranslation();
     return (
       <div className="hover:bg-xp-surface-light/50 group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors">
         <RuleToggle checked={rule.enabled} onChange={onToggle} />
@@ -231,7 +250,7 @@ const RuleRow = React.memo(
             <span className="font-medium">{rule.menuItemLabel}</span>
             <span className="text-xp-text-secondary mx-1.5">—</span>
             <span className="text-xp-text-secondary">
-              {conditionLabel(rule.condition)} {matcherLabel(rule.matcher)}
+              {conditionLabel(rule.condition, t)} {matcherLabel(rule.matcher, t)}
             </span>
           </div>
         </div>
@@ -239,14 +258,14 @@ const RuleRow = React.memo(
           <button
             onClick={onEdit}
             className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light rounded p-1.5 transition-colors"
-            title="Edit rule"
+            title={t('settings.contextMenuRules.editRule')}
           >
             <Pencil size={13} />
           </button>
           <button
             onClick={onDelete}
             className="text-xp-text-secondary hover:text-xp-red hover:bg-xp-red/10 rounded p-1.5 transition-colors"
-            title="Delete rule"
+            title={t('settings.contextMenuRules.deleteRule')}
           >
             <Trash2 size={13} />
           </button>
@@ -260,6 +279,7 @@ RuleRow.displayName = 'RuleRow';
 // ── Main Component ─────────────────────────────────────────────────
 
 const ContextMenuRulesCard = () => {
+  const { t } = useTranslation();
   const [rules, setRules] = useState<ContextMenuRule[]>(() => getContextMenuRules());
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -336,8 +356,8 @@ const ContextMenuRulesCard = () => {
   return (
     <div className="space-y-1">
       <SectionTitle
-        title="Context Menu Rules"
-        description="Customize which actions appear in the right-click menu based on file types"
+        title={t('settings.contextMenuRules.title')}
+        description={t('settings.contextMenuRules.description')}
       />
 
       {/* Existing rules */}
@@ -373,9 +393,11 @@ const ContextMenuRulesCard = () => {
         </div>
       ) : (
         <div className="px-4 py-6 text-center">
-          <div className="text-xp-text-secondary text-sm">No rules configured</div>
+          <div className="text-xp-text-secondary text-sm">
+            {t('settings.contextMenuRules.noRules')}
+          </div>
           <div className="text-xp-text-secondary/60 mt-1 text-xs">
-            Add rules to control which menu items appear for specific file types
+            {t('settings.contextMenuRules.noRulesHint')}
           </div>
         </div>
       )}
@@ -400,7 +422,7 @@ const ContextMenuRulesCard = () => {
             className="bg-xp-accent flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             <Plus size={14} />
-            Add Rule
+            {t('settings.contextMenuRules.addRule')}
           </button>
         )}
         {rules.length > 0 && (
@@ -409,7 +431,7 @@ const ContextMenuRulesCard = () => {
             className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light flex items-center gap-1.5 rounded-md px-3 py-2 text-sm transition-colors"
           >
             <RotateCcw size={14} />
-            Reset to Defaults
+            {t('settings.contextMenuRules.resetDefaults')}
           </button>
         )}
       </div>

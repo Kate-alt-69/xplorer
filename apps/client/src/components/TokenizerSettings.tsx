@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, TokenizerSettings, TokenIndex, IndexingProgress } from '@/lib/tauri-api';
 import { useToast } from '@/hooks/use-toast';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
@@ -9,6 +10,7 @@ interface TokenizerSettingsProps {
 }
 
 const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
+  const { t } = useTranslation();
   const [settings, setSettings] = useState<TokenizerSettings>({
     enabled: false,
     whitelisted_paths: [],
@@ -40,8 +42,8 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
     } catch (error) {
       console.error('Failed to load tokenizer settings:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to load tokenizer settings',
+        title: t('toast.tokenizerLoadError'),
+        description: t('toast.tokenizerLoadErrorDesc'),
         variant: 'destructive',
       });
     } finally {
@@ -79,8 +81,11 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
         setIsIndexing(false);
         loadStats();
         toast({
-          title: 'Indexing Complete',
-          description: `Indexed ${progress.processed_files} files with ${progress.total_tokens} tokens`,
+          title: t('toast.tokenizerIndexingComplete'),
+          description: t('toast.tokenizerIndexingCompleteDesc', {
+            files: progress.processed_files,
+            tokens: progress.total_tokens,
+          }),
         });
       }
     });
@@ -92,18 +97,30 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-save when enabled toggle changes (so it persists across reopens)
+  const initialLoadRef = React.useRef(true);
+  useEffect(() => {
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      return;
+    }
+    TauriAPI.setTokenizerSettings(settings).catch((err) =>
+      console.error('Failed to auto-save indexing settings:', err),
+    );
+  }, [settings.enabled]);
+
   const saveSettings = async () => {
     try {
       await TauriAPI.setTokenizerSettings(settings);
       toast({
-        title: 'Settings Saved',
-        description: 'Tokenizer settings have been updated',
+        title: t('toast.tokenizerSettingsSaved'),
+        description: t('toast.tokenizerSettingsSavedDesc'),
       });
     } catch (error) {
       console.error('Failed to save settings:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to save tokenizer settings',
+        title: t('toast.tokenizerSaveError'),
+        description: t('toast.tokenizerSaveErrorDesc'),
         variant: 'destructive',
       });
     }
@@ -174,14 +191,14 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
       setIsIndexing(true);
       setIndexingProgress(null);
       toast({
-        title: 'Indexing Started',
-        description: 'Background indexing has been initiated',
+        title: t('toast.tokenizerIndexingStarted'),
+        description: t('toast.tokenizerIndexingStartedDesc'),
       });
     } catch (error) {
       console.error('Failed to start indexing:', error);
       toast({
-        title: 'Error',
-        description: 'Failed to start indexing',
+        title: t('toast.tokenizerIndexingError'),
+        description: t('toast.tokenizerIndexingErrorDesc'),
         variant: 'destructive',
       });
     }
@@ -206,16 +223,17 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xp-text text-xl font-semibold">File Tokenizer</h2>
-          <p className="text-xp-text-muted text-sm">
-            Index file contents for lightning-fast search and AI integration
-          </p>
+          <h2 className="text-xp-text text-xl font-semibold">{t('settings.tokenizer.title')}</h2>
+          <p className="text-xp-text-muted text-sm">{t('settings.tokenizer.subtitle')}</p>
         </div>
 
         <div className="flex items-center space-x-2">
           {stats && (
             <div className="text-xp-text-muted text-xs">
-              {stats.total_files} files, {stats.total_tokens.toLocaleString()} tokens
+              {t('settings.tokenizer.statsFilesTokens', {
+                files: stats.total_files,
+                tokens: stats.total_tokens.toLocaleString(),
+              })}
             </div>
           )}
           <div
@@ -227,10 +245,8 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
       {/* Enable/Disable Toggle */}
       <div className="bg-xp-surface border-xp-border flex items-center justify-between rounded-lg border p-4">
         <div>
-          <h3 className="text-xp-text font-medium">Enable File Indexing</h3>
-          <p className="text-xp-text-muted text-sm">
-            Automatically index whitelisted directories for fast search
-          </p>
+          <h3 className="text-xp-text font-medium">{t('settings.tokenizer.enableIndexing')}</h3>
+          <p className="text-xp-text-muted text-sm">{t('settings.tokenizer.enableIndexingDesc')}</p>
         </div>
         <button
           onClick={() => setSettings((prev) => ({ ...prev, enabled: !prev.enabled }))}
@@ -240,17 +256,15 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               : 'bg-gray-600 text-white hover:bg-gray-700'
           }`}
         >
-          {settings.enabled ? 'Enabled' : 'Disabled'}
+          {settings.enabled ? t('settings.tokenizer.enabled') : t('settings.tokenizer.disabled')}
         </button>
       </div>
 
       {/* Auto-whitelist visited folders */}
       <div className="bg-xp-surface border-xp-border flex items-center justify-between rounded-lg border p-4">
         <div>
-          <h3 className="text-xp-text font-medium">Auto-whitelist visited folders</h3>
-          <p className="text-xp-text-muted text-sm">
-            Automatically add every folder you navigate to the whitelist for indexing
-          </p>
+          <h3 className="text-xp-text font-medium">{t('settings.tokenizer.autoWhitelist')}</h3>
+          <p className="text-xp-text-muted text-sm">{t('settings.tokenizer.autoWhitelistDesc')}</p>
         </div>
         <button
           onClick={() => toggleAutoWhitelist(!autoWhitelist)}
@@ -260,7 +274,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               : 'bg-gray-600 text-white hover:bg-gray-700'
           }`}
         >
-          {autoWhitelist ? 'Enabled' : 'Disabled'}
+          {autoWhitelist ? t('settings.tokenizer.enabled') : t('settings.tokenizer.disabled')}
         </button>
       </div>
 
@@ -270,7 +284,9 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
           <div className="mb-2 flex items-center space-x-2">
             <div className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
             <h3 className="text-xp-text font-medium">
-              {isIndexing ? 'Indexing in Progress' : 'Indexing Complete'}
+              {isIndexing
+                ? t('settings.tokenizer.indexingInProgress')
+                : t('settings.tokenizer.indexingComplete')}
             </h3>
           </div>
 
@@ -278,7 +294,10 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-xp-text-muted">
-                  {indexingProgress.processed_files} / {indexingProgress.total_files} files
+                  {t('settings.tokenizer.progressFiles', {
+                    processed: indexingProgress.processed_files,
+                    total: indexingProgress.total_files,
+                  })}
                 </span>
                 <span className="text-xp-text">
                   {indexingProgress.progress_percentage.toFixed(1)}%
@@ -293,7 +312,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               </div>
 
               <div className="text-xp-text-muted text-xs">
-                Current: {indexingProgress.current_file}
+                {t('settings.tokenizer.currentFile', { file: indexingProgress.current_file })}
               </div>
             </div>
           )}
@@ -303,31 +322,39 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
       {/* Statistics */}
       {stats && (
         <div className="bg-xp-surface border-xp-border rounded-lg border p-4">
-          <h3 className="text-xp-text mb-3 font-medium">Index Statistics</h3>
+          <h3 className="text-xp-text mb-3 font-medium">{t('settings.tokenizer.statistics')}</h3>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             <div className="text-center">
               <div className="text-xp-blue text-lg font-semibold">{stats.total_files}</div>
-              <div className="text-xp-text-muted text-xs">Files Indexed</div>
+              <div className="text-xp-text-muted text-xs">
+                {t('settings.tokenizer.filesIndexed')}
+              </div>
             </div>
             <div className="text-center">
               <div className="text-xp-blue text-lg font-semibold">
                 {stats.total_tokens.toLocaleString()}
               </div>
-              <div className="text-xp-text-muted text-xs">Total Tokens</div>
+              <div className="text-xp-text-muted text-xs">
+                {t('settings.tokenizer.totalTokens')}
+              </div>
             </div>
             <div className="text-center">
               <div className="text-xp-blue text-lg font-semibold">
                 {Object.keys(stats.word_to_files || {}).length.toLocaleString()}
               </div>
-              <div className="text-xp-text-muted text-xs">Unique Words</div>
+              <div className="text-xp-text-muted text-xs">
+                {t('settings.tokenizer.uniqueWords')}
+              </div>
             </div>
             <div className="text-center">
               <div className="text-xp-blue text-lg font-semibold">
                 {stats.last_updated
                   ? new Date(stats.last_updated * 1000).toLocaleDateString()
-                  : 'Never'}
+                  : t('settings.tokenizer.never')}
               </div>
-              <div className="text-xp-text-muted text-xs">Last Updated</div>
+              <div className="text-xp-text-muted text-xs">
+                {t('settings.tokenizer.lastUpdated')}
+              </div>
             </div>
           </div>
         </div>
@@ -335,10 +362,9 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
 
       {/* Whitelisted Paths */}
       <div className="bg-xp-surface border-xp-border rounded-lg border p-4">
-        <h3 className="text-xp-text mb-3 font-medium">Whitelisted Directories</h3>
+        <h3 className="text-xp-text mb-3 font-medium">{t('settings.tokenizer.whitelistedDirs')}</h3>
         <p className="text-xp-text-muted mb-3 text-xs">
-          Only files in these directories will be indexed. Add absolute paths to directories you
-          trust.
+          {t('settings.tokenizer.whitelistedDirsDesc')}
         </p>
 
         <div className="mb-3 space-y-2">
@@ -348,7 +374,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               <button
                 onClick={() => removeWhitelistedPath(path)}
                 className="p-1 text-red-500 hover:text-red-400"
-                title="Remove path"
+                title={t('settings.tokenizer.removePathTitle')}
               >
                 ×
               </button>
@@ -357,7 +383,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
 
           {settings.whitelisted_paths.length === 0 && (
             <div className="text-xp-text-muted py-4 text-center">
-              No directories whitelisted. Add directories to enable indexing.
+              {t('settings.tokenizer.noWhitelistedDirs')}
             </div>
           )}
         </div>
@@ -368,23 +394,25 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
             value={newPath}
             onChange={(e) => setNewPath(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addWhitelistedPath()}
-            placeholder="Enter directory path (e.g., /home/user/projects)"
+            placeholder={t('settings.tokenizer.addDirPlaceholder')}
             className="bg-xp-bg border-xp-border flex-1 rounded border px-3 py-2 text-sm"
           />
           <button
             onClick={addWhitelistedPath}
             className="bg-xp-blue hover:bg-xp-blue-dark rounded px-4 py-2 text-sm text-white"
           >
-            Add
+            {t('common.add')}
           </button>
         </div>
       </div>
 
       {/* Blacklisted Extensions */}
       <div className="bg-xp-surface border-xp-border rounded-lg border p-4">
-        <h3 className="text-xp-text mb-3 font-medium">Blacklisted Extensions</h3>
+        <h3 className="text-xp-text mb-3 font-medium">
+          {t('settings.tokenizer.blacklistedExtensions')}
+        </h3>
         <p className="text-xp-text-muted mb-3 text-xs">
-          Files with these extensions will be skipped during indexing.
+          {t('settings.tokenizer.blacklistedExtensionsDesc')}
         </p>
 
         <div className="mb-3 flex flex-wrap gap-2">
@@ -394,7 +422,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               <button
                 onClick={() => removeBlacklistedExtension(ext)}
                 className="ml-2 text-red-500 hover:text-red-400"
-                title="Remove extension"
+                title={t('settings.tokenizer.removeExtensionTitle')}
               >
                 ×
               </button>
@@ -408,23 +436,23 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
             value={newExtension}
             onChange={(e) => setNewExtension(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addBlacklistedExtension()}
-            placeholder="Extension (e.g., exe, dll, jpg)"
+            placeholder={t('settings.tokenizer.addExtPlaceholder')}
             className="bg-xp-bg border-xp-border flex-1 rounded border px-3 py-2 text-sm"
           />
           <button
             onClick={addBlacklistedExtension}
             className="bg-xp-blue hover:bg-xp-blue-dark rounded px-4 py-2 text-sm text-white"
           >
-            Add
+            {t('common.add')}
           </button>
         </div>
       </div>
 
       {/* Blacklisted Paths */}
       <div className="bg-xp-surface border-xp-border rounded-lg border p-4">
-        <h3 className="text-xp-text mb-3 font-medium">Blacklisted Directories</h3>
+        <h3 className="text-xp-text mb-3 font-medium">{t('settings.tokenizer.blacklistedDirs')}</h3>
         <p className="text-xp-text-muted mb-3 text-xs">
-          Directories in this list will never be indexed, even with auto-whitelist enabled.
+          {t('settings.tokenizer.blacklistedDirsDesc')}
         </p>
 
         <div className="mb-3 space-y-2">
@@ -434,7 +462,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               <button
                 onClick={() => removeBlacklistedPath(path)}
                 className="p-1 text-red-500 hover:text-red-400"
-                title="Remove path"
+                title={t('settings.tokenizer.removeBlacklistPathTitle')}
               >
                 &times;
               </button>
@@ -442,7 +470,9 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
           ))}
 
           {(!settings.blacklisted_paths || settings.blacklisted_paths.length === 0) && (
-            <div className="text-xp-text-muted py-4 text-center">No directories blacklisted.</div>
+            <div className="text-xp-text-muted py-4 text-center">
+              {t('settings.tokenizer.noBlacklistedDirs')}
+            </div>
           )}
         </div>
 
@@ -452,26 +482,30 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
             value={newBlacklistPath}
             onChange={(e) => setNewBlacklistPath(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && addBlacklistedPath()}
-            placeholder="Enter directory path to exclude (e.g., C:\Windows)"
+            placeholder={t('settings.tokenizer.addExcludeDirPlaceholder')}
             className="bg-xp-bg border-xp-border flex-1 rounded border px-3 py-2 text-sm"
           />
           <button
             onClick={addBlacklistedPath}
             className="bg-xp-blue hover:bg-xp-blue-dark rounded px-4 py-2 text-sm text-white"
           >
-            Add
+            {t('common.add')}
           </button>
         </div>
       </div>
 
       {/* Advanced Settings */}
       <div className="bg-xp-surface border-xp-border rounded-lg border p-4">
-        <h3 className="text-xp-text mb-3 font-medium">Advanced Settings</h3>
+        <h3 className="text-xp-text mb-3 font-medium">
+          {t('settings.tokenizer.advancedSettings')}
+        </h3>
 
         <div className="space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium">
-              Max File Size: {formatFileSize(settings.max_file_size)}
+              {t('settings.tokenizer.maxFileSize', {
+                size: formatFileSize(settings.max_file_size),
+              })}
             </label>
             <input
               type="range"
@@ -485,13 +519,15 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               className="w-full"
             />
             <div className="text-xp-text-muted mt-1 text-xs">
-              Files larger than this will be skipped
+              {t('settings.tokenizer.maxFileSizeDesc')}
             </div>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-medium">
-              Update Interval: {formatDuration(settings.update_interval)}
+              {t('settings.tokenizer.updateInterval', {
+                duration: formatDuration(settings.update_interval),
+              })}
             </label>
             <input
               type="range"
@@ -505,16 +541,18 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               className="w-full"
             />
             <div className="text-xp-text-muted mt-1 text-xs">
-              How often to check for file changes
+              {t('settings.tokenizer.updateIntervalDesc')}
             </div>
           </div>
 
           <div>
             <label className="mb-2 block text-sm font-medium">
-              Memory Limit:{' '}
-              {settings.memory_limit_mb >= 1024
-                ? `${(settings.memory_limit_mb / 1024).toFixed(settings.memory_limit_mb % 1024 === 0 ? 0 : 1)} GB`
-                : `${settings.memory_limit_mb} MB`}
+              {t('settings.tokenizer.memoryLimit', {
+                limit:
+                  settings.memory_limit_mb >= 1024
+                    ? `${(settings.memory_limit_mb / 1024).toFixed(settings.memory_limit_mb % 1024 === 0 ? 0 : 1)} GB`
+                    : `${settings.memory_limit_mb} MB`,
+              })}
             </label>
             <input
               type="range"
@@ -528,7 +566,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
               className="w-full"
             />
             <div className="text-xp-text-muted mt-1 text-xs">
-              Maximum RAM the search index can use. Indexing stops when this limit is reached.
+              {t('settings.tokenizer.memoryLimitDesc')}
             </div>
           </div>
         </div>
@@ -540,7 +578,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
           onClick={saveSettings}
           className="bg-xp-blue hover:bg-xp-blue-dark flex-1 rounded px-4 py-2 text-white transition-colors"
         >
-          Save Settings
+          {t('settings.tokenizer.saveSettings')}
         </button>
 
         <button
@@ -548,7 +586,7 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
           disabled={isIndexing || !settings.enabled || settings.whitelisted_paths.length === 0}
           className="rounded bg-green-600 px-4 py-2 text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {isIndexing ? 'Indexing...' : 'Rebuild Index'}
+          {isIndexing ? t('settings.tokenizer.indexing') : t('settings.tokenizer.rebuildIndex')}
         </button>
 
         <button
@@ -599,13 +637,13 @@ const TokenizerSettingsComponent = ({ className }: TokenizerSettingsProps) => {
             setSettings(defaults);
             toggleAutoWhitelist(true);
             toast({
-              title: 'Reset',
-              description: 'Settings restored to defaults. Click Save to apply.',
+              title: t('toast.tokenizerReset'),
+              description: t('toast.tokenizerResetDesc'),
             });
           }}
           className="rounded bg-gray-600 px-4 py-2 text-white transition-colors hover:bg-gray-700"
         >
-          Reset to Defaults
+          {t('settings.tokenizer.resetToDefaults')}
         </button>
       </div>
     </div>

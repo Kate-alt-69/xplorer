@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { transport } from '@/lib/transport';
 import { TauriAPI } from '@/lib/tauri-api';
 import { getFileExtension } from '@/lib/editable-files';
@@ -10,6 +11,7 @@ interface FileEditorViewProps {
 }
 
 const FileEditorView = ({ filePath }: FileEditorViewProps) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [originalContent, setOriginalContent] = useState('');
   const [loading, setLoading] = useState(true);
@@ -159,7 +161,7 @@ const FileEditorView = ({ filePath }: FileEditorViewProps) => {
   if (loading) {
     return (
       <div className="text-xp-text-muted flex h-full items-center justify-center text-sm">
-        Loading...
+        {t('pages.editor.loading')}
       </div>
     );
   }
@@ -182,16 +184,16 @@ const FileEditorView = ({ filePath }: FileEditorViewProps) => {
           </span>
           {isDirty && (
             <span className="text-xp-orange bg-xp-orange/10 rounded px-1.5 py-0.5 text-xs font-medium">
-              Modified
+              {t('pages.editor.modified')}
             </span>
           )}
-          {saving && <span className="text-xp-text-muted text-xs">Saving...</span>}
+          {saving && <span className="text-xp-text-muted text-xs">{t('pages.editor.saving')}</span>}
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1.5 transition-colors"
-            title="Copy contents"
+            title={t('pages.editor.titleCopyContents')}
           >
             {copied ? <Check size={15} className="text-xp-green" /> : <Copy size={15} />}
           </button>
@@ -200,7 +202,7 @@ const FileEditorView = ({ filePath }: FileEditorViewProps) => {
             className={`hover:bg-xp-surface-light rounded p-1.5 transition-colors ${
               wordWrap ? 'text-xp-blue' : 'text-xp-text-muted hover:text-xp-text'
             }`}
-            title="Toggle word wrap"
+            title={t('pages.editor.titleToggleWordWrap')}
           >
             <WrapText size={15} />
           </button>
@@ -208,7 +210,7 @@ const FileEditorView = ({ filePath }: FileEditorViewProps) => {
             onClick={handleRevert}
             disabled={!isDirty}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1.5 transition-colors disabled:opacity-30"
-            title="Revert changes"
+            title={t('pages.editor.titleRevertChanges')}
           >
             <RotateCcw size={15} />
           </button>
@@ -216,7 +218,7 @@ const FileEditorView = ({ filePath }: FileEditorViewProps) => {
             onClick={handleSave}
             disabled={!isDirty || saving}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-blue rounded p-1.5 transition-colors disabled:opacity-30"
-            title="Save (Ctrl+S)"
+            title={t('pages.editor.titleSave')}
           >
             <Save size={15} />
           </button>
@@ -264,7 +266,7 @@ const FileEditorView = ({ filePath }: FileEditorViewProps) => {
 
       {/* Status bar */}
       <div className="border-xp-border text-xp-text-muted bg-xp-surface flex flex-shrink-0 items-center justify-between border-t px-4 py-1.5 text-xs">
-        <span>{lineCount} lines</span>
+        <span>{t('pages.editor.lines', { count: lineCount })}</span>
         <span>{ext}</span>
       </div>
     </div>

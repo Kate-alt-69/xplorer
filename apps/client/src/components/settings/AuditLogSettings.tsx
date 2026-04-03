@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Download,
   Trash2,
@@ -13,19 +14,6 @@ import { SectionTitle, SelectField, Divider } from './shared';
 import { TauriAPI, type AuditEntry } from '@/lib/tauri-api';
 
 const PAGE_SIZE = 20;
-
-const OPERATION_OPTIONS = [
-  { value: 'all', label: 'All Operations' },
-  { value: 'copy', label: 'Copy' },
-  { value: 'move', label: 'Move' },
-  { value: 'rename', label: 'Rename' },
-  { value: 'delete', label: 'Delete' },
-  { value: 'secure_delete', label: 'Secure Delete' },
-  { value: 'compress', label: 'Compress' },
-  { value: 'extract', label: 'Extract' },
-  { value: 'encrypt', label: 'Encrypt' },
-  { value: 'decrypt', label: 'Decrypt' },
-];
 
 const formatTimestamp = (iso: string): string => {
   try {
@@ -49,6 +37,7 @@ const truncatePath = (path: string, maxLen = 50): string => {
 };
 
 const AuditLogSettings = () => {
+  const { t } = useTranslation();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -58,6 +47,19 @@ const AuditLogSettings = () => {
   const [loading, setLoading] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+
+  const operationOptions = [
+    { value: 'all', label: t('settings.audit.operations.all') },
+    { value: 'copy', label: t('settings.audit.operations.copy') },
+    { value: 'move', label: t('settings.audit.operations.move') },
+    { value: 'rename', label: t('settings.audit.operations.rename') },
+    { value: 'delete', label: t('settings.audit.operations.delete') },
+    { value: 'secure_delete', label: t('settings.audit.operations.secureDelete') },
+    { value: 'compress', label: t('settings.audit.operations.compress') },
+    { value: 'extract', label: t('settings.audit.operations.extract') },
+    { value: 'encrypt', label: t('settings.audit.operations.encrypt') },
+    { value: 'decrypt', label: t('settings.audit.operations.decrypt') },
+  ];
 
   const fetchLog = useCallback(async () => {
     setLoading(true);
@@ -119,10 +121,10 @@ const AuditLogSettings = () => {
       });
       if (!outputPath) return;
       await TauriAPI.exportAuditLog(outputPath);
-      setExportStatus(`Exported to ${outputPath}`);
+      setExportStatus(t('settings.audit.exportedTo', { path: outputPath }));
       setTimeout(() => setExportStatus(null), 5000);
     } catch (err) {
-      setExportStatus(`Export failed: ${err}`);
+      setExportStatus(t('settings.audit.exportFailed', { error: err }));
       setTimeout(() => setExportStatus(null), 5000);
     }
   };
@@ -130,27 +132,27 @@ const AuditLogSettings = () => {
   return (
     <div className="space-y-1">
       <SectionTitle
-        title="Filters"
-        description="Narrow audit log results by operation or date range"
+        title={t('settings.audit.filtersTitle')}
+        description={t('settings.audit.filtersDesc')}
       />
 
       <div className="flex flex-wrap items-end gap-3 px-4 py-2">
         <div className="flex flex-col gap-1">
           <label className="text-xp-text-secondary flex items-center gap-1 text-xs">
             <Filter size={12} />
-            Operation
+            {t('settings.audit.operationLabel')}
           </label>
           <SelectField
             value={operationFilter}
             onChange={setOperationFilter}
-            options={OPERATION_OPTIONS}
+            options={operationOptions}
           />
         </div>
 
         <div className="flex flex-col gap-1">
           <label className="text-xp-text-secondary flex items-center gap-1 text-xs">
             <Calendar size={12} />
-            From
+            {t('settings.audit.fromLabel')}
           </label>
           <input
             type="date"
@@ -163,7 +165,7 @@ const AuditLogSettings = () => {
         <div className="flex flex-col gap-1">
           <label className="text-xp-text-secondary flex items-center gap-1 text-xs">
             <Calendar size={12} />
-            To
+            {t('settings.audit.toLabel')}
           </label>
           <input
             type="date"
@@ -177,8 +179,12 @@ const AuditLogSettings = () => {
       <Divider />
 
       <SectionTitle
-        title="Audit Entries"
-        description={`${total} total entries${loading ? ' (loading...)' : ''}`}
+        title={t('settings.audit.entriesTitle')}
+        description={
+          loading
+            ? t('settings.audit.entriesCountLoading', { count: total })
+            : t('settings.audit.entriesCount', { count: total })
+        }
       />
 
       {/* Table */}
@@ -187,17 +193,23 @@ const AuditLogSettings = () => {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-xp-surface-light/50 text-xp-text-secondary text-xs uppercase tracking-wider">
-                <th className="px-3 py-2 text-left font-medium">Timestamp</th>
-                <th className="px-3 py-2 text-left font-medium">Operation</th>
-                <th className="px-3 py-2 text-left font-medium">Paths</th>
-                <th className="w-16 px-3 py-2 text-center font-medium">Status</th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t('settings.audit.colTimestamp')}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">
+                  {t('settings.audit.colOperation')}
+                </th>
+                <th className="px-3 py-2 text-left font-medium">{t('settings.audit.colPaths')}</th>
+                <th className="w-16 px-3 py-2 text-center font-medium">
+                  {t('settings.audit.colStatus')}
+                </th>
               </tr>
             </thead>
             <tbody>
               {entries.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="text-xp-text-secondary py-8 text-center text-sm">
-                    {loading ? 'Loading...' : 'No audit entries found'}
+                    {loading ? t('settings.audit.loading') : t('settings.audit.noEntries')}
                   </td>
                 </tr>
               ) : (
@@ -247,7 +259,7 @@ const AuditLogSettings = () => {
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-2">
           <div className="text-xp-text-secondary text-xs">
-            Page {page + 1} of {totalPages}
+            {t('settings.audit.pageOf', { page: page + 1, total: totalPages })}
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -270,7 +282,7 @@ const AuditLogSettings = () => {
 
       <Divider />
 
-      <SectionTitle title="Actions" />
+      <SectionTitle title={t('settings.audit.actionsTitle')} />
 
       <div className="flex flex-wrap items-center gap-3 px-4 py-2">
         <button
@@ -278,7 +290,7 @@ const AuditLogSettings = () => {
           className="bg-xp-accent/15 text-xp-accent hover:bg-xp-accent/25 flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors"
         >
           <Download size={16} />
-          Export to CSV
+          {t('settings.audit.exportCsv')}
         </button>
 
         <button
@@ -291,7 +303,7 @@ const AuditLogSettings = () => {
           }`}
         >
           <Trash2 size={16} />
-          {confirmClear ? 'Click again to confirm' : 'Clear Log'}
+          {confirmClear ? t('settings.audit.clearLogConfirm') : t('settings.audit.clearLog')}
         </button>
       </div>
 

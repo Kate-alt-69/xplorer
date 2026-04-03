@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { TauriAPI, type TrashItem } from '@/lib/tauri-api';
 import { useToast } from '@/hooks/use-toast';
@@ -11,6 +12,7 @@ interface RecycleBinProps {
 }
 
 const RecycleBin = ({ onClose }: RecycleBinProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
 
@@ -31,11 +33,11 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
     if (error) {
       toast({
         variant: 'destructive',
-        title: 'Error Loading Recycle Bin',
-        description: `Failed to load recycle bin items: ${(error as Error).message}`,
+        title: t('pages.trash.toastLoadErrorTitle'),
+        description: t('pages.trash.toastLoadErrorDesc', { error: (error as Error).message }),
       });
     }
-  }, [error, toast]);
+  }, [error, toast, t]);
 
   const handleSelectItem = (original_path: string, event?: React.MouseEvent) => {
     if (event && (event.ctrlKey || event.metaKey)) {
@@ -67,17 +69,17 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
     if (trashItemsToRestore.length === 0) {
       toast({
         variant: 'destructive',
-        title: 'No Items Selected',
-        description: 'Please select items to restore',
+        title: t('pages.trash.toastNoItemsTitle'),
+        description: t('pages.trash.toastNoItemsRestoreDesc'),
       });
       return;
     }
 
     const confirmed = await showConfirmationToast({
-      title: 'Restore Items',
-      description: `Are you sure you want to restore ${trashItemsToRestore.length} item(s) to their original locations?`,
-      confirmText: 'Restore',
-      cancelText: 'Cancel',
+      title: t('pages.trash.confirmRestoreTitle'),
+      description: t('pages.trash.confirmRestoreDesc', { count: trashItemsToRestore.length }),
+      confirmText: t('pages.trash.confirmRestoreBtn'),
+      cancelText: t('common.cancel'),
     });
 
     if (!confirmed) return;
@@ -93,15 +95,17 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
       refetch();
 
       toast({
-        title: 'Items Restored',
-        description: `Successfully restored ${restoredPaths.length} item(s) to their original locations`,
+        title: t('pages.trash.toastRestoredTitle'),
+        description: t('pages.trash.toastRestoredDesc', { count: restoredPaths.length }),
       });
     } catch (error) {
       console.error('Failed to restore items:', error);
       toast({
         variant: 'destructive',
-        title: 'Restore Failed',
-        description: `Failed to restore items: ${(error as Error).message}`,
+        title: t('pages.trash.toastRestoreFailedTitle'),
+        description: t('pages.trash.toastRestoreFailedDesc', {
+          error: (error as Error).message,
+        }),
       });
     }
   };
@@ -127,17 +131,17 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
     if (trashItemsToDelete.length === 0) {
       toast({
         variant: 'destructive',
-        title: 'No Items Selected',
-        description: 'Please select items to permanently delete',
+        title: t('pages.trash.toastNoItemsTitle'),
+        description: t('pages.trash.toastNoItemsDeleteDesc'),
       });
       return;
     }
 
     const confirmed = await showConfirmationToast({
-      title: 'Permanently Delete Items',
-      description: `Are you sure you want to permanently delete ${trashItemsToDelete.length} item(s)? This action cannot be undone.`,
-      confirmText: 'Permanently Delete',
-      cancelText: 'Cancel',
+      title: t('pages.trash.confirmDeleteTitle'),
+      description: t('pages.trash.confirmDeleteDesc', { count: trashItemsToDelete.length }),
+      confirmText: t('pages.trash.confirmDeleteBtn'),
+      cancelText: t('common.cancel'),
     });
 
     if (!confirmed) return;
@@ -151,15 +155,17 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
       refetch();
 
       toast({
-        title: 'Items Permanently Deleted',
-        description: `Successfully deleted ${trashItemsToDelete.length} item(s) permanently`,
+        title: t('pages.trash.toastDeletedTitle'),
+        description: t('pages.trash.toastDeletedDesc', { count: trashItemsToDelete.length }),
       });
     } catch (error) {
       console.error('Failed to permanently delete items:', error);
       toast({
         variant: 'destructive',
-        title: 'Permanent Delete Failed',
-        description: `Failed to permanently delete items: ${(error as Error).message}`,
+        title: t('pages.trash.toastDeleteFailedTitle'),
+        description: t('pages.trash.toastDeleteFailedDesc', {
+          error: (error as Error).message,
+        }),
       });
     }
   };
@@ -167,17 +173,17 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
   const handleEmptyTrash = async () => {
     if (trashItems.length === 0) {
       toast({
-        title: 'Recycle Bin Empty',
-        description: 'The recycle bin is already empty',
+        title: t('pages.trash.toastAlreadyEmptyTitle'),
+        description: t('pages.trash.toastAlreadyEmptyDesc'),
       });
       return;
     }
 
     const confirmed = await showConfirmationToast({
-      title: 'Empty Recycle Bin',
-      description: `Are you sure you want to permanently delete all ${trashItems.length} item(s) in the recycle bin? This action cannot be undone.`,
-      confirmText: 'Empty Recycle Bin',
-      cancelText: 'Cancel',
+      title: t('pages.trash.confirmEmptyTitle'),
+      description: t('pages.trash.confirmEmptyDesc', { count: trashItems.length }),
+      confirmText: t('pages.trash.confirmEmptyBtn'),
+      cancelText: t('common.cancel'),
     });
 
     if (!confirmed) return;
@@ -188,15 +194,15 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
       refetch();
 
       toast({
-        title: 'Recycle Bin Emptied',
-        description: `Successfully deleted ${deletedCount} item(s) from the recycle bin`,
+        title: t('pages.trash.toastEmptiedTitle'),
+        description: t('pages.trash.toastEmptiedDesc', { count: deletedCount }),
       });
     } catch (error) {
       console.error('Failed to empty trash:', error);
       toast({
         variant: 'destructive',
-        title: 'Empty Recycle Bin Failed',
-        description: `Failed to empty recycle bin: ${(error as Error).message}`,
+        title: t('pages.trash.toastEmptyFailedTitle'),
+        description: t('pages.trash.toastEmptyFailedDesc', { error: (error as Error).message }),
       });
     }
   };
@@ -209,54 +215,56 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
     }
   };
 
+  const isAllSelected = selectedItems.size === trashItems.length && trashItems.length > 0;
+
   return (
     <div className="bg-xp-bg text-xp-text flex h-full flex-col">
       {/* Header */}
       <div className="border-xp-border flex items-center justify-between border-b p-4">
         <h2 className="text-xp-text flex items-center gap-2 text-xl font-semibold">
-          <Trash2 size={20} /> Recycle Bin
+          <Trash2 size={20} /> {t('pages.trash.title')}
         </h2>
         <div className="flex items-center space-x-2">
           <button
             onClick={handleSelectAll}
             className="bg-xp-surface hover:bg-xp-surface-light border-xp-border rounded border px-3 py-1 text-sm"
             aria-label={
-              selectedItems.size === trashItems.length ? 'Deselect all items' : 'Select all items'
+              isAllSelected ? t('pages.trash.ariaDeselectAll') : t('pages.trash.ariaSelectAll')
             }
           >
-            {selectedItems.size === trashItems.length ? 'Deselect All' : 'Select All'}
+            {isAllSelected ? t('pages.trash.deselectAll') : t('pages.trash.selectAll')}
           </button>
           <button
             onClick={() => handleRestore()}
             disabled={selectedItems.size === 0}
             className="bg-xp-blue rounded px-3 py-1 text-sm text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={`Restore ${selectedItems.size} selected items`}
+            aria-label={t('pages.trash.ariaRestoreCount', { count: selectedItems.size })}
           >
-            Restore ({selectedItems.size})
+            {t('pages.trash.restoreCount', { count: selectedItems.size })}
           </button>
           <button
             onClick={() => handlePermanentDelete()}
             disabled={selectedItems.size === 0}
             className="bg-xp-red rounded px-3 py-1 text-sm text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={`Permanently delete ${selectedItems.size} selected items`}
+            aria-label={t('pages.trash.ariaDeleteCount', { count: selectedItems.size })}
           >
-            Delete Permanently ({selectedItems.size})
+            {t('pages.trash.deletePermanentlyCount', { count: selectedItems.size })}
           </button>
           <button
             onClick={handleEmptyTrash}
             disabled={trashItems.length === 0}
             className="bg-xp-red rounded px-3 py-1 text-sm text-white hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Empty recycle bin"
+            aria-label={t('pages.trash.ariaEmptyBin')}
           >
-            Empty Recycle Bin
+            {t('pages.trash.emptyRecycleBin')}
           </button>
           {onClose && (
             <button
               onClick={onClose}
               className="bg-xp-surface hover:bg-xp-surface-light border-xp-border rounded border px-3 py-1 text-sm"
-              aria-label="Back to home"
+              aria-label={t('pages.trash.ariaBackToHome')}
             >
-              Back to Home
+              {t('pages.trash.backToHome')}
             </button>
           )}
         </div>
@@ -268,7 +276,7 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
           if (isLoading) {
             return (
               <div className="flex h-full items-center justify-center">
-                <div className="text-xp-text-muted">Loading recycle bin items...</div>
+                <div className="text-xp-text-muted">{t('pages.trash.loading')}</div>
               </div>
             );
           }
@@ -279,8 +287,8 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
                   <div className="mb-4 text-4xl">
                     <Trash2 size="1em" className="text-xp-text-muted inline-block" />
                   </div>
-                  <div className="text-lg">Recycle Bin is empty</div>
-                  <div className="mt-2 text-sm">Deleted files will appear here</div>
+                  <div className="text-lg">{t('pages.trash.empty')}</div>
+                  <div className="mt-2 text-sm">{t('pages.trash.emptyHint')}</div>
                 </div>
               </div>
             );
@@ -326,9 +334,9 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
                           handleRestore(item.original_path);
                         }}
                         className="bg-xp-blue rounded px-2 py-1 text-xs text-white hover:opacity-80"
-                        aria-label={`Restore ${item.name}`}
+                        aria-label={t('pages.trash.ariaRestoreItem', { name: item.name })}
                       >
-                        Restore
+                        {t('pages.trash.restore')}
                       </button>
                       <button
                         onClick={(e) => {
@@ -336,9 +344,9 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
                           handlePermanentDelete(item.original_path);
                         }}
                         className="bg-xp-red rounded px-2 py-1 text-xs text-white hover:opacity-80"
-                        aria-label={`Permanently delete ${item.name}`}
+                        aria-label={t('pages.trash.ariaDeleteItem', { name: item.name })}
                       >
-                        Delete
+                        {t('common.delete')}
                       </button>
                     </div>
                   </div>
@@ -351,8 +359,11 @@ const RecycleBin = ({ onClose }: RecycleBinProps) => {
 
       {/* Footer */}
       <div className="border-xp-border text-xp-text-muted border-t p-4 text-sm">
-        {trashItems.length} item{trashItems.length !== 1 ? 's' : ''} in recycle bin
-        {selectedItems.size > 0 && ` • ${selectedItems.size} selected`}
+        {t('pages.trash.footer', {
+          count: trashItems.length,
+          defaultValue: `${trashItems.length} item${trashItems.length !== 1 ? 's' : ''} in recycle bin`,
+        })}
+        {selectedItems.size > 0 && t('pages.trash.footerSelected', { count: selectedItems.size })}
       </div>
     </div>
   );

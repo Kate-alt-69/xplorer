@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { History, FolderOpen, Plus, Trash2, Save } from 'lucide-react';
 import { SectionTitle, SettingRow, Toggle, Divider, SelectField } from './shared';
 import { TauriAPI, type VersioningConfig } from '@/lib/tauri-api';
 
 const VersioningSettings = () => {
+  const { t } = useTranslation();
   const [config, setConfig] = useState<VersioningConfig>({
     enabled_dirs: [],
     max_versions_per_file: 10,
@@ -79,7 +81,9 @@ const VersioningSettings = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="border-xp-accent h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
-        <span className="text-xp-text-secondary ml-3 text-sm">Loading versioning settings...</span>
+        <span className="text-xp-text-secondary ml-3 text-sm">
+          {t('settings.versioning.loadingSettings')}
+        </span>
       </div>
     );
   }
@@ -87,8 +91,8 @@ const VersioningSettings = () => {
   return (
     <div className="space-y-1">
       <SectionTitle
-        title="File Versioning"
-        description="Automatically keep previous versions of files in tracked directories"
+        title={t('settings.versioning.fileVersioningSection')}
+        description={t('settings.versioning.fileVersioningSectionDesc')}
       />
 
       {error && (
@@ -99,8 +103,8 @@ const VersioningSettings = () => {
 
       <SettingRow
         icon={Save}
-        label="Auto-version on save"
-        description="Automatically create a version snapshot when files in tracked directories are modified"
+        label={t('settings.versioning.autoVersionLabel')}
+        description={t('settings.versioning.autoVersionDesc')}
       >
         <Toggle
           id="auto-version"
@@ -114,8 +118,8 @@ const VersioningSettings = () => {
 
       <SettingRow
         icon={History}
-        label="Max versions per file"
-        description="Oldest versions are automatically deleted when this limit is exceeded"
+        label={t('settings.versioning.maxVersionsLabel')}
+        description={t('settings.versioning.maxVersionsDesc')}
       >
         <SelectField
           value={String(config.max_versions_per_file)}
@@ -141,7 +145,7 @@ const VersioningSettings = () => {
             className="bg-xp-accent/10 text-xp-accent hover:bg-xp-accent/20 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
           >
             <Save size={14} />
-            {saving ? 'Saving...' : 'Save Changes'}
+            {saving ? t('settings.versioning.saving') : t('settings.versioning.saveChanges')}
           </button>
         </div>
       )}
@@ -149,8 +153,8 @@ const VersioningSettings = () => {
       <Divider />
 
       <SectionTitle
-        title="Tracked Directories"
-        description="Only files inside these directories will have versioning enabled"
+        title={t('settings.versioning.trackedDirsSection')}
+        description={t('settings.versioning.trackedDirsSectionDesc')}
       />
 
       <div className="px-4 pb-2">
@@ -162,7 +166,7 @@ const VersioningSettings = () => {
             onKeyDown={(e) => {
               if (e.key === 'Enter') addDirectory();
             }}
-            placeholder="Enter directory path..."
+            placeholder={t('settings.versioning.dirPlaceholder')}
             className="border-xp-border bg-xp-bg text-xp-text placeholder:text-xp-text-secondary/50 focus:ring-xp-accent h-9 flex-1 rounded-md border px-3 text-sm focus:outline-none focus:ring-1"
           />
           <button
@@ -171,7 +175,7 @@ const VersioningSettings = () => {
             className="bg-xp-accent/10 text-xp-accent hover:bg-xp-accent/20 flex h-9 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors disabled:opacity-50"
           >
             <Plus size={14} />
-            Add
+            {t('settings.versioning.addDir')}
           </button>
         </div>
       </div>
@@ -179,9 +183,9 @@ const VersioningSettings = () => {
       {config.enabled_dirs.length === 0 ? (
         <div className="px-4 py-4 text-center">
           <FolderOpen size={24} className="text-xp-text-secondary/40 mx-auto mb-2" />
-          <p className="text-xp-text-secondary text-xs">No directories tracked</p>
+          <p className="text-xp-text-secondary text-xs">{t('settings.versioning.noDirsTracked')}</p>
           <p className="text-xp-text-secondary/60 mt-0.5 text-[11px]">
-            Add a directory path above to start tracking file versions
+            {t('settings.versioning.noDirsTrackedHint')}
           </p>
         </div>
       ) : (
@@ -200,7 +204,7 @@ const VersioningSettings = () => {
               <button
                 onClick={() => removeDirectory(dir)}
                 className="text-xp-text-secondary flex h-6 w-6 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-red-500/10 hover:text-red-400"
-                title="Stop tracking this directory"
+                title={t('settings.versioning.stopTracking')}
               >
                 <Trash2 size={13} />
               </button>

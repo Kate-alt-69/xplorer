@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Globe, RotateCcw } from 'lucide-react';
 import { type AgentPermissions, type SafeAgentSettings } from '@/lib/agent-service';
 import { PermToggle, SectionTitle, Divider } from './shared';
@@ -8,27 +9,94 @@ interface PermissionsSettingsProps {
   agentSettings: SafeAgentSettings;
 }
 
-const ALL_TOOLS = {
-  read: [
-    { name: 'read_file', label: 'Read File', desc: 'Read file contents' },
-    { name: 'list_directory', label: 'List Directory', desc: 'List files in a directory' },
-    { name: 'search_files', label: 'Search Files', desc: 'Glob pattern file search' },
-    { name: 'search_content', label: 'Search Content', desc: 'Regex search in file contents' },
-    { name: 'get_system_info', label: 'System Info', desc: 'OS and system details' },
-    { name: 'search_indexed', label: 'Search Index', desc: 'Search pre-built file index' },
-    { name: 'extract_document_text', label: 'Extract Text', desc: 'Extract text from documents' },
-    { name: 'recall', label: 'Recall Memory', desc: 'Retrieve stored memories' },
-  ],
-  write: [
-    { name: 'write_file', label: 'Write File', desc: 'Create or overwrite files' },
-    { name: 'create_directory', label: 'Create Directory', desc: 'Create directories' },
-    { name: 'rename', label: 'Rename', desc: 'Rename files or directories' },
-    { name: 'delete', label: 'Delete', desc: 'Move to trash' },
-    { name: 'move_file', label: 'Move File', desc: 'Move files or directories' },
-    { name: 'copy_file', label: 'Copy File', desc: 'Copy files or directories' },
-    { name: 'execute_command', label: 'Execute Command', desc: 'Run shell commands' },
-    { name: 'execute_plan', label: 'Execute Plan', desc: 'Execute approved plans' },
-  ],
+const READ_TOOL_NAMES = [
+  'read_file',
+  'list_directory',
+  'search_files',
+  'search_content',
+  'get_system_info',
+  'search_indexed',
+  'extract_document_text',
+  'recall',
+] as const;
+
+const WRITE_TOOL_NAMES = [
+  'write_file',
+  'create_directory',
+  'rename',
+  'delete',
+  'move_file',
+  'copy_file',
+  'execute_command',
+  'execute_plan',
+] as const;
+
+// Maps tool name -> { labelKey, descKey } in settings.permissions.tools
+const TOOL_TRANSLATION_KEYS: Record<string, { labelKey: string; descKey: string }> = {
+  read_file: {
+    labelKey: 'settings.permissions.tools.readFile',
+    descKey: 'settings.permissions.tools.readFileDesc',
+  },
+  list_directory: {
+    labelKey: 'settings.permissions.tools.listDir',
+    descKey: 'settings.permissions.tools.listDirDesc',
+  },
+  search_files: {
+    labelKey: 'settings.permissions.tools.searchFiles',
+    descKey: 'settings.permissions.tools.searchFilesDesc',
+  },
+  search_content: {
+    labelKey: 'settings.permissions.tools.searchContent',
+    descKey: 'settings.permissions.tools.searchContentDesc',
+  },
+  get_system_info: {
+    labelKey: 'settings.permissions.tools.systemInfo',
+    descKey: 'settings.permissions.tools.systemInfoDesc',
+  },
+  search_indexed: {
+    labelKey: 'settings.permissions.tools.searchIndex',
+    descKey: 'settings.permissions.tools.searchIndexDesc',
+  },
+  extract_document_text: {
+    labelKey: 'settings.permissions.tools.extractText',
+    descKey: 'settings.permissions.tools.extractTextDesc',
+  },
+  recall: {
+    labelKey: 'settings.permissions.tools.recallMemory',
+    descKey: 'settings.permissions.tools.recallMemoryDesc',
+  },
+  write_file: {
+    labelKey: 'settings.permissions.tools.writeFile',
+    descKey: 'settings.permissions.tools.writeFileDesc',
+  },
+  create_directory: {
+    labelKey: 'settings.permissions.tools.createDir',
+    descKey: 'settings.permissions.tools.createDirDesc',
+  },
+  rename: {
+    labelKey: 'settings.permissions.tools.rename',
+    descKey: 'settings.permissions.tools.renameDesc',
+  },
+  delete: {
+    labelKey: 'settings.permissions.tools.delete',
+    descKey: 'settings.permissions.tools.deleteDesc',
+  },
+  move_file: {
+    labelKey: 'settings.permissions.tools.moveFile',
+    descKey: 'settings.permissions.tools.moveFileDesc',
+  },
+  copy_file: {
+    labelKey: 'settings.permissions.tools.copyFile',
+    descKey: 'settings.permissions.tools.copyFileDesc',
+  },
+  execute_command: {
+    labelKey: 'settings.permissions.tools.executeCommand',
+    descKey: 'settings.permissions.tools.executeCommandDesc',
+  },
+  execute_plan: {
+    labelKey: 'settings.permissions.tools.executePlan',
+    descKey: 'settings.permissions.tools.executePlanDesc',
+  },
 };
 
 const DEFAULT_PERMISSIONS: AgentPermissions = {
@@ -45,11 +113,13 @@ const PermissionsSettings = ({
   setPermissions,
   agentSettings,
 }: PermissionsSettingsProps) => {
+  const { t } = useTranslation();
+
   const toggleTool = (toolName: string) => {
     setPermissions({
       ...permissions,
       disabled_tools: permissions.disabled_tools.includes(toolName)
-        ? permissions.disabled_tools.filter((t) => t !== toolName)
+        ? permissions.disabled_tools.filter((tool) => tool !== toolName)
         : [...permissions.disabled_tools, toolName],
     });
   };
@@ -58,7 +128,7 @@ const PermissionsSettings = ({
     setPermissions({
       ...permissions,
       auto_approve_tools: permissions.auto_approve_tools.includes(toolName)
-        ? permissions.auto_approve_tools.filter((t) => t !== toolName)
+        ? permissions.auto_approve_tools.filter((tool) => tool !== toolName)
         : [...permissions.auto_approve_tools, toolName],
     });
   };
@@ -86,16 +156,16 @@ const PermissionsSettings = ({
   return (
     <div className="space-y-1">
       {/* Internet Sandbox */}
-      <SectionTitle title="Network" />
+      <SectionTitle title={t('settings.permissions.network')} />
       <div className="hover:bg-xp-surface-light/50 flex items-center justify-between gap-4 rounded-lg px-4 py-3 transition-colors">
         <div className="flex min-w-0 items-center gap-3">
           <Globe size={18} className="text-xp-text-secondary shrink-0" />
           <div className="min-w-0">
-            <div className="text-xp-text text-sm font-medium">Block Internet Access</div>
+            <div className="text-xp-text text-sm font-medium">
+              {t('settings.permissions.blockInternet')}
+            </div>
             <div className="text-xp-text-secondary mt-0.5 text-xs leading-relaxed">
-              Prevent the agent from running commands that access the network (ping, ftp, telnet,
-              nslookup, URLs in arguments, etc.). Core network tools (curl, wget, ssh, nc) are
-              always blocked regardless of this setting.
+              {t('settings.permissions.blockInternetDesc')}
             </div>
           </div>
         </div>
@@ -110,25 +180,29 @@ const PermissionsSettings = ({
       <Divider />
 
       {/* Read Tools */}
-      <SectionTitle title="Read Tools" description="Tools that run without approval" />
+      <SectionTitle
+        title={t('settings.permissions.readTools')}
+        description={t('settings.permissions.readToolsDesc')}
+      />
       <div className="grid grid-cols-1 gap-0.5">
-        {ALL_TOOLS.read.map((tool) => {
-          const enabled = !permissions.disabled_tools.includes(tool.name);
+        {READ_TOOL_NAMES.map((toolName) => {
+          const enabled = !permissions.disabled_tools.includes(toolName);
+          const keys = TOOL_TRANSLATION_KEYS[toolName];
           return (
             <div
-              key={tool.name}
+              key={toolName}
               className={`hover:bg-xp-surface-light/50 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 transition-colors ${!enabled ? 'opacity-50' : ''}`}
             >
               <div className="min-w-0">
                 <div className="text-xp-text flex items-center gap-2 text-sm font-medium">
                   <code className="bg-xp-surface text-xp-accent/80 rounded px-1.5 py-0.5 font-mono text-[11px]">
-                    {tool.name}
+                    {toolName}
                   </code>
-                  {tool.label}
+                  {t(keys.labelKey)}
                 </div>
-                <div className="text-xp-text-secondary mt-0.5 text-xs">{tool.desc}</div>
+                <div className="text-xp-text-secondary mt-0.5 text-xs">{t(keys.descKey)}</div>
               </div>
-              <PermToggle enabled={enabled} onChange={() => toggleTool(tool.name)} />
+              <PermToggle enabled={enabled} onChange={() => toggleTool(toolName)} />
             </div>
           );
         })}
@@ -136,27 +210,28 @@ const PermissionsSettings = ({
 
       <Divider />
       <SectionTitle
-        title="Write Tools"
-        description="Tools that modify files (require approval by default)"
+        title={t('settings.permissions.writeTools')}
+        description={t('settings.permissions.writeToolsDesc')}
       />
       <div className="grid grid-cols-1 gap-0.5">
-        {ALL_TOOLS.write.map((tool) => {
-          const enabled = !permissions.disabled_tools.includes(tool.name);
+        {WRITE_TOOL_NAMES.map((toolName) => {
+          const enabled = !permissions.disabled_tools.includes(toolName);
+          const keys = TOOL_TRANSLATION_KEYS[toolName];
           return (
             <div
-              key={tool.name}
+              key={toolName}
               className={`hover:bg-xp-surface-light/50 flex items-center justify-between gap-4 rounded-lg px-4 py-2.5 transition-colors ${!enabled ? 'opacity-50' : ''}`}
             >
               <div className="min-w-0">
                 <div className="text-xp-text flex items-center gap-2 text-sm font-medium">
                   <code className="bg-xp-surface text-xp-accent/80 rounded px-1.5 py-0.5 font-mono text-[11px]">
-                    {tool.name}
+                    {toolName}
                   </code>
-                  {tool.label}
+                  {t(keys.labelKey)}
                 </div>
-                <div className="text-xp-text-secondary mt-0.5 text-xs">{tool.desc}</div>
+                <div className="text-xp-text-secondary mt-0.5 text-xs">{t(keys.descKey)}</div>
               </div>
-              <PermToggle enabled={enabled} onChange={() => toggleTool(tool.name)} />
+              <PermToggle enabled={enabled} onChange={() => toggleTool(toolName)} />
             </div>
           );
         })}
@@ -165,30 +240,31 @@ const PermissionsSettings = ({
       {/* Per-tool auto-approve */}
       <Divider />
       <SectionTitle
-        title="Auto-Approve Rules"
+        title={t('settings.permissions.autoApproveRules')}
         description={
           agentSettings.auto_approve
-            ? 'Global auto-approve is ON — all write tools skip approval'
-            : 'Skip the approval prompt for specific write tools'
+            ? t('settings.permissions.autoApproveGlobalOn')
+            : t('settings.permissions.autoApproveGlobalOff')
         }
       />
       {agentSettings.auto_approve ? (
         <div className="text-xp-text-secondary px-4 py-2 text-xs italic">
-          Global auto-approve is enabled. Disable it in AI Agent settings to use per-tool rules.
+          {t('settings.permissions.autoApproveGlobalNote')}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-0.5">
-          {ALL_TOOLS.write.map((tool) => {
-            const isDisabled = permissions.disabled_tools.includes(tool.name);
+          {WRITE_TOOL_NAMES.map((toolName) => {
+            const isDisabled = permissions.disabled_tools.includes(toolName);
             if (isDisabled) return null;
-            const autoApproved = permissions.auto_approve_tools.includes(tool.name);
+            const autoApproved = permissions.auto_approve_tools.includes(toolName);
+            const keys = TOOL_TRANSLATION_KEYS[toolName];
             return (
               <div
-                key={tool.name}
+                key={toolName}
                 className="hover:bg-xp-surface-light/50 flex items-center justify-between gap-4 rounded-lg px-4 py-2 transition-colors"
               >
-                <div className="text-xp-text text-sm">{tool.label}</div>
-                <PermToggle enabled={autoApproved} onChange={() => toggleAutoApprove(tool.name)} />
+                <div className="text-xp-text text-sm">{t(keys.labelKey)}</div>
+                <PermToggle enabled={autoApproved} onChange={() => toggleAutoApprove(toolName)} />
               </div>
             );
           })}
@@ -198,8 +274,8 @@ const PermissionsSettings = ({
       {/* Allowed Paths */}
       <Divider />
       <SectionTitle
-        title="Allowed Paths"
-        description="If set, the agent can ONLY access these directories"
+        title={t('settings.permissions.allowedPaths')}
+        description={t('settings.permissions.allowedPathsDesc')}
       />
       <div className="space-y-2 px-4">
         <div className="flex gap-2">
@@ -222,7 +298,7 @@ const PermissionsSettings = ({
             }}
             className="bg-xp-accent h-8 rounded-md px-3 text-xs font-medium text-white transition-opacity hover:opacity-90"
           >
-            Add
+            {t('common.add')}
           </button>
         </div>
         {permissions.allowed_paths.length > 0 && (
@@ -237,7 +313,7 @@ const PermissionsSettings = ({
                   onClick={() => removeFromList('allowed_paths', i)}
                   className="text-xp-text-secondary shrink-0 text-xs hover:text-red-400"
                 >
-                  Remove
+                  {t('common.remove')}
                 </button>
               </div>
             ))}
@@ -248,8 +324,8 @@ const PermissionsSettings = ({
       {/* Blocked Paths */}
       <Divider />
       <SectionTitle
-        title="Blocked Paths"
-        description="Additional paths blocked beyond system defaults"
+        title={t('settings.permissions.blockedPaths')}
+        description={t('settings.permissions.blockedPathsDesc')}
       />
       <div className="space-y-2 px-4">
         <div className="flex gap-2">
@@ -272,7 +348,7 @@ const PermissionsSettings = ({
             }}
             className="bg-xp-accent h-8 rounded-md px-3 text-xs font-medium text-white transition-opacity hover:opacity-90"
           >
-            Add
+            {t('common.add')}
           </button>
         </div>
         {permissions.blocked_paths.length > 0 && (
@@ -287,7 +363,7 @@ const PermissionsSettings = ({
                   onClick={() => removeFromList('blocked_paths', i)}
                   className="text-xp-text-secondary shrink-0 text-xs hover:text-red-400"
                 >
-                  Remove
+                  {t('common.remove')}
                 </button>
               </div>
             ))}
@@ -298,8 +374,8 @@ const PermissionsSettings = ({
       {/* Blocked Commands */}
       <Divider />
       <SectionTitle
-        title="Custom Blocked Commands"
-        description="Added on top of 60+ built-in blocked commands"
+        title={t('settings.permissions.customBlockedCommands')}
+        description={t('settings.permissions.customBlockedCommandsDesc')}
       />
       <div className="space-y-2 px-4">
         <div className="flex gap-2">
@@ -322,7 +398,7 @@ const PermissionsSettings = ({
             }}
             className="bg-xp-accent h-8 rounded-md px-3 text-xs font-medium text-white transition-opacity hover:opacity-90"
           >
-            Add
+            {t('common.add')}
           </button>
         </div>
         {permissions.custom_blocked_commands.length > 0 && (
@@ -337,7 +413,7 @@ const PermissionsSettings = ({
                   onClick={() => removeFromList('custom_blocked_commands', i)}
                   className="text-xp-text-secondary shrink-0 text-xs hover:text-red-400"
                 >
-                  Remove
+                  {t('common.remove')}
                 </button>
               </div>
             ))}
@@ -353,7 +429,7 @@ const PermissionsSettings = ({
           className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
         >
           <RotateCcw size={14} />
-          Reset to defaults
+          {t('settings.permissions.resetDefaults')}
         </button>
       </div>
     </div>

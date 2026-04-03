@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Download, Upload, Clock, CheckCircle, AlertTriangle, FileJson } from 'lucide-react';
 import { SectionTitle, SettingRow, Divider } from './shared';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
@@ -64,12 +65,12 @@ const collectExportableKeys = (): string[] => {
 const categorizeKeys = (keys: string[]): ImportCategory[] => {
   const categories: ImportCategory[] = [];
   const buckets: Record<string, string[]> = {
-    'App Settings': [],
-    'Appearance & Theme': [],
-    'AI & Search': [],
-    Extensions: [],
-    'Sync & Cloud': [],
-    Other: [],
+    'settings.backup.categoryAppSettings': [],
+    'settings.backup.categoryAppearance': [],
+    'settings.backup.categoryAiSearch': [],
+    'settings.backup.categoryExtensions': [],
+    'settings.backup.categorySyncCloud': [],
+    'settings.backup.categoryOther': [],
   };
 
   for (const key of keys) {
@@ -79,17 +80,17 @@ const categorizeKeys = (keys: string[]): ImportCategory[] => {
       key === STORAGE_KEYS.FONT_SIZE ||
       key === STORAGE_KEYS.SPLIT_LAYOUT
     ) {
-      buckets['App Settings'].push(key);
+      buckets['settings.backup.categoryAppSettings'].push(key);
     } else if (key.includes('theme') || key.includes('custom-themes')) {
-      buckets['Appearance & Theme'].push(key);
+      buckets['settings.backup.categoryAppearance'].push(key);
     } else if (key.includes('openai') || key.includes('ollama') || key.includes('search')) {
-      buckets['AI & Search'].push(key);
+      buckets['settings.backup.categoryAiSearch'].push(key);
     } else if (key.includes('extension') || key.includes('marketplace')) {
-      buckets['Extensions'].push(key);
+      buckets['settings.backup.categoryExtensions'].push(key);
     } else if (key.includes('sync') || key.includes('gdrive')) {
-      buckets['Sync & Cloud'].push(key);
+      buckets['settings.backup.categorySyncCloud'].push(key);
     } else {
-      buckets['Other'].push(key);
+      buckets['settings.backup.categoryOther'].push(key);
     }
   }
 
@@ -146,6 +147,7 @@ const validatePayload = (data: unknown): data is ExportPayload => {
 };
 
 const BackupRestoreSettings = () => {
+  const { t } = useTranslation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<ImportStatus>({ type: 'idle' });
   const [lastExportDate, setLastExportDate] = useState<string | null>(() => {
@@ -160,7 +162,7 @@ const BackupRestoreSettings = () => {
       localStorage.setItem(LAST_EXPORT_KEY, now);
       setLastExportDate(now);
     } catch {
-      setImportStatus({ type: 'error', message: 'Failed to export settings.' });
+      setImportStatus({ type: 'error', message: t('settings.backup.exportFailed') });
     }
   };
 
@@ -177,8 +179,7 @@ const BackupRestoreSettings = () => {
         if (!validatePayload(data)) {
           setImportStatus({
             type: 'error',
-            message:
-              'Invalid backup file structure. Expected version, exportDate, and settings fields.',
+            message: t('settings.backup.invalidBackupStructure'),
           });
           return;
         }
@@ -189,12 +190,12 @@ const BackupRestoreSettings = () => {
       } catch {
         setImportStatus({
           type: 'error',
-          message: 'Invalid JSON file. Please select a valid Xplorer settings backup.',
+          message: t('settings.backup.invalidJson'),
         });
       }
     };
     reader.onerror = () => {
-      setImportStatus({ type: 'error', message: 'Failed to read file.' });
+      setImportStatus({ type: 'error', message: t('settings.backup.readFileFailed') });
     };
     reader.readAsText(file);
 
@@ -239,48 +240,48 @@ const BackupRestoreSettings = () => {
   return (
     <div className="space-y-1">
       <SectionTitle
-        title="Export"
-        description="Download a backup of your settings as a JSON file"
+        title={t('settings.backup.exportSection')}
+        description={t('settings.backup.exportSectionDesc')}
       />
 
       <SettingRow
         icon={Download}
-        label="Export Settings"
-        description="Save all your preferences, theme, and configuration to a file"
+        label={t('settings.backup.exportLabel')}
+        description={t('settings.backup.exportDesc')}
       >
         <button
           onClick={handleExport}
           className="bg-xp-accent flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
         >
           <Download size={14} />
-          Export
+          {t('settings.backup.exportButton')}
         </button>
       </SettingRow>
 
       {lastExportDate && (
         <div className="text-xp-text-secondary flex items-center gap-2 px-4 py-1.5 text-xs">
           <Clock size={12} className="shrink-0" />
-          <span>Last exported: {formatDate(lastExportDate)}</span>
+          <span>{t('settings.backup.lastExported', { date: formatDate(lastExportDate) })}</span>
         </div>
       )}
 
       <Divider />
       <SectionTitle
-        title="Import"
-        description="Restore settings from a previously exported backup file"
+        title={t('settings.backup.importSection')}
+        description={t('settings.backup.importSectionDesc')}
       />
 
       <SettingRow
         icon={Upload}
-        label="Import Settings"
-        description="Load settings from a .json backup file"
+        label={t('settings.backup.importLabel')}
+        description={t('settings.backup.importDesc')}
       >
         <button
           onClick={() => fileInputRef.current?.click()}
           className="border-xp-border bg-xp-surface text-xp-text hover:bg-xp-surface-light flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors"
         >
           <Upload size={14} />
-          Choose File
+          {t('settings.backup.chooseFile')}
         </button>
       </SettingRow>
 
@@ -296,14 +297,16 @@ const BackupRestoreSettings = () => {
         <div className="mx-4 mt-2 flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3">
           <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-400" />
           <div>
-            <div className="text-sm font-medium text-red-400">Import Error</div>
+            <div className="text-sm font-medium text-red-400">
+              {t('settings.backup.importErrorTitle')}
+            </div>
             <div className="mt-0.5 text-xs text-red-400/80">{importStatus.message}</div>
           </div>
           <button
             onClick={handleCancelImport}
             className="ml-auto shrink-0 text-xs text-red-400/60 transition-colors hover:text-red-400"
           >
-            Dismiss
+            {t('settings.backup.dismiss')}
           </button>
         </div>
       )}
@@ -312,20 +315,22 @@ const BackupRestoreSettings = () => {
         <div className="border-xp-border bg-xp-surface mx-4 mt-2 rounded-lg border p-4">
           <div className="mb-3 flex items-center gap-2">
             <FileJson size={16} className="text-xp-accent" />
-            <span className="text-xp-text text-sm font-medium">Import Preview</span>
+            <span className="text-xp-text text-sm font-medium">
+              {t('settings.backup.importPreviewTitle')}
+            </span>
           </div>
 
           <div className="text-xp-text-secondary mb-3 space-y-1 text-xs">
             <div>
-              Version:{' '}
+              {t('settings.backup.previewVersion')}{' '}
               <span className="text-xp-text font-mono">{importStatus.payload.version}</span>
             </div>
             <div>
-              Exported:{' '}
+              {t('settings.backup.previewExported')}{' '}
               <span className="text-xp-text">{formatDate(importStatus.payload.exportDate)}</span>
             </div>
             <div>
-              Total keys:{' '}
+              {t('settings.backup.previewTotalKeys')}{' '}
               <span className="text-xp-text font-mono">
                 {Object.keys(importStatus.payload.settings).length}
               </span>
@@ -336,9 +341,9 @@ const BackupRestoreSettings = () => {
             {importStatus.categories.map((cat) => (
               <div key={cat.label} className="bg-xp-bg/50 rounded-md px-3 py-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xp-text text-xs font-medium">{cat.label}</span>
+                  <span className="text-xp-text text-xs font-medium">{t(cat.label)}</span>
                   <span className="text-xp-text-secondary font-mono text-[10px]">
-                    {cat.keys.length} key{cat.keys.length !== 1 ? 's' : ''}
+                    {t('settings.backup.previewKeyCount', { count: cat.keys.length })}
                   </span>
                 </div>
                 <div className="text-xp-text-secondary/70 mt-1 font-mono text-[10px] leading-relaxed">
@@ -351,7 +356,7 @@ const BackupRestoreSettings = () => {
           <div className="mb-4 flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/10 p-2">
             <AlertTriangle size={14} className="shrink-0 text-amber-400" />
             <span className="text-xs text-amber-400/90">
-              This will overwrite your current settings. The page will reload to apply changes.
+              {t('settings.backup.overwriteWarning')}
             </span>
           </div>
 
@@ -360,14 +365,14 @@ const BackupRestoreSettings = () => {
               onClick={handleCancelImport}
               className="border-xp-border bg-xp-surface text-xp-text hover:bg-xp-surface-light rounded-md border px-3 py-1.5 text-sm transition-colors"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleApplyImport}
               className="bg-xp-accent flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90"
             >
               <CheckCircle size={14} />
-              Apply Import
+              {t('settings.backup.applyImport')}
             </button>
           </div>
         </div>
@@ -377,10 +382,11 @@ const BackupRestoreSettings = () => {
         <div className="mx-4 mt-2 flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3">
           <CheckCircle size={16} className="shrink-0 text-emerald-400" />
           <div>
-            <div className="text-sm font-medium text-emerald-400">Import Successful</div>
+            <div className="text-sm font-medium text-emerald-400">
+              {t('settings.backup.importSuccessTitle')}
+            </div>
             <div className="mt-0.5 text-xs text-emerald-400/80">
-              Restored {importStatus.count} setting{importStatus.count !== 1 ? 's' : ''}.
-              Reloading...
+              {t('settings.backup.importSuccessDesc', { count: importStatus.count })}
             </div>
           </div>
         </div>
