@@ -267,8 +267,8 @@ export const checkForUpdates = async (
       currentVersion: u.current_version,
       latestVersion: u.latest_version,
       downloadUrl: u.download_url,
-      checksum: u.checksum,
-      changelog: u.changelog,
+      checksum: u.checksum ?? '',
+      changelog: u.changelog ?? undefined,
     }));
   } catch {
     // Network errors are expected (offline, marketplace down) — silently ignore

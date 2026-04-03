@@ -97,8 +97,8 @@ export const checkForExtensionUpdates = async (
     current_version: string;
     latest_version: string;
     download_url: string;
-    checksum: string;
-    changelog?: string;
+    checksum: string | null;
+    changelog: string | null;
   }>
 > =>
   await transport('check_for_extension_updates', {

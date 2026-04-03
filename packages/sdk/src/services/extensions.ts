@@ -75,7 +75,7 @@ export interface ExtensionUpdateInfo {
   current_version: string;
   latest_version: string;
   download_url: string;
-  checksum: string;
+  checksum: string | null;
   changelog: string | null;
 }
 

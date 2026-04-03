@@ -36,13 +36,17 @@ pub struct InstalledExtensionInfo {
     pub version: String,
 }
 
+/// API response shape from `POST /api/extensions/check-updates`.
+/// Fields are camelCase because the marketplace API (Next.js) returns JSON in camelCase.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {
     pub id: String,
     pub current_version: String,
     pub latest_version: String,
     pub download_url: String,
-    pub checksum: String,
+    pub checksum: Option<String>,
+    pub changelog: Option<String>,
 }
 
 #[command]
@@ -163,10 +167,26 @@ pub async fn check_for_extension_updates(
     // Validate the marketplace URL (must be HTTPS, must not target private IPs)
     validate_url_security(&marketplace_url)?;
 
+    // The API expects { "extensions": [{id, version}, ...] }
+    #[derive(Serialize)]
+    struct CheckUpdatesBody {
+        extensions: Vec<InstalledExtensionInfo>,
+    }
+
+    // The API returns { "updates": [...] }
+    #[derive(Deserialize)]
+    struct CheckUpdatesResponse {
+        updates: Vec<UpdateInfo>,
+    }
+
+    let body = CheckUpdatesBody {
+        extensions: installed_extensions,
+    };
+
     let client = reqwest::Client::new();
     let resp = client
         .post(format!("{}/extensions/check-updates", marketplace_url))
-        .json(&installed_extensions)
+        .json(&body)
         .send()
         .await
         .map_err(|e| format!("Failed to check updates: {}", e))?;
@@ -178,9 +198,12 @@ pub async fn check_for_extension_updates(
         ));
     }
 
-    resp.json::<Vec<UpdateInfo>>()
+    let parsed: CheckUpdatesResponse = resp
+        .json()
         .await
-        .map_err(|e| format!("Failed to parse update response: {}", e))
+        .map_err(|e| format!("Failed to parse update response: {}", e))?;
+
+    Ok(parsed.updates)
 }
 
 // ─── Marketplace Integration Commands ─────────────────────────────────────
