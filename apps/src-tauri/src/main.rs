@@ -321,6 +321,7 @@ fn main() {
             xplorer::search::compat_commands::set_search_context,
             xplorer::search::compat_commands::add_whitelisted_path,
             xplorer::search::compat_commands::ai_search,
+            xplorer::search::compat_commands::smart_search,
             // AI indexing (new search engine v2 pipeline)
             xplorer::search::compat_commands::get_ai_index_status,
             xplorer::search::compat_commands::trigger_ai_indexing,

@@ -683,6 +683,15 @@ export interface AISearchResult {
   model: string;
 }
 
+// LLM-powered smart search result
+export interface SmartSearchResult {
+  results: SearchResult[];
+  matched_items: string[];
+  explanation: string | null;
+  provider: string;
+  search_terms_used: string[];
+}
+
 // ── AI Index types ───────────────────────────────────────────────────────────
 
 // Phase 3: AI Index types

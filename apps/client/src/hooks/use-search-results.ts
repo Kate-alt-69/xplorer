@@ -2,68 +2,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { TauriAPI, type SearchResult, type FileEntry } from '@/lib/tauri-api';
 import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 
-// ── Filter words that trigger enhanced NL search ─────────────────────────────
-
-const FILTER_INDICATORS = [
-  'large',
-  'largest',
-  'big',
-  'biggest',
-  'huge',
-  'small',
-  'smallest',
-  'tiny',
-  'heavy',
-  'heaviest',
-  'light',
-  'lightest',
-  'today',
-  'yesterday',
-  'recent',
-  'recently',
-  'newest',
-  'latest',
-  'oldest',
-  'new',
-  'last week',
-  'last month',
-  'this week',
-  'this month',
-  'this year',
-  'old',
-  'videos',
-  'video',
-  'movies',
-  'images',
-  'image',
-  'photos',
-  'photo',
-  'picture',
-  'pictures',
-  'documents',
-  'document',
-  'docs',
-  'pdfs',
-  'spreadsheets',
-  'presentations',
-  'code',
-  'scripts',
-  'source code',
-  'audio',
-  'music',
-  'songs',
-  'archives',
-  'compressed',
-  'zips',
-];
-
-const shouldUseEnhancedSearch = (query: string): boolean => {
-  const words = query.trim().split(/\s+/);
-  if (words.length >= 3) return true;
-  const lower = query.toLowerCase();
-  return FILTER_INDICATORS.some((indicator) => lower.includes(indicator));
-};
-
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export const useAiSearch = (basePath: string) => {
@@ -71,6 +9,9 @@ export const useAiSearch = (basePath: string) => {
   const [aiResults, setAiResults] = useState<SearchResult[]>([]);
   const [isAiSearching, setIsAiSearching] = useState(false);
   const [aiParsedInfo, setAiParsedInfo] = useState<string | null>(null);
+  const [matchedItems, setMatchedItems] = useState<string[]>([]);
+  const [provider, setProvider] = useState<string>('');
+  const [searchTermsUsed, setSearchTermsUsed] = useState<string[]>([]);
   const aiAbortRef = useRef<{ aborted: boolean }>({ aborted: false });
   const aiDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -83,6 +24,9 @@ export const useAiSearch = (basePath: string) => {
       setAiResults([]);
       setIsAiSearching(false);
       setAiParsedInfo(null);
+      setMatchedItems([]);
+      setProvider('');
+      setSearchTermsUsed([]);
       return;
     }
 
@@ -93,64 +37,24 @@ export const useAiSearch = (basePath: string) => {
       aiAbortRef.current = signal;
 
       try {
-        let results: SearchResult[] = [];
-        let info: string | null = null;
-
-        // Try enhanced search (BM25F + structured query) first
-        if (shouldUseEnhancedSearch(trimmed)) {
-          try {
-            const enhanced = await TauriAPI.enhancedSearch(trimmed, undefined, 50);
-            if (!signal.aborted) {
-              results = enhanced.results;
-              const pq = enhanced.parsed_query;
-              if (pq) {
-                const parts: string[] = [];
-                if (pq.file_type_filter) parts.push(`type: ${pq.file_type_filter}`);
-                if (pq.sort_hint) parts.push(`sort: ${pq.sort_hint}`);
-                if (pq.keywords?.length) parts.push(`"${pq.keywords.join(' ')}"`);
-                info = parts.length > 0 ? parts.join(' | ') : null;
-              }
-            }
-          } catch {
-            // Enhanced search unavailable, try semantic
-          }
-        }
-
-        // If enhanced search returned nothing, try indexed search
-        if (results.length === 0 && !signal.aborted) {
-          try {
-            const tokenResults = await TauriAPI.searchTokens(trimmed, 50);
-            if (!signal.aborted) {
-              results = tokenResults;
-              info = 'Indexed search (BM25F)';
-            }
-          } catch {
-            // Index not available
-          }
-        }
-
-        // If still nothing, try semantic search as final fallback
-        if (results.length === 0 && !signal.aborted) {
-          try {
-            const semanticResults = await TauriAPI.semanticSearch(trimmed, 50);
-            if (!signal.aborted) {
-              results = semanticResults;
-              info = 'Semantic search (embeddings)';
-            }
-          } catch {
-            // Semantic search unavailable (Ollama not running, etc.)
-          }
-        }
+        const response = await TauriAPI.smartSearch(trimmed, basePath, 50);
 
         if (!signal.aborted) {
-          setAiResults(results);
-          setAiParsedInfo(info);
+          setAiResults(response.results);
+          setAiParsedInfo(response.explanation ?? null);
+          setMatchedItems(response.matched_items);
+          setProvider(response.provider);
+          setSearchTermsUsed(response.search_terms_used);
           setIsAiSearching(false);
         }
-      } catch (err) {
+      } catch (err: unknown) {
         if (!signal.aborted) {
           console.error('AI search error:', err);
           setAiResults([]);
+          setAiParsedInfo(null);
+          setMatchedItems([]);
+          setProvider('fallback');
+          setSearchTermsUsed([]);
           setIsAiSearching(false);
         }
       }
@@ -160,7 +64,7 @@ export const useAiSearch = (basePath: string) => {
       if (aiDebounceRef.current) clearTimeout(aiDebounceRef.current);
       aiAbortRef.current.aborted = true;
     };
-  }, [aiQuery]);
+  }, [aiQuery, basePath]);
 
   const handleAiResultSelect = useCallback(
     (
@@ -197,6 +101,9 @@ export const useAiSearch = (basePath: string) => {
     setAiResults([]);
     setIsAiSearching(false);
     setAiParsedInfo(null);
+    setMatchedItems([]);
+    setProvider('');
+    setSearchTermsUsed([]);
   }, []);
 
   return {
@@ -205,6 +112,9 @@ export const useAiSearch = (basePath: string) => {
     aiResults,
     isAiSearching,
     aiParsedInfo,
+    matchedItems,
+    provider,
+    searchTermsUsed,
     handleAiResultSelect,
     clearAiSearch,
   };

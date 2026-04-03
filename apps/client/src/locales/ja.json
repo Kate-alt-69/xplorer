@@ -2056,5 +2056,12 @@
       "orKey": "or",
       "toClose": "to close"
     }
+  },
+  "search": {
+    "aiThinking": "AI が検索中...",
+    "aiProvider": "{{provider}} 経由",
+    "aiNoProvider": "AI 利用不可、テキスト検索を使用",
+    "aiSearchTerms": "検索キーワード",
+    "aiMatchedItems": "フォルダ一致"
   }
 }

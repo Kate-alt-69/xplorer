@@ -2056,5 +2056,12 @@
       "orKey": "or",
       "toClose": "to close"
     }
+  },
+  "search": {
+    "aiThinking": "AI is thinking...",
+    "aiProvider": "via {{provider}}",
+    "aiNoProvider": "No AI available, using text search",
+    "aiSearchTerms": "Search terms",
+    "aiMatchedItems": "Matched from folder"
   }
 }

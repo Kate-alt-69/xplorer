@@ -2056,5 +2056,12 @@
       "orKey": "or",
       "toClose": "to close"
     }
+  },
+  "search": {
+    "aiThinking": "AI sedang berpikir...",
+    "aiProvider": "melalui {{provider}}",
+    "aiNoProvider": "AI tidak tersedia, menggunakan pencarian teks",
+    "aiSearchTerms": "Kata kunci pencarian",
+    "aiMatchedItems": "Cocok dari folder"
   }
 }

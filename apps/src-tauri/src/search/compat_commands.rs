@@ -4,7 +4,11 @@
 // They delegate to the global SearchEngine singleton.
 // Signatures match the old commands (async fn, Result<T, String>).
 
+use std::collections::HashSet;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use serde::{Deserialize, Serialize};
 
 use super::context_ranker::ContextualRanker;
 use super::hybrid::{HybridSearchConfig, HybridSearcher};
@@ -18,6 +22,33 @@ use super::compat_types::{
 };
 
 use super::ai_pipeline::{AIIndexEntry, AIIndexStatus};
+
+// ===== Smart Search types ====================================================
+
+static SMART_SEARCH_GENERATION: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SmartSearchResult {
+    pub results: Vec<SearchResult>,
+    pub matched_items: Vec<String>,
+    pub explanation: Option<String>,
+    pub provider: String,
+    pub search_terms_used: Vec<String>,
+}
+
+#[derive(Deserialize, Default)]
+struct LlmSearchResponse {
+    #[serde(default)]
+    matched_items: Vec<String>,
+    #[serde(default)]
+    search_terms: Vec<String>,
+    #[serde(default)]
+    explanation: String,
+    #[serde(default)]
+    sort: Option<String>,
+    #[serde(default)]
+    file_type: Option<String>,
+}
 
 #[tauri::command]
 pub async fn set_tokenizer_settings(settings: TokenizerSettings) -> Result<(), String> {
@@ -230,7 +261,7 @@ pub async fn ai_search(
 
     // Step 3: Call AI provider.
     let ai_response =
-        crate::ai::search_rerank_with_ai(&prompt, &provider, api_key.as_deref(), model.as_deref())
+        crate::ai::search_rerank_with_ai(&prompt, &provider, api_key.as_deref(), model.as_deref(), None)
             .await?;
 
     // Step 4: Parse AI response and re-rank.
@@ -443,4 +474,376 @@ pub async fn hybrid_search(
 
     fused.truncate(lim);
     Ok(fused)
+}
+
+// ===== LLM-powered smart search =============================================
+
+const SMART_SEARCH_SYSTEM_PROMPT: &str = "\
+You are a file search assistant for a desktop file manager. \
+Interpret the user's search query and return a search strategy as JSON. \
+Return ONLY a valid JSON object with no additional text.";
+
+const SMART_SEARCH_MAX_DIR_ITEMS: usize = 200;
+const SMART_SEARCH_MAX_TERMS: usize = 6;
+const SMART_SEARCH_MAX_TERM_LEN: usize = 100;
+const SMART_SEARCH_WALKDIR_DEPTH: usize = 3;
+
+/// Parse LLM response text into an LlmSearchResponse, handling markdown fences
+/// and malformed JSON gracefully.
+fn parse_llm_json(raw: &str) -> LlmSearchResponse {
+    // Strip markdown fences
+    let stripped = raw
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim();
+
+    // Find outermost { ... }
+    let json_str = if let Some(start) = stripped.find('{') {
+        if let Some(end) = stripped.rfind('}') {
+            &stripped[start..=end]
+        } else {
+            stripped
+        }
+    } else {
+        stripped
+    };
+
+    serde_json::from_str::<LlmSearchResponse>(json_str).unwrap_or_default()
+}
+
+/// Sanitize a search term: reject path traversal characters, cap length.
+fn sanitize_search_term(term: &str) -> Option<String> {
+    let trimmed = term.trim();
+    if trimmed.is_empty() || trimmed.len() > SMART_SEARCH_MAX_TERM_LEN {
+        return None;
+    }
+    if trimmed.contains("..") || trimmed.contains('/') || trimmed.contains('\\') {
+        return None;
+    }
+    Some(trimmed.to_string())
+}
+
+/// Map file_type string from LLM to a set of extensions for filtering.
+fn file_type_extensions(file_type: &str) -> Option<HashSet<&'static str>> {
+    let exts: &[&str] = match file_type {
+        "image" => &["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "tiff", "heic", "ico"],
+        "video" => &["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"],
+        "document" => &["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "csv", "odt"],
+        "audio" => &["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"],
+        "code" => &["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h", "css", "html", "json", "toml", "yaml", "yml"],
+        "archive" => &["zip", "tar", "gz", "bz2", "xz", "7z", "rar"],
+        _ => return None,
+    };
+    Some(exts.iter().copied().collect())
+}
+
+#[tauri::command]
+pub async fn smart_search(
+    query: String,
+    current_directory: String,
+    limit: Option<usize>,
+) -> Result<SmartSearchResult, String> {
+    let generation = SMART_SEARCH_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let lim = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
+    let trimmed_query = query.trim().to_string();
+
+    if trimmed_query.is_empty() {
+        return Ok(SmartSearchResult {
+            results: Vec::new(),
+            matched_items: Vec::new(),
+            explanation: None,
+            provider: "none".into(),
+            search_terms_used: Vec::new(),
+        });
+    }
+
+    // Step 1: Read directory listing, sorted by mtime desc, capped at 200
+    let dir_path = current_directory.clone();
+    let dir_items = tokio::task::spawn_blocking(move || {
+        let mut entries: Vec<(String, u64)> = Vec::new();
+        if let Ok(read_dir) = std::fs::read_dir(&dir_path) {
+            for entry in read_dir.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                let mtime = entry
+                    .metadata()
+                    .ok()
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                entries.push((name, mtime));
+            }
+        }
+        entries.sort_by(|a, b| b.1.cmp(&a.1));
+        entries.truncate(SMART_SEARCH_MAX_DIR_ITEMS);
+        entries
+    })
+    .await
+    .map_err(|e| format!("Failed to read directory: {}", e))?;
+
+    // Check if stale
+    if SMART_SEARCH_GENERATION.load(Ordering::SeqCst) != generation {
+        return Ok(SmartSearchResult {
+            results: Vec::new(),
+            matched_items: Vec::new(),
+            explanation: None,
+            provider: "cancelled".into(),
+            search_terms_used: Vec::new(),
+        });
+    }
+
+    // Step 2: Detect LLM provider
+    let provider_info = crate::ai::detect_best_provider().await;
+
+    if provider_info.is_none() {
+        // Fallback to enhanced_search
+        let query_clone = trimmed_query.clone();
+        let fallback = tokio::task::spawn_blocking(move || {
+            get_search_engine().enhanced_search(&query_clone, None, lim)
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        return Ok(SmartSearchResult {
+            results: fallback.results,
+            matched_items: Vec::new(),
+            explanation: None,
+            provider: "fallback".into(),
+            search_terms_used: vec![trimmed_query],
+        });
+    }
+
+    let (provider, api_key, model) = provider_info.unwrap();
+
+    // Step 3: Build prompt
+    let item_list: String = dir_items
+        .iter()
+        .enumerate()
+        .map(|(i, (name, _))| format!("{}. \"{}\"", i + 1, name))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    let truncation_note = if dir_items.len() >= SMART_SEARCH_MAX_DIR_ITEMS {
+        format!("\n(Showing {} most recent items; directory may contain more)", SMART_SEARCH_MAX_DIR_ITEMS)
+    } else {
+        String::new()
+    };
+
+    let prompt = format!(
+        "Current directory: {current_directory}\n\
+         Items in this directory (most recent first):\n\
+         {item_list}{truncation_note}\n\n\
+         User's search query: \"{trimmed_query}\"\n\n\
+         Return ONLY a valid JSON object with no additional text:\n\
+         {{\n\
+           \"matched_items\": [],\n\
+           \"search_terms\": [],\n\
+           \"explanation\": \"\",\n\
+           \"sort\": null,\n\
+           \"file_type\": null\n\
+         }}\n\n\
+         Field rules:\n\
+         - matched_items: exact names from the \"Items\" list above that match the user's intent. Empty if none match.\n\
+         - search_terms: keywords for deeper filesystem search. Include translations if items use other languages. Max 6 terms.\n\
+         - explanation: 1-sentence interpretation of the query (max 100 chars).\n\
+         - sort: \"newest\" | \"oldest\" | \"largest\" | \"smallest\" | null (null = relevance order).\n\
+         - file_type: \"image\" | \"video\" | \"document\" | \"audio\" | \"code\" | \"archive\" | null (null = any type)."
+    );
+
+    // Step 4: Call AI
+    let ai_response = crate::ai::search_rerank_with_ai(
+        &prompt,
+        &provider,
+        api_key.as_deref(),
+        Some(&model),
+        Some(SMART_SEARCH_SYSTEM_PROMPT),
+    )
+    .await;
+
+    // Check if stale after LLM call
+    if SMART_SEARCH_GENERATION.load(Ordering::SeqCst) != generation {
+        return Ok(SmartSearchResult {
+            results: Vec::new(),
+            matched_items: Vec::new(),
+            explanation: None,
+            provider: "cancelled".into(),
+            search_terms_used: Vec::new(),
+        });
+    }
+
+    // Step 5: Parse response
+    let llm_response = match ai_response {
+        Ok(text) => parse_llm_json(&text),
+        Err(_) => LlmSearchResponse::default(),
+    };
+
+    // Step 6: Validate matched_items against actual directory listing
+    let actual_names: HashSet<String> = dir_items.iter().map(|(n, _)| n.clone()).collect();
+    let validated_matches: Vec<String> = llm_response
+        .matched_items
+        .into_iter()
+        .filter(|name| actual_names.contains(name))
+        .collect();
+
+    // Step 7: Sanitize search_terms
+    let sanitized_terms: Vec<String> = llm_response
+        .search_terms
+        .into_iter()
+        .filter_map(|t| sanitize_search_term(&t))
+        .take(SMART_SEARCH_MAX_TERMS)
+        .collect();
+
+    let explanation = if llm_response.explanation.is_empty() {
+        None
+    } else {
+        Some(llm_response.explanation.chars().take(200).collect())
+    };
+
+    // Step 8: Build matched_items results
+    let mut all_results: Vec<SearchResult> = Vec::new();
+    let mut seen_paths: HashSet<String> = HashSet::new();
+
+    for matched_name in &validated_matches {
+        let full_path = Path::new(&current_directory)
+            .join(matched_name)
+            .to_string_lossy()
+            .to_string();
+        if seen_paths.insert(full_path.clone()) {
+            all_results.push(SearchResult {
+                path: full_path,
+                filename: matched_name.clone(),
+                matches: vec![],
+                score: 100.0,
+                relevance_type: "ai_matched".to_string(),
+                snippet: None,
+            });
+        }
+    }
+
+    // Step 9: Keyword search via BM25F index + walkdir fallback
+    if !sanitized_terms.is_empty() {
+        // BM25F index search for each term
+        let terms_for_search = sanitized_terms.clone();
+        let search_limit = lim * 3;
+        let mut index_results: Vec<SearchResult> = tokio::task::spawn_blocking(move || {
+            let engine = get_search_engine();
+            let mut combined: Vec<SearchResult> = Vec::new();
+            for term in &terms_for_search {
+                let results = engine.search(term, search_limit);
+                combined.extend(results);
+            }
+            combined
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+
+        // If index returned nothing, do single-pass walkdir fallback
+        if index_results.is_empty() {
+            let walk_dir = current_directory.clone();
+            let walk_terms = sanitized_terms.clone();
+            index_results = tokio::task::spawn_blocking(move || {
+                let mut results: Vec<SearchResult> = Vec::new();
+                let walker = walkdir::WalkDir::new(&walk_dir)
+                    .max_depth(SMART_SEARCH_WALKDIR_DEPTH)
+                    .follow_links(false);
+
+                for entry in walker.into_iter().filter_map(|e| e.ok()) {
+                    let name = entry.file_name().to_string_lossy().to_lowercase();
+                    let matches_any = walk_terms.iter().any(|t| name.contains(&t.to_lowercase()));
+                    if matches_any {
+                        let path = entry.path().to_string_lossy().to_string();
+                        let filename = entry.file_name().to_string_lossy().to_string();
+                        results.push(SearchResult {
+                            path,
+                            filename,
+                            matches: vec![],
+                            score: 50.0,
+                            relevance_type: "ai_walkdir".to_string(),
+                            snippet: None,
+                        });
+                    }
+                    if results.len() >= 500 {
+                        break;
+                    }
+                }
+                results
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+        }
+
+        for result in index_results {
+            if seen_paths.insert(result.path.clone()) {
+                all_results.push(result);
+            }
+        }
+    }
+
+    // Step 10: Apply sort
+    match llm_response.sort.as_deref() {
+        Some("newest") => {
+            all_results.sort_by(|a, b| {
+                let ma = std::fs::metadata(&a.path)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                let mb = std::fs::metadata(&b.path)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                mb.cmp(&ma)
+            });
+        }
+        Some("oldest") => {
+            all_results.sort_by(|a, b| {
+                let ma = std::fs::metadata(&a.path)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                let mb = std::fs::metadata(&b.path)
+                    .and_then(|m| m.modified())
+                    .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+                ma.cmp(&mb)
+            });
+        }
+        Some("largest") => {
+            all_results.sort_by(|a, b| {
+                let sa = std::fs::metadata(&a.path).map(|m| m.len()).unwrap_or(0);
+                let sb = std::fs::metadata(&b.path).map(|m| m.len()).unwrap_or(0);
+                sb.cmp(&sa)
+            });
+        }
+        Some("smallest") => {
+            all_results.sort_by(|a, b| {
+                let sa = std::fs::metadata(&a.path).map(|m| m.len()).unwrap_or(0);
+                let sb = std::fs::metadata(&b.path).map(|m| m.len()).unwrap_or(0);
+                sa.cmp(&sb)
+            });
+        }
+        _ => {}
+    }
+
+    // Step 11: Apply file_type filter
+    if let Some(ref ft) = llm_response.file_type {
+        if let Some(exts) = file_type_extensions(ft) {
+            all_results.retain(|r| {
+                let ext = Path::new(&r.path)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_lowercase())
+                    .unwrap_or_default();
+                exts.contains(ext.as_str()) || r.relevance_type == "ai_matched"
+            });
+        }
+    }
+
+    // Step 12: Truncate
+    all_results.truncate(lim);
+
+    Ok(SmartSearchResult {
+        results: all_results,
+        matched_items: validated_matches,
+        explanation,
+        provider,
+        search_terms_used: sanitized_terms,
+    })
 }

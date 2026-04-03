@@ -224,6 +224,17 @@ impl OllamaClient {
         None
     }
 
+    /// Find the first available general-purpose chat model (not vision or embedding).
+    pub async fn detect_chat_model(&self) -> Option<String> {
+        let models = self.list_models().await.ok()?;
+        for model_name in &models {
+            if !is_vision_model(model_name) && !is_embedding_model(model_name) {
+                return Some(model_name.clone());
+            }
+        }
+        None
+    }
+
     /// Find the first available embedding model from the installed list.
     pub async fn detect_embedding_model(&self) -> Option<String> {
         let models = self.list_models().await.ok()?;

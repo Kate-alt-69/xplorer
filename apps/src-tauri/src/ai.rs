@@ -403,15 +403,19 @@ async fn route_ai_request(
 // AI Search Re-ranking
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Re-rank search results using an AI provider (Claude, OpenAI, or Ollama).
-/// `prompt` contains the formatted query + file list.
-/// Returns the raw AI response text (expected to be JSON).
+/// Send a prompt to an AI provider (Claude, OpenAI, or Ollama) and return the raw response.
+/// Used for search re-ranking, smart search, and other AI-assisted features.
+/// When `system_prompt` is None, defaults to the search relevance ranker prompt.
 pub async fn search_rerank_with_ai(
     prompt: &str,
     provider: &str,
     api_key: Option<&str>,
     model: Option<&str>,
+    system_prompt: Option<&str>,
 ) -> Result<String, String> {
+    let sys_prompt = system_prompt.unwrap_or(
+        "You are a file search relevance ranker. Return ONLY valid JSON arrays. No explanation.",
+    );
     match provider {
         "claude" => {
             let key = api_key
@@ -437,7 +441,7 @@ pub async fn search_rerank_with_ai(
                 "model": model_id,
                 "max_tokens": 2048,
                 "messages": [{"role": "user", "content": prompt}],
-                "system": "You are a file search relevance ranker. Return ONLY valid JSON arrays. No explanation."
+                "system": sys_prompt
             });
 
             let response = client
@@ -502,7 +506,7 @@ pub async fn search_rerank_with_ai(
                 "model": model_id,
                 "max_tokens": 2048,
                 "messages": [
-                    {"role": "system", "content": "You are a file search relevance ranker. Return ONLY valid JSON arrays. No explanation."},
+                    {"role": "system", "content": sys_prompt},
                     {"role": "user", "content": prompt}
                 ]
             });
@@ -565,6 +569,48 @@ pub async fn search_rerank_with_ai(
 
         _ => Err(format!("Unknown AI provider: {}", provider)),
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Provider Auto-Detection
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Auto-detect the best available LLM provider.
+/// Tries Ollama (local) first, then Claude, then OpenAI.
+/// Returns `Some((provider, api_key, model))` or `None` if nothing is available.
+pub async fn detect_best_provider() -> Option<(String, Option<String>, String)> {
+    // 1. Try Ollama (local, free)
+    let client = crate::search::ollama_client::get_client();
+    let available =
+        tokio::task::spawn_blocking(move || client.is_available())
+            .await
+            .unwrap_or(false);
+    if available {
+        let client = crate::search::ollama_client::get_client();
+        if let Some(model) = client.detect_chat_model().await {
+            return Some(("ollama".into(), None, model));
+        }
+    }
+
+    // 2. Try Claude (keychain or env)
+    let claude_key = crate::secure_credentials::get_secret("agent-api-key")
+        .ok()
+        .flatten()
+        .or_else(|| env::var("CLAUDE_API_KEY").ok());
+    if let Some(key) = claude_key {
+        return Some(("claude".into(), Some(key), "claude-haiku-4-5-20251001".into()));
+    }
+
+    // 3. Try OpenAI (keychain or env)
+    let openai_key = crate::secure_credentials::get_secret("agent-openai-api-key")
+        .ok()
+        .flatten()
+        .or_else(|| env::var("OPENAI_API_KEY").ok());
+    if let Some(key) = openai_key {
+        return Some(("openai".into(), Some(key), "gpt-4o-mini".into()));
+    }
+
+    None
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

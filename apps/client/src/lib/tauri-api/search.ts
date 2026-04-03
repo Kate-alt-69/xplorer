@@ -3,6 +3,7 @@ import type {
   SearchResult,
   EnhancedSearchResult,
   AISearchResult,
+  SmartSearchResult,
   AIIndexStatus,
   AIIndexEntry,
   TokenIndex,
@@ -99,6 +100,19 @@ export const aiSearch = async (
     provider,
     apiKey: apiKey || null,
     model: model || null,
+    limit: limit || null,
+  });
+
+// ── LLM-powered smart search ────────────────────────────────────────────────
+
+export const smartSearch = async (
+  query: string,
+  currentDirectory: string,
+  limit?: number,
+): Promise<SmartSearchResult> =>
+  await transport('smart_search', {
+    query,
+    currentDirectory,
     limit: limit || null,
   });
 

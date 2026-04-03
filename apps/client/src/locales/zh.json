@@ -2056,5 +2056,12 @@
       "orKey": "or",
       "toClose": "to close"
     }
+  },
+  "search": {
+    "aiThinking": "AI 思考中...",
+    "aiProvider": "通过 {{provider}}",
+    "aiNoProvider": "AI 不可用，使用文本搜索",
+    "aiSearchTerms": "搜索词",
+    "aiMatchedItems": "文件夹匹配"
   }
 }
