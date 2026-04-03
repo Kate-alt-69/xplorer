@@ -551,5 +551,11 @@ Sidebar.register({
   location: 'right',
   permissions: ['system:exec'],
   render: (_props: SidebarRenderProps) => React.createElement(DockerPanel, { api }),
-  onActivate: (injectedApi: XplorerAPI) => { api = injectedApi; },
+  onActivate: async (injectedApi: XplorerAPI) => {
+    api = injectedApi;
+    const available = await api.docker.isAvailable();
+    if (!available) {
+      throw new Error('Docker CLI is not available');
+    }
+  },
 });
