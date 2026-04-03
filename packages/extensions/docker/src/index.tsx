@@ -547,7 +547,7 @@ Sidebar.register({
   id: 'docker-manager',
   title: 'Docker',
   description: 'Manage Docker containers and images',
-  icon: 'package',
+  icon: 'container',
   location: 'right',
   permissions: ['system:exec'],
   render: (_props: SidebarRenderProps) => React.createElement(DockerPanel, { api }),
