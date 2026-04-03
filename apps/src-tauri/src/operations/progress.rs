@@ -1,5 +1,6 @@
 use crate::operations::types::{FileOperationProgress, OperationProgress, OperationStatus};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
@@ -12,6 +13,7 @@ pub struct ProgressManager {
     operations: Arc<Mutex<HashMap<String, OperationProgress>>>,
     file_operations: Arc<Mutex<HashMap<String, FileOperationProgress>>>,
     callbacks: Arc<Mutex<HashMap<String, ProgressCallback>>>,
+    cancellation_flags: Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>,
 }
 
 impl Default for ProgressManager {
@@ -27,6 +29,7 @@ impl ProgressManager {
             operations: Arc::new(Mutex::new(HashMap::new())),
             file_operations: Arc::new(Mutex::new(HashMap::new())),
             callbacks: Arc::new(Mutex::new(HashMap::new())),
+            cancellation_flags: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -252,6 +255,65 @@ impl ProgressManager {
 
                 self.notify_file_progress(progress);
             }
+        }
+    }
+
+    /// Create a cancellation token for an operation. Returns an `Arc<AtomicBool>`
+    /// that the background task should check periodically.
+    pub fn create_cancellation_token(&self, operation_id: &str) -> Arc<AtomicBool> {
+        let token = Arc::new(AtomicBool::new(false));
+        if let Ok(mut flags) = self.cancellation_flags.lock() {
+            flags.insert(operation_id.to_string(), token.clone());
+        }
+        token
+    }
+
+    /// Signal cancellation for the given operation and emit a Cancelled status.
+    pub fn cancel_operation(&self, operation_id: &str) -> bool {
+        let found = if let Ok(flags) = self.cancellation_flags.lock() {
+            if let Some(flag) = flags.get(operation_id) {
+                flag.store(true, Ordering::SeqCst);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if found {
+            // Update operation status
+            if let Ok(mut operations) = self.operations.lock() {
+                if let Some(progress) = operations.get_mut(operation_id) {
+                    progress.status = OperationStatus::Cancelled;
+                    self.notify_progress(progress);
+                }
+            }
+            if let Ok(mut operations) = self.file_operations.lock() {
+                if let Some(progress) = operations.get_mut(operation_id) {
+                    progress.status = OperationStatus::Cancelled;
+                    self.notify_file_progress(progress);
+                }
+            }
+        }
+
+        found
+    }
+
+    /// Check whether an operation has been cancelled.
+    pub fn is_cancelled(&self, operation_id: &str) -> bool {
+        if let Ok(flags) = self.cancellation_flags.lock() {
+            if let Some(flag) = flags.get(operation_id) {
+                return flag.load(Ordering::SeqCst);
+            }
+        }
+        false
+    }
+
+    /// Remove the cancellation token when the operation finishes.
+    pub fn remove_cancellation_token(&self, operation_id: &str) {
+        if let Ok(mut flags) = self.cancellation_flags.lock() {
+            flags.remove(operation_id);
         }
     }
 

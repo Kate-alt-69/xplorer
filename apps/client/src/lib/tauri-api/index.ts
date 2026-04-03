@@ -91,6 +91,7 @@ export class TauriAPI {
   static showInFolder = fileSystem.showInFolder;
   static copyWithProgress = fileSystem.copyWithProgress;
   static moveWithProgress = fileSystem.moveWithProgress;
+  static cancelFileOperation = fileSystem.cancelFileOperation;
   static acceleratedCopyFile = fileSystem.acceleratedCopyFile;
   static acceleratedCopyDirectory = fileSystem.acceleratedCopyDirectory;
   static listenToFileOperationProgress = fileSystem.listenToFileOperationProgress;
@@ -127,6 +128,7 @@ export class TauriAPI {
   // ── Search ──────────────────────────────────────────────────────────────
   static findFiles = search.findFiles;
   static searchInFiles = search.searchInFiles;
+  static grepSearch = search.grepSearch;
   static setTokenizerSettings = search.setTokenizerSettings;
   static getTokenizerSettings = search.getTokenizerSettings;
   static rebuildTokenIndex = search.rebuildTokenIndex;
@@ -274,6 +276,7 @@ export class TauriAPI {
   static executeCommand = system.executeCommand;
   static executeCommandStream = system.executeCommandStream;
   static getCurrentShell = system.getCurrentShell;
+  static openUrl = system.openUrl;
   static openInTerminal = system.openInTerminal;
   static listenToTerminalOutput = system.listenToTerminalOutput;
   static listenToEvent = system.listenToEvent;

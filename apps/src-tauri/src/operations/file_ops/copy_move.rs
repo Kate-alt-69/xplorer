@@ -4,10 +4,19 @@ use crate::operations::undo_redo::{record_operation, FileOperation};
 use crate::operations::validate_file_path;
 use std::fs;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use tauri::command;
 use tracing::warn;
+
+#[command]
+pub async fn cancel_file_operation(
+    operation_id: String,
+    progress_manager: tauri::State<'_, Arc<ProgressManager>>,
+) -> Result<bool, String> {
+    Ok(progress_manager.cancel_operation(&operation_id))
+}
 
 #[command]
 pub async fn copy_with_progress(
@@ -30,6 +39,7 @@ pub async fn copy_with_progress(
     let operation_id_clone = operation_id.clone();
     let source_clone = source.clone();
     let destination_clone = destination.clone();
+    let cancel_token = progress_manager.create_cancellation_token(&operation_id);
 
     // Spawn background task for copy operation
     thread::spawn(move || {
@@ -39,35 +49,71 @@ pub async fn copy_with_progress(
         let result = if src.is_file() {
             copy_file_with_progress(src, dst, &progress_manager, &operation_id_clone)
         } else if src.is_dir() {
-            copy_directory_with_progress(src, dst, &progress_manager, &operation_id_clone)
+            copy_directory_with_progress(
+                src,
+                dst,
+                &progress_manager,
+                &operation_id_clone,
+                &cancel_token,
+            )
         } else {
             Err("Invalid source type".to_string())
         };
 
         match result {
             Ok(_) => {
-                let s = src.to_string_lossy().to_string();
-                let d = dst.to_string_lossy().to_string();
-                record_operation(FileOperation::Copy {
-                    src: s.clone(),
-                    dest: d.clone(),
-                });
-                log_operation("copy", vec![s, d], None, true);
-                progress_manager.complete_operation(&operation_id_clone);
+                if cancel_token.load(Ordering::SeqCst) {
+                    // Operation was cancelled -- clean up partial copy
+                    if dst.exists() {
+                        let _ = fs::remove_dir_all(dst);
+                    }
+                    log_operation(
+                        "copy",
+                        vec![
+                            src.to_string_lossy().to_string(),
+                            dst.to_string_lossy().to_string(),
+                        ],
+                        Some("Cancelled by user".to_string()),
+                        false,
+                    );
+                    progress_manager.cancel_operation(&operation_id_clone);
+                } else {
+                    let s = src.to_string_lossy().to_string();
+                    let d = dst.to_string_lossy().to_string();
+                    record_operation(FileOperation::Copy {
+                        src: s.clone(),
+                        dest: d.clone(),
+                    });
+                    log_operation("copy", vec![s, d], None, true);
+                    progress_manager.complete_operation(&operation_id_clone);
+                }
             }
             Err(e) => {
-                log_operation(
-                    "copy",
-                    vec![
-                        src.to_string_lossy().to_string(),
-                        dst.to_string_lossy().to_string(),
-                    ],
-                    Some(e.clone()),
-                    false,
-                );
-                progress_manager.fail_operation(&operation_id_clone, e);
+                if cancel_token.load(Ordering::SeqCst) {
+                    // Cancelled -- clean up partial copy
+                    if dst.exists() {
+                        if dst.is_dir() {
+                            let _ = fs::remove_dir_all(dst);
+                        } else {
+                            let _ = fs::remove_file(dst);
+                        }
+                    }
+                    progress_manager.cancel_operation(&operation_id_clone);
+                } else {
+                    log_operation(
+                        "copy",
+                        vec![
+                            src.to_string_lossy().to_string(),
+                            dst.to_string_lossy().to_string(),
+                        ],
+                        Some(e.clone()),
+                        false,
+                    );
+                    progress_manager.fail_operation(&operation_id_clone, e);
+                }
             }
         }
+        progress_manager.remove_cancellation_token(&operation_id_clone);
     });
 
     Ok(operation_id)
@@ -94,38 +140,79 @@ pub async fn move_with_progress(
     let operation_id_clone = operation_id.clone();
     let source_clone = source.clone();
     let destination_clone = destination.clone();
+    let cancel_token = progress_manager.create_cancellation_token(&operation_id);
 
     // Spawn background task for move operation
     thread::spawn(move || {
         let src = Path::new(&source_clone);
         let dst = Path::new(&destination_clone);
 
-        let result = move_with_progress_impl(src, dst, &progress_manager, &operation_id_clone);
+        let result = move_with_progress_impl(
+            src,
+            dst,
+            &progress_manager,
+            &operation_id_clone,
+            &cancel_token,
+        );
 
         match result {
             Ok(_) => {
-                let s = src.to_string_lossy().to_string();
-                let d = dst.to_string_lossy().to_string();
-                record_operation(FileOperation::Move {
-                    src: s.clone(),
-                    dest: d.clone(),
-                });
-                log_operation("move", vec![s, d], None, true);
-                progress_manager.complete_operation(&operation_id_clone);
+                if cancel_token.load(Ordering::SeqCst) {
+                    // Cancelled during cross-filesystem move -- clean up partial copy
+                    // but do NOT remove the source (it was not yet deleted)
+                    if dst.exists() {
+                        if dst.is_dir() {
+                            let _ = fs::remove_dir_all(dst);
+                        } else {
+                            let _ = fs::remove_file(dst);
+                        }
+                    }
+                    log_operation(
+                        "move",
+                        vec![
+                            src.to_string_lossy().to_string(),
+                            dst.to_string_lossy().to_string(),
+                        ],
+                        Some("Cancelled by user".to_string()),
+                        false,
+                    );
+                    progress_manager.cancel_operation(&operation_id_clone);
+                } else {
+                    let s = src.to_string_lossy().to_string();
+                    let d = dst.to_string_lossy().to_string();
+                    record_operation(FileOperation::Move {
+                        src: s.clone(),
+                        dest: d.clone(),
+                    });
+                    log_operation("move", vec![s, d], None, true);
+                    progress_manager.complete_operation(&operation_id_clone);
+                }
             }
             Err(e) => {
-                log_operation(
-                    "move",
-                    vec![
-                        src.to_string_lossy().to_string(),
-                        dst.to_string_lossy().to_string(),
-                    ],
-                    Some(e.clone()),
-                    false,
-                );
-                progress_manager.fail_operation(&operation_id_clone, e);
+                if cancel_token.load(Ordering::SeqCst) {
+                    if dst.exists() {
+                        if dst.is_dir() {
+                            let _ = fs::remove_dir_all(dst);
+                        } else {
+                            let _ = fs::remove_file(dst);
+                        }
+                    }
+                    progress_manager.cancel_operation(&operation_id_clone);
+                } else {
+                    log_operation(
+                        "move",
+                        vec![
+                            src.to_string_lossy().to_string(),
+                            dst.to_string_lossy().to_string(),
+                        ],
+                        Some(e.clone()),
+                        false,
+                    );
+                    progress_manager.fail_operation(&operation_id_clone, e);
+                }
             }
         }
+        progress_manager.remove_cancellation_token(&operation_id_clone);
     });
 
     Ok(operation_id)
@@ -173,6 +260,7 @@ fn copy_directory_with_progress(
     dst: &Path,
     progress_manager: &ProgressManager,
     operation_id: &str,
+    cancel_token: &AtomicBool,
 ) -> Result<(), String> {
     // First, count total files and calculate total size
     let (total_count, total_size) = count_directory_contents(src)?;
@@ -194,6 +282,7 @@ fn copy_directory_with_progress(
         operation_id,
         &mut processed_count,
         &mut processed_bytes,
+        cancel_token,
     )
 }
 
@@ -204,7 +293,12 @@ fn copy_directory_recursive(
     operation_id: &str,
     processed_count: &mut u64,
     processed_bytes: &mut u64,
+    cancel_token: &AtomicBool,
 ) -> Result<(), String> {
+    if cancel_token.load(Ordering::SeqCst) {
+        return Err("Operation cancelled".to_string());
+    }
+
     if !dst.exists() {
         fs::create_dir_all(dst)
             .map_err(|e| format!("Failed to create destination directory: {}", e))?;
@@ -214,6 +308,10 @@ fn copy_directory_recursive(
         fs::read_dir(src).map_err(|e| format!("Failed to read source directory: {}", e))?;
 
     for entry in entries {
+        if cancel_token.load(Ordering::SeqCst) {
+            return Err("Operation cancelled".to_string());
+        }
+
         let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
         let src_path = entry.path();
         let dst_path = dst.join(entry.file_name());
@@ -259,6 +357,7 @@ fn copy_directory_recursive(
                 operation_id,
                 processed_count,
                 processed_bytes,
+                cancel_token,
             )?;
         }
     }
@@ -271,6 +370,7 @@ fn move_with_progress_impl(
     dst: &Path,
     progress_manager: &ProgressManager,
     operation_id: &str,
+    cancel_token: &AtomicBool,
 ) -> Result<(), String> {
     if dst.exists() {
         return Err(format!("Destination already exists: {}", dst.display()));
@@ -300,9 +400,15 @@ fn move_with_progress_impl(
     // If rename fails (different filesystems), fall back to copy + delete
     if src.is_file() {
         copy_file_with_progress(src, dst, progress_manager, operation_id)?;
+        if cancel_token.load(Ordering::SeqCst) {
+            return Err("Operation cancelled".to_string());
+        }
         fs::remove_file(src).map_err(|e| format!("Failed to remove source file: {}", e))?;
     } else if src.is_dir() {
-        copy_directory_with_progress(src, dst, progress_manager, operation_id)?;
+        copy_directory_with_progress(src, dst, progress_manager, operation_id, cancel_token)?;
+        if cancel_token.load(Ordering::SeqCst) {
+            return Err("Operation cancelled".to_string());
+        }
         fs::remove_dir_all(src).map_err(|e| format!("Failed to remove source directory: {}", e))?;
     }
 

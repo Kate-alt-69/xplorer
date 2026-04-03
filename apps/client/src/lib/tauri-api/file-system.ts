@@ -280,6 +280,9 @@ export const copyWithProgress = async (source: string, destination: string): Pro
 export const moveWithProgress = async (source: string, destination: string): Promise<string> =>
   await transport('move_with_progress', { source, destination });
 
+export const cancelFileOperation = async (operationId: string): Promise<boolean> =>
+  await transport('cancel_file_operation', { operationId });
+
 // ── Hardware-Accelerated file operations ────────────────────────────────────
 
 export const acceleratedCopyFile = async (source: string, destination: string): Promise<string> =>

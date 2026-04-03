@@ -15,6 +15,7 @@ vi.mock('@/lib/tauri-api', () => ({
         progressCallback = null;
       });
     }),
+    cancelFileOperation: vi.fn(() => Promise.resolve(true)),
   },
   FileOperationProgress: {},
 }));
@@ -330,11 +331,13 @@ describe('FileOperationProgressDialog', () => {
 
       expect(screen.getByText('Copy')).toBeInTheDocument();
 
-      // Find and click the dismiss button (the X icon button)
-      const dismissButton = screen
+      // Find and click the dismiss button (the X icon button, last button in the header)
+      const buttons = screen
         .getByText('Copy')
         .closest('.bg-xp-surface')
-        ?.querySelector('button');
+        ?.querySelectorAll('button');
+      expect(buttons).toBeTruthy();
+      const dismissButton = buttons![buttons!.length - 1];
       expect(dismissButton).not.toBeNull();
 
       await act(async () => {

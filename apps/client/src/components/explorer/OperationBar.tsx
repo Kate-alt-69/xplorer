@@ -212,7 +212,40 @@ const OperationBar = ({
 
           {/* Separator */}
           <div className="bg-xp-border h-4 w-px" />
+          {/* View Mode Dropdown */}
+          <div className="relative flex items-center gap-1">
+            <button
+              onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)}
+              className="text-xp-text-muted hover:text-xp-text hover:bg-xp-surface-light flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
+              aria-label={t('operationBar.viewMode', {
+                name: viewModes[viewMode]?.name || 'Medium Icons',
+              })}
+            >
+              <span className="text-sm">{viewModes[viewMode]?.icon}</span>
+              <span className="whitespace-nowrap">{viewModes[viewMode]?.name || 'Grid'}</span>
+              <ChevronDown size={12} className="opacity-60" />
+            </button>
 
+            {isViewDropdownOpen && (
+              <div className="bg-xp-popover border-xp-border absolute left-0 top-full z-50 mt-1 min-w-[170px] rounded-lg border py-1 shadow-xl backdrop-blur-xl">
+                {Object.values(viewModes).map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => {
+                      setViewMode(mode.id);
+                      setIsViewDropdownOpen(false);
+                    }}
+                    className={`hover:bg-xp-surface-light flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors ${
+                      viewMode === mode.id ? 'text-xp-blue' : ''
+                    }`}
+                  >
+                    <span className="text-sm">{mode.icon}</span>
+                    <span className="text-xs">{mode.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {/* Copy / Cut / Paste / Delete — icon-only, Finder-style */}
           {onCopy && (
             <button
@@ -284,41 +317,6 @@ const OperationBar = ({
 
           {/* Separator */}
           <div className="bg-xp-border h-4 w-px" />
-
-          {/* View Mode Dropdown */}
-          <div className="relative flex items-center gap-1">
-            <button
-              onClick={() => setIsViewDropdownOpen(!isViewDropdownOpen)}
-              className="text-xp-text-muted hover:text-xp-text hover:bg-xp-surface-light flex items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
-              aria-label={t('operationBar.viewMode', {
-                name: viewModes[viewMode]?.name || 'Medium Icons',
-              })}
-            >
-              <span className="text-sm">{viewModes[viewMode]?.icon}</span>
-              <span className="whitespace-nowrap">{viewModes[viewMode]?.name || 'Grid'}</span>
-              <ChevronDown size={12} className="opacity-60" />
-            </button>
-
-            {isViewDropdownOpen && (
-              <div className="bg-xp-popover border-xp-border absolute left-0 top-full z-50 mt-1 min-w-[170px] rounded-lg border py-1 shadow-xl backdrop-blur-xl">
-                {Object.values(viewModes).map((mode) => (
-                  <button
-                    key={mode.id}
-                    onClick={() => {
-                      setViewMode(mode.id);
-                      setIsViewDropdownOpen(false);
-                    }}
-                    className={`hover:bg-xp-surface-light flex w-full items-center gap-2.5 px-3 py-1.5 text-left transition-colors ${
-                      viewMode === mode.id ? 'text-xp-blue' : ''
-                    }`}
-                  >
-                    <span className="text-sm">{mode.icon}</span>
-                    <span className="text-xs">{mode.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
 
         <div className="flex items-center space-x-1">
