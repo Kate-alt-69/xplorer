@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // ── Permission descriptions ──────────────────────────────────────────────────
 
@@ -229,6 +230,7 @@ export const requestBulkPermissionConsent = async (
 // ── Component ────────────────────────────────────────────────────────────────
 
 const ExtensionPermissionDialog = () => {
+  const { t } = useTranslation();
   const [request, setRequest] = useState<ExtensionPermissionRequestDetail | null>(null);
   const [remember, setRemember] = useState(true);
   const resolverRef = useRef<((granted: boolean) => void) | null>(null);
@@ -369,10 +371,10 @@ const ExtensionPermissionDialog = () => {
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--xp-text, #c0caf5)' }}>
-                Extension Permissions
+                {t('permissions.title')}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--xp-text-muted, #565f89)' }}>
-                Review before activating
+                {t('dialogs.permissions.reviewBeforeActivating')}
               </div>
             </div>
           </div>
@@ -397,7 +399,7 @@ const ExtensionPermissionDialog = () => {
               e.currentTarget.style.backgroundColor = 'transparent';
               e.currentTarget.style.color = 'var(--xp-text-muted, #565f89)';
             }}
-            aria-label="Deny and close"
+            aria-label={t('permissions.denyClose')}
           >
             <svg
               width={14}
@@ -434,7 +436,7 @@ const ExtensionPermissionDialog = () => {
             >
               <span>v{request.version}</span>
               <span style={{ opacity: 0.3 }}>|</span>
-              <span>by {request.author}</span>
+              <span>{t('permissions.by', { author: request.author })}</span>
             </div>
           </div>
 
@@ -474,11 +476,11 @@ const ExtensionPermissionDialog = () => {
                   lineHeight: 1.4,
                 }}
               >
-                Requests{' '}
+                {t('dialogs.permissions.dangerWarningPrefix')}{' '}
                 <span style={{ color: '#f87171', fontWeight: 500 }}>
-                  {dangerousCount} sensitive permission{dangerousCount > 1 ? 's' : ''}
+                  {t('dialogs.permissions.sensitivePermCount', { count: dangerousCount })}
                 </span>
-                . Only allow if you trust this extension.
+                {t('dialogs.permissions.dangerWarningTrustSuffix')}
               </span>
             </div>
           )}
@@ -494,7 +496,7 @@ const ExtensionPermissionDialog = () => {
               marginBottom: '8px',
             }}
           >
-            Permissions ({permissions.length})
+            {t('dialogs.permissions.permissionsCount', { count: permissions.length })}
           </div>
 
           {/* Permission list */}
@@ -508,7 +510,10 @@ const ExtensionPermissionDialog = () => {
           >
             {sortedPermissions.map((perm) => {
               const isDangerous = DANGEROUS_PERMISSIONS.has(perm);
-              const description = PERMISSION_DESCRIPTIONS[perm] || 'Unknown permission';
+              const description =
+                t(`dialogs.permissions.permDesc.${perm.replace(/[:/]/g, '_')}`) ||
+                PERMISSION_DESCRIPTIONS[perm] ||
+                t('dialogs.permissions.unknownPermission');
               return (
                 <div
                   key={perm}
@@ -582,7 +587,7 @@ const ExtensionPermissionDialog = () => {
               }}
             />
             <span style={{ fontSize: '12px', color: 'var(--xp-text-muted, #565f89)' }}>
-              Remember for this extension
+              {t('permissions.remember')}
             </span>
           </label>
         </div>
@@ -618,7 +623,7 @@ const ExtensionPermissionDialog = () => {
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
-            Deny
+            {t('permissions.deny')}
           </button>
           <button
             style={{
@@ -642,7 +647,7 @@ const ExtensionPermissionDialog = () => {
               e.currentTarget.style.opacity = '1';
             }}
           >
-            Allow
+            {t('dialogs.permissions.allow')}
           </button>
         </div>
       </div>

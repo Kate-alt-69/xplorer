@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { TauriAPI, type FileEntry } from '@/lib/tauri-api';
 import { ShieldAlert, AlertTriangle, Trash2 } from 'lucide-react';
@@ -20,6 +21,7 @@ interface SecureDeleteDialogProps {
 }
 
 const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDeleteDialogProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [passes, setPasses] = useState(3);
   const [processing, setProcessing] = useState(false);
@@ -33,7 +35,7 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
   const displayNames =
     fileNames.length <= 3
       ? fileNames.join(', ')
-      : `${fileNames.slice(0, 3).join(', ')} and ${fileNames.length - 3} more`;
+      : `${fileNames.slice(0, 3).join(', ')} ${t('dialogs.secureDelete.andMore', { count: fileNames.length - 3 })}`;
 
   useEffect(() => {
     if (isOpen) {
@@ -79,18 +81,22 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
       if (result.errors.length > 0 && result.files_deleted === 0) {
         setError(result.errors.join('\n'));
         toast({
-          title: 'Secure Delete Failed',
+          title: t('dialogs.secureDelete.toastFailedTitle'),
           description: result.errors[0],
           variant: 'destructive',
         });
       } else {
         const errSuffix =
           result.errors.length > 0
-            ? ` (${result.errors.length} error${result.errors.length > 1 ? 's' : ''})`
+            ? ` (${t('dialogs.secureDelete.toastErrorCount', { count: result.errors.length })})`
             : '';
         toast({
-          title: 'Securely Deleted',
-          description: `${result.files_deleted} file${result.files_deleted > 1 ? 's' : ''} securely wiped with ${result.passes} passes${errSuffix}`,
+          title: t('dialogs.secureDelete.toastSuccessTitle'),
+          description:
+            t('dialogs.secureDelete.toastSuccessDesc', {
+              fileCount: result.files_deleted,
+              passes: result.passes,
+            }) + errSuffix,
         });
         onComplete?.();
         onClose();
@@ -99,7 +105,7 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
       const message = (err as Error).message || String(err);
       setError(message);
       toast({
-        title: 'Secure Delete Failed',
+        title: t('dialogs.secureDelete.toastFailedTitle'),
         description: message,
         variant: 'destructive',
       });
@@ -142,13 +148,15 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
         <div className="border-xp-border flex items-center justify-between border-b p-6">
           <div className="flex items-center space-x-3">
             <ShieldAlert size={20} className="text-red-400" />
-            <h2 className="text-xp-text text-xl font-semibold">Secure Delete</h2>
+            <h2 className="text-xp-text text-xl font-semibold">
+              {t('dialogs.secureDelete.title')}
+            </h2>
           </div>
           <button
             onClick={handleClose}
             disabled={processing}
             className="hover:bg-xp-surface-light rounded-md p-2 transition-colors disabled:opacity-50"
-            aria-label="Close secure delete dialog"
+            aria-label={t('dialogs.secureDelete.closeAriaLabel')}
           >
             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -166,19 +174,17 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
           <div className="flex items-start space-x-3 rounded-lg border border-red-500 border-opacity-30 bg-red-500 bg-opacity-10 p-4">
             <AlertTriangle size={20} className="mt-0.5 shrink-0 text-red-400" />
             <div className="text-sm text-red-300">
-              <p className="mb-1 font-semibold">This action is irreversible.</p>
-              <p>
-                Secure delete overwrites file data multiple times before deletion using the DoD
-                5220.22-M standard. The data cannot be recovered by any means after this operation
-                completes.
-              </p>
+              <p className="mb-1 font-semibold">{t('dialogs.secureDelete.warningIrreversible')}</p>
+              <p>{t('dialogs.secureDelete.warningDescription')}</p>
             </div>
           </div>
 
           {/* File info */}
           <div className="bg-xp-bg rounded-lg p-4">
             <div className="text-xp-text-muted mb-1 text-sm">
-              {fileCount === 1 ? 'File' : `Files (${fileCount})`}
+              {fileCount === 1
+                ? t('dialogs.secureDelete.fileLabel')
+                : t('dialogs.secureDelete.filesLabel', { count: fileCount })}
             </div>
             <div
               className="text-xp-text truncate text-sm font-medium"
@@ -190,7 +196,9 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
 
           {/* Passes selector */}
           <div>
-            <label className="text-xp-text mb-2 block text-sm font-medium">Overwrite Passes</label>
+            <label className="text-xp-text mb-2 block text-sm font-medium">
+              {t('dialogs.secureDelete.overwritePasses')}
+            </label>
             <div className="flex items-center space-x-4">
               <select
                 value={passes}
@@ -198,26 +206,28 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
                 disabled={processing}
                 className="border-xp-border bg-xp-bg text-xp-text focus:ring-xp-blue focus:border-xp-blue rounded-md border px-3 py-2 focus:ring-2"
               >
-                <option value={1}>1 pass (quick)</option>
-                <option value={3}>3 passes (DoD 5220.22-M)</option>
-                <option value={7}>7 passes (maximum)</option>
+                <option value={1}>{t('dialogs.secureDelete.passes1')}</option>
+                <option value={3}>{t('dialogs.secureDelete.passes3')}</option>
+                <option value={7}>{t('dialogs.secureDelete.passes7')}</option>
               </select>
               <span className="text-xp-text-muted text-xs">
-                {passes === 1 && 'Single random overwrite'}
-                {passes === 3 && 'Zeros, ones, then random data'}
-                {passes === 7 && 'Extended multi-pass overwrite'}
+                {passes === 1 && t('dialogs.secureDelete.passesDesc1')}
+                {passes === 3 && t('dialogs.secureDelete.passesDesc3')}
+                {passes === 7 && t('dialogs.secureDelete.passesDesc7')}
               </span>
             </div>
           </div>
 
           {/* Overwrite method description */}
           <div className="text-xp-text-muted bg-xp-bg space-y-1 rounded-lg p-3 text-xs">
-            <div className="text-xp-text mb-1 font-medium">Overwrite pattern per cycle:</div>
-            <div>Pass 1: Fill with zeros (0x00)</div>
-            <div>Pass 2: Fill with ones (0xFF)</div>
-            <div>Pass 3: Fill with random data</div>
-            {passes > 3 && <div>Passes 4-{passes}: Pattern repeats</div>}
-            <div className="mt-1">Each pass flushes and syncs to disk before proceeding.</div>
+            <div className="text-xp-text mb-1 font-medium">
+              {t('dialogs.secureDelete.overwritePatternTitle')}
+            </div>
+            <div>{t('dialogs.secureDelete.pass1Desc')}</div>
+            <div>{t('dialogs.secureDelete.pass2Desc')}</div>
+            <div>{t('dialogs.secureDelete.pass3Desc')}</div>
+            {passes > 3 && <div>{t('dialogs.secureDelete.passesNDesc', { n: passes })}</div>}
+            <div className="mt-1">{t('dialogs.secureDelete.flushDesc')}</div>
           </div>
 
           {/* Confirmation checkbox */}
@@ -230,8 +240,12 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
               className="border-xp-border mt-1 rounded text-red-500 focus:ring-red-500"
             />
             <span className="text-xp-text text-sm">
-              I understand that this will permanently destroy the selected{' '}
-              {fileCount === 1 ? 'file' : `${fileCount} files`} and the data cannot be recovered.
+              {t('dialogs.secureDelete.confirmText', {
+                fileRef:
+                  fileCount === 1
+                    ? t('dialogs.secureDelete.confirmFile')
+                    : t('dialogs.secureDelete.confirmFiles', { count: fileCount }),
+              })}
             </span>
           </label>
 
@@ -251,7 +265,11 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
                   {progress.file}
                 </span>
                 <span>
-                  Pass {progress.pass}/{progress.total_passes} ({progress.pass_label})
+                  {t('dialogs.secureDelete.progressPass', {
+                    pass: progress.pass,
+                    total: progress.total_passes,
+                    label: progress.pass_label,
+                  })}
                 </span>
               </div>
               <div className="bg-xp-bg h-2 w-full overflow-hidden rounded-full">
@@ -266,7 +284,9 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
           {processing && !progress && (
             <div className="flex items-center justify-center py-2">
               <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-red-400" />
-              <span className="text-xp-text-muted ml-3 text-sm">Preparing secure deletion...</span>
+              <span className="text-xp-text-muted ml-3 text-sm">
+                {t('dialogs.secureDelete.preparing')}
+              </span>
             </div>
           )}
         </div>
@@ -277,25 +297,24 @@ const SecureDeleteDialog = ({ isOpen, onClose, onComplete, files }: SecureDelete
             onClick={handleClose}
             disabled={processing}
             className="text-xp-text hover:bg-xp-surface-light rounded px-4 py-2 transition-colors disabled:opacity-50"
-            aria-label="Cancel"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
             disabled={processing || !confirmed}
             className="flex items-center space-x-2 rounded bg-red-600 px-4 py-2 text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Securely delete files"
+            aria-label={t('dialogs.secureDelete.deleteAriaLabel')}
           >
             {processing ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
-                <span>Wiping...</span>
+                <span>{t('dialogs.secureDelete.wiping')}</span>
               </>
             ) : (
               <>
                 <Trash2 size={14} />
-                <span>Secure Delete</span>
+                <span>{t('dialogs.secureDelete.title')}</span>
               </>
             )}
           </button>

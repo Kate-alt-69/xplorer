@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   Trash2,
@@ -28,61 +29,6 @@ export interface BatchConfirmDialogProps {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const OPERATION_META: Record<
-  string,
-  {
-    label: string;
-    icon: React.ReactNode;
-    destructive: boolean;
-    warning?: string;
-    confirmLabel: string;
-    confirmClass: string;
-  }
-> = {
-  delete: {
-    label: 'Delete',
-    icon: <Trash2 size={20} className="text-red-400" />,
-    destructive: true,
-    warning: 'These items will be moved to the Recycle Bin. You can restore them later.',
-    confirmLabel: 'Delete All',
-    confirmClass: 'bg-red-600 hover:bg-red-700 text-white',
-  },
-  move: {
-    label: 'Move',
-    icon: <FolderInput size={20} className="text-xp-blue" />,
-    destructive: false,
-    confirmLabel: 'Move All',
-    confirmClass: 'bg-xp-blue hover:opacity-90 text-white',
-  },
-  rename: {
-    label: 'Rename',
-    icon: <FileEdit size={20} className="text-xp-yellow" />,
-    destructive: false,
-    confirmLabel: 'Rename All',
-    confirmClass: 'bg-xp-blue hover:opacity-90 text-white',
-  },
-  'secure-delete': {
-    label: 'Secure Delete',
-    icon: <ShieldAlert size={20} className="text-red-400" />,
-    destructive: true,
-    warning: 'These items will be permanently and irreversibly destroyed. This cannot be undone.',
-    confirmLabel: 'Secure Delete All',
-    confirmClass: 'bg-red-600 hover:bg-red-700 text-white',
-  },
-};
-
-const getOperationMeta = (operation: BatchOperationType) => {
-  return (
-    OPERATION_META[operation] ?? {
-      label: operation.charAt(0).toUpperCase() + operation.slice(1),
-      icon: <AlertTriangle size={20} className="text-xp-yellow" />,
-      destructive: false,
-      confirmLabel: `Confirm ${operation}`,
-      confirmClass: 'bg-xp-blue hover:opacity-90 text-white',
-    }
-  );
-};
-
 const getExtension = (name: string): string => {
   const dot = name.lastIndexOf('.');
   return dot > 0 ? name.slice(dot + 1).toUpperCase() : '';
@@ -98,6 +44,7 @@ const BatchConfirmDialog = ({
   onConfirm,
   onCancel,
 }: BatchConfirmDialogProps) => {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,15 +55,65 @@ const BatchConfirmDialog = ({
 
   if (!isOpen || files.length === 0) return null;
 
-  const meta = getOperationMeta(operation);
+  const OPERATION_META: Record<
+    string,
+    {
+      label: string;
+      icon: React.ReactNode;
+      destructive: boolean;
+      warning?: string;
+      confirmLabel: string;
+      confirmClass: string;
+    }
+  > = {
+    delete: {
+      label: t('dialogs.batchConfirm.operationDelete'),
+      icon: <Trash2 size={20} className="text-red-400" />,
+      destructive: true,
+      warning: t('dialogs.batchConfirm.warningDelete'),
+      confirmLabel: t('dialogs.batchConfirm.confirmDelete'),
+      confirmClass: 'bg-red-600 hover:bg-red-700 text-white',
+    },
+    move: {
+      label: t('dialogs.batchConfirm.operationMove'),
+      icon: <FolderInput size={20} className="text-xp-blue" />,
+      destructive: false,
+      confirmLabel: t('dialogs.batchConfirm.confirmMove'),
+      confirmClass: 'bg-xp-blue hover:opacity-90 text-white',
+    },
+    rename: {
+      label: t('dialogs.batchConfirm.operationRename'),
+      icon: <FileEdit size={20} className="text-xp-yellow" />,
+      destructive: false,
+      confirmLabel: t('dialogs.batchConfirm.confirmRename'),
+      confirmClass: 'bg-xp-blue hover:opacity-90 text-white',
+    },
+    'secure-delete': {
+      label: t('dialogs.batchConfirm.operationSecureDelete'),
+      icon: <ShieldAlert size={20} className="text-red-400" />,
+      destructive: true,
+      warning: t('dialogs.batchConfirm.warningSecureDelete'),
+      confirmLabel: t('dialogs.batchConfirm.confirmSecureDelete'),
+      confirmClass: 'bg-red-600 hover:bg-red-700 text-white',
+    },
+  };
+
+  const meta = OPERATION_META[operation] ?? {
+    label: operation.charAt(0).toUpperCase() + operation.slice(1),
+    icon: <AlertTriangle size={20} className="text-xp-yellow" />,
+    destructive: false,
+    confirmLabel: t('dialogs.batchConfirm.confirmGeneric', { operation }),
+    confirmClass: 'bg-xp-blue hover:opacity-90 text-white',
+  };
+
   const totalSize = files.reduce((sum, f) => sum + (f.is_dir ? 0 : f.size), 0);
   const dirCount = files.filter((f) => f.is_dir).length;
   const fileCount = files.length - dirCount;
 
   // Build summary text
   const parts: string[] = [];
-  if (fileCount > 0) parts.push(`${fileCount} file${fileCount > 1 ? 's' : ''}`);
-  if (dirCount > 0) parts.push(`${dirCount} folder${dirCount > 1 ? 's' : ''}`);
+  if (fileCount > 0) parts.push(t('dialogs.batchConfirm.fileCount', { count: fileCount }));
+  if (dirCount > 0) parts.push(t('dialogs.batchConfirm.folderCount', { count: dirCount }));
   const summaryText = parts.join(', ');
   const sizeText = totalSize > 0 ? formatFileSize(totalSize) : null;
 
@@ -148,13 +145,13 @@ const BatchConfirmDialog = ({
           <div className="flex items-center gap-3">
             {meta.icon}
             <h2 id="batch-confirm-title" className="text-xp-text text-lg font-semibold">
-              {meta.label} {files.length} Items
+              {t('dialogs.batchConfirm.title', { label: meta.label, count: files.length })}
             </h2>
           </div>
           <button
             onClick={onCancel}
             className="hover:bg-xp-surface-light rounded-md p-2 transition-colors"
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <svg className="text-xp-text-muted h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -179,7 +176,9 @@ const BatchConfirmDialog = ({
           <div className="bg-xp-surface-light border-xp-border mx-5 mt-4 flex shrink-0 items-center gap-2 rounded-lg border p-3">
             <ArrowRight size={16} className="text-xp-blue shrink-0" />
             <div className="min-w-0">
-              <div className="text-xp-text-muted text-xs">Destination</div>
+              <div className="text-xp-text-muted text-xs">
+                {t('dialogs.batchConfirm.destination')}
+              </div>
               <div className="text-xp-text truncate text-sm" title={destination}>
                 {destination}
               </div>
@@ -190,7 +189,7 @@ const BatchConfirmDialog = ({
         {/* File list */}
         <div className="mx-5 mt-4 min-h-0 flex-1 overflow-hidden">
           <div className="text-xp-text-muted mb-2 text-xs font-medium uppercase tracking-wide">
-            Affected Items
+            {t('dialogs.batchConfirm.affectedItems')}
           </div>
           <div className="border-xp-border bg-xp-bg max-h-[280px] overflow-y-auto rounded-lg border">
             {files.map((file, index) => (
@@ -219,7 +218,7 @@ const BatchConfirmDialog = ({
 
                 {/* Type */}
                 <div className="text-xp-text-muted w-12 shrink-0 text-right text-xs">
-                  {file.is_dir ? 'Folder' : getExtension(file.name) || 'File'}
+                  {file.is_dir ? t('common.folder') : getExtension(file.name) || t('common.file')}
                 </div>
 
                 {/* Size */}
@@ -234,7 +233,7 @@ const BatchConfirmDialog = ({
         {/* Summary line */}
         <div className="text-xp-text-muted mx-5 mt-3 shrink-0 text-xs">
           {summaryText}
-          {sizeText ? `, ${sizeText} total` : ''}
+          {sizeText ? t('dialogs.batchConfirm.sizeTotal', { size: sizeText }) : ''}
         </div>
 
         {/* Footer */}
@@ -242,9 +241,9 @@ const BatchConfirmDialog = ({
           <button
             onClick={onCancel}
             className="text-xp-text hover:bg-xp-surface-light border-xp-border rounded-md border px-4 py-2 text-sm transition-colors"
-            aria-label="Cancel"
+            aria-label={t('common.cancel')}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={onConfirm}

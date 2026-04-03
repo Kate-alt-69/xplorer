@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { TauriAPI } from '@/lib/tauri-api';
 import { Link2, AlertTriangle } from 'lucide-react';
@@ -17,6 +18,7 @@ const CreateSymlinkDialog = ({
   onComplete,
   targetPath,
 }: CreateSymlinkDialogProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [linkPath, setLinkPath] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -54,7 +56,7 @@ const CreateSymlinkDialog = ({
 
   const handleSubmit = async () => {
     if (!linkPath.trim()) {
-      setError('Link path is required');
+      setError(t('dialogs.symlink.errorLinkPathRequired'));
       return;
     }
 
@@ -66,8 +68,8 @@ const CreateSymlinkDialog = ({
 
       const linkName = linkPath.split(/[/\\]/).pop() || linkPath;
       toast({
-        title: 'Link Created',
-        description: `Created symbolic link "${linkName}"`,
+        title: t('dialogs.symlink.toastCreatedTitle'),
+        description: t('dialogs.symlink.toastCreatedDesc', { name: linkName }),
       });
 
       onComplete?.();
@@ -76,7 +78,7 @@ const CreateSymlinkDialog = ({
       const message = (err as Error).message || String(err);
       setError(message);
       toast({
-        title: 'Create Link Failed',
+        title: t('dialogs.symlink.toastCreateFailedTitle'),
         description: message,
         variant: 'destructive',
       });
@@ -148,7 +150,7 @@ const CreateSymlinkDialog = ({
                 margin: 0,
               }}
             >
-              Create Symbolic Link
+              {t('dialogs.symlink.title')}
             </h2>
           </div>
           <button
@@ -170,7 +172,7 @@ const CreateSymlinkDialog = ({
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
-            aria-label="Close dialog"
+            aria-label={t('dialogs.symlink.closeAriaLabel')}
           >
             <svg
               style={{ width: '1.25rem', height: '1.25rem' }}
@@ -207,7 +209,7 @@ const CreateSymlinkDialog = ({
                 letterSpacing: '0.05em',
               }}
             >
-              Target
+              {t('dialogs.symlink.targetLabel')}
             </div>
             <div
               style={{
@@ -248,7 +250,7 @@ const CreateSymlinkDialog = ({
                 marginBottom: '0.5rem',
               }}
             >
-              Link Location
+              {t('dialogs.symlink.linkLocationLabel')}
             </label>
             <input
               ref={inputRef}
@@ -279,7 +281,7 @@ const CreateSymlinkDialog = ({
                 e.currentTarget.style.boxShadow = 'none';
                 e.currentTarget.style.borderColor = 'var(--xp-border)';
               }}
-              placeholder="Enter the full path for the symbolic link..."
+              placeholder={t('dialogs.symlink.linkLocationPlaceholder')}
             />
           </div>
 
@@ -301,8 +303,7 @@ const CreateSymlinkDialog = ({
                 style={{ color: '#eab308', marginTop: '0.125rem', flexShrink: 0 }}
               />
               <span style={{ fontSize: '0.8rem', color: '#eab308', lineHeight: 1.5 }}>
-                On Windows, creating symbolic links requires Developer Mode to be enabled or
-                administrator privileges.
+                {t('dialogs.symlink.windowsAdminWarning')}
               </span>
             </div>
           )}
@@ -355,7 +356,7 @@ const CreateSymlinkDialog = ({
                   color: 'var(--xp-text-muted)',
                 }}
               >
-                Creating link...
+                {t('dialogs.symlink.creating')}
               </span>
             </div>
           )}
@@ -392,9 +393,9 @@ const CreateSymlinkDialog = ({
             onMouseLeave={(e) => {
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
-            aria-label="Cancel"
+            aria-label={t('common.cancel')}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
@@ -413,7 +414,7 @@ const CreateSymlinkDialog = ({
               gap: '0.5rem',
               transition: 'background-color 0.15s',
             }}
-            aria-label="Create symbolic link"
+            aria-label={t('dialogs.symlink.createAriaLabel')}
           >
             {processing && (
               <div
@@ -427,7 +428,7 @@ const CreateSymlinkDialog = ({
                 }}
               />
             )}
-            <span>{processing ? 'Creating...' : 'Create'}</span>
+            <span>{processing ? t('dialogs.symlink.creating') : t('dialogs.symlink.create')}</span>
           </button>
         </div>
       </div>

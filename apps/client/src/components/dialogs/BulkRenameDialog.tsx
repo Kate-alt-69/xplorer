@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FileEntry } from '@/lib/tauri-api';
 import { useBulkRename } from '@/hooks/use-bulk-rename';
 import RenamePatternForm from './bulk-rename/RenamePatternForm';
@@ -12,6 +13,7 @@ interface BulkRenameDialogProps {
 }
 
 const BulkRenameDialog = ({ isOpen, onClose, files, onComplete }: BulkRenameDialogProps) => {
+  const { t } = useTranslation();
   const { state, actions, derived } = useBulkRename(isOpen, files, onClose, onComplete);
 
   if (!isOpen) return null;
@@ -70,7 +72,7 @@ const BulkRenameDialog = ({ isOpen, onClose, files, onComplete }: BulkRenameDial
               />
             </svg>
             <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--xp-text)', margin: 0 }}>
-              Bulk Rename
+              {t('dialogs.bulkRename.title')}
             </h2>
             <span
               style={{
@@ -81,7 +83,7 @@ const BulkRenameDialog = ({ isOpen, onClose, files, onComplete }: BulkRenameDial
                 borderRadius: 10,
               }}
             >
-              {files.length} file{files.length !== 1 ? 's' : ''}
+              {t('dialogs.bulkRename.fileCount', { count: files.length })}
             </span>
           </div>
           <button
@@ -197,6 +199,7 @@ const DialogFooter = ({
   onPreview,
   onRename,
 }: DialogFooterProps) => {
+  const { t } = useTranslation();
   const typedResults = results as { success: boolean }[] | null;
   const renameDisabled =
     renaming || loading || (!pattern.trim() && !activeTemplateLabel) || !hasChanges || hasConflicts;
@@ -216,16 +219,20 @@ const DialogFooter = ({
       <div style={{ fontSize: 12, color: 'var(--xp-text-muted)' }}>
         {displayDataLength > 0 && !results && hasChanges && (
           <span>
-            {changedCount} file{changedCount !== 1 ? 's' : ''} will be renamed
+            {t('dialogs.bulkRename.willBeRenamed', { count: changedCount })}
             {hasConflicts && (
-              <span style={{ color: 'var(--xp-orange)', marginLeft: 8 }}>(conflicts detected)</span>
+              <span style={{ color: 'var(--xp-orange)', marginLeft: 8 }}>
+                {t('dialogs.bulkRename.conflictsDetected')}
+              </span>
             )}
           </span>
         )}
         {typedResults && (
           <span>
-            {typedResults.filter((r) => r.success).length} of {typedResults.length} renamed
-            successfully
+            {t('dialogs.bulkRename.renamedSuccessfully', {
+              success: typedResults.filter((r) => r.success).length,
+              total: typedResults.length,
+            })}
           </span>
         )}
       </div>
@@ -253,7 +260,7 @@ const DialogFooter = ({
             (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
           }}
         >
-          {results ? 'Close' : 'Cancel'}
+          {results ? t('common.close') : t('common.cancel')}
         </button>
         {!results && (
           <>
@@ -296,7 +303,7 @@ const DialogFooter = ({
                   }}
                 />
               )}
-              <span>Preview</span>
+              <span>{t('dialogs.bulkRename.preview')}</span>
             </button>
             <button
               onClick={onRename}
@@ -329,7 +336,7 @@ const DialogFooter = ({
                   }}
                 />
               )}
-              <span>{renaming ? 'Renaming...' : 'Rename'}</span>
+              <span>{renaming ? t('dialogs.bulkRename.renaming') : t('common.rename')}</span>
             </button>
           </>
         )}

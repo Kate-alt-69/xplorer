@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +24,7 @@ const CompareFilesDialog = ({
   initialFile1 = '',
   initialFile2 = '',
 }: CompareFilesDialogProps) => {
+  const { t } = useTranslation();
   const [file1Path, setFile1Path] = useState(initialFile1);
   const [file2Path, setFile2Path] = useState(initialFile2);
   const [file1Info, setFile1Info] = useState<{ name: string; size: number; isDir: boolean } | null>(
@@ -134,7 +136,7 @@ const CompareFilesDialog = ({
     if (!info) {
       return (
         <Badge variant="destructive" className="text-xs">
-          Invalid file or directory
+          {t('dialogs.compareFiles.invalidFile')}
         </Badge>
       );
     }
@@ -143,7 +145,7 @@ const CompareFilesDialog = ({
       return (
         <Badge variant="secondary" className="gap-1 text-xs">
           <FolderIcon className="h-3 w-3" />
-          Directory (not supported)
+          {t('dialogs.compareFiles.directoryNotSupported')}
         </Badge>
       );
     }
@@ -163,7 +165,7 @@ const CompareFilesDialog = ({
           <div className="flex items-center justify-between">
             <DialogTitle className="flex items-center gap-2">
               <Scale className="h-5 w-5" />
-              Compare Files
+              {t('dialogs.compareFiles.title')}
             </DialogTitle>
             <Button variant="ghost" size="sm" onClick={onClose}>
               <X className="h-4 w-4" />
@@ -175,18 +177,18 @@ const CompareFilesDialog = ({
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="file1" className="text-sm font-medium">
-                First File
+                {t('dialogs.compareFiles.firstFile')}
               </Label>
               <div className="flex gap-2">
                 <Input
                   id="file1"
-                  placeholder="Select or enter path to first file..."
+                  placeholder={t('dialogs.compareFiles.firstFilePlaceholder')}
                   value={file1Path}
                   onChange={(e) => handleFile1Change(e.target.value)}
                   className="flex-1"
                 />
                 <Button variant="outline" onClick={() => selectFile(1)} className="shrink-0">
-                  Browse
+                  {t('common.browse')}
                 </Button>
               </div>
               <div className="flex min-h-6 items-center">
@@ -201,18 +203,18 @@ const CompareFilesDialog = ({
 
             <div className="space-y-2">
               <Label htmlFor="file2" className="text-sm font-medium">
-                Second File
+                {t('dialogs.compareFiles.secondFile')}
               </Label>
               <div className="flex gap-2">
                 <Input
                   id="file2"
-                  placeholder="Select or enter path to second file..."
+                  placeholder={t('dialogs.compareFiles.secondFilePlaceholder')}
                   value={file2Path}
                   onChange={(e) => handleFile2Change(e.target.value)}
                   className="flex-1"
                 />
                 <Button variant="outline" onClick={() => selectFile(2)} className="shrink-0">
-                  Browse
+                  {t('common.browse')}
                 </Button>
               </div>
               <div className="flex min-h-6 items-center">
@@ -229,23 +231,23 @@ const CompareFilesDialog = ({
           {file1Path && file2Path && file1Path === file2Path && (
             <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
               <div className="text-sm text-yellow-800">
-                <AlertTriangle size={14} className="mr-1 inline-block" /> You have selected the same
-                file for both comparisons. Please select two different files to compare.
+                <AlertTriangle size={14} className="mr-1 inline-block" />{' '}
+                {t('dialogs.compareFiles.sameFileWarning')}
               </div>
             </div>
           )}
 
           <div className="space-y-1 text-xs text-gray-500">
-            <div>• Both files must be regular files (not directories)</div>
-            <div>• Large files may take longer to compare</div>
-            <div>• Binary files will be compared byte-by-byte</div>
-            <div>• Text files will be compared line-by-line with diff highlighting</div>
+            <div>• {t('dialogs.compareFiles.hintRegularFiles')}</div>
+            <div>• {t('dialogs.compareFiles.hintLargeFiles')}</div>
+            <div>• {t('dialogs.compareFiles.hintBinaryFiles')}</div>
+            <div>• {t('dialogs.compareFiles.hintTextFiles')}</div>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 border-t pt-4">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button
             onClick={handleCompare}
@@ -253,7 +255,7 @@ const CompareFilesDialog = ({
             className="gap-2"
           >
             <Scale className="h-4 w-4" />
-            Compare Files
+            {t('dialogs.compareFiles.compareButton')}
           </Button>
         </div>
       </DialogContent>

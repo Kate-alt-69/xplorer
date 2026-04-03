@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { TauriAPI } from '@/lib/tauri-api';
 import { Eye, EyeOff, Lock, Unlock, AlertTriangle } from 'lucide-react';
@@ -20,6 +21,7 @@ const EncryptionDialog = ({
   filePath,
   mode,
 }: EncryptionDialogProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,13 +46,13 @@ const EncryptionDialog = ({
 
   const validate = (): string | null => {
     if (!password) {
-      return 'Password is required';
+      return t('dialogs.encryption.errorPasswordRequired');
     }
     if (password.length < 4) {
-      return 'Password must be at least 4 characters';
+      return t('dialogs.encryption.errorPasswordTooShort');
     }
     if (isEncrypt && password !== confirmPassword) {
-      return 'Passwords do not match';
+      return t('dialogs.encryption.errorPasswordMismatch');
     }
     return null;
   };
@@ -75,8 +77,10 @@ const EncryptionDialog = ({
 
       const resultName = resultPath.split(/[/\\]/).pop() || resultPath;
       toast({
-        title: isEncrypt ? 'File Encrypted' : 'File Decrypted',
-        description: `Successfully created ${resultName}`,
+        title: isEncrypt
+          ? t('dialogs.encryption.toastEncryptedTitle')
+          : t('dialogs.encryption.toastDecryptedTitle'),
+        description: t('dialogs.encryption.toastSuccessDesc', { name: resultName }),
       });
 
       onComplete?.();
@@ -85,7 +89,9 @@ const EncryptionDialog = ({
       const message = (err as Error).message || String(err);
       setError(message);
       toast({
-        title: isEncrypt ? 'Encryption Failed' : 'Decryption Failed',
+        title: isEncrypt
+          ? t('dialogs.encryption.toastEncryptFailedTitle')
+          : t('dialogs.encryption.toastDecryptFailedTitle'),
         description: message,
         variant: 'destructive',
       });
@@ -112,9 +118,11 @@ const EncryptionDialog = ({
 
   let buttonLabel: string;
   if (processing) {
-    buttonLabel = isEncrypt ? 'Encrypting...' : 'Decrypting...';
+    buttonLabel = isEncrypt
+      ? t('dialogs.encryption.encrypting')
+      : t('dialogs.encryption.decrypting');
   } else {
-    buttonLabel = isEncrypt ? 'Encrypt' : 'Decrypt';
+    buttonLabel = isEncrypt ? t('dialogs.encryption.encrypt') : t('dialogs.encryption.decrypt');
   }
 
   return (
@@ -132,14 +140,16 @@ const EncryptionDialog = ({
               <Unlock size={20} className="text-xp-green" />
             )}
             <h2 className="text-xp-text text-xl font-semibold">
-              {isEncrypt ? 'Encrypt File' : 'Decrypt File'}
+              {isEncrypt
+                ? t('dialogs.encryption.titleEncrypt')
+                : t('dialogs.encryption.titleDecrypt')}
             </h2>
           </div>
           <button
             onClick={handleClose}
             disabled={processing}
             className="hover:bg-xp-surface-light rounded-md p-2 transition-colors disabled:opacity-50"
-            aria-label="Close encryption dialog"
+            aria-label={t('dialogs.encryption.closeAriaLabel')}
           >
             <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
               <path
@@ -155,7 +165,9 @@ const EncryptionDialog = ({
         <div className="space-y-5 p-6">
           {/* File info */}
           <div className="bg-xp-bg rounded-lg p-4">
-            <div className="text-xp-text-muted mb-1 text-sm">File</div>
+            <div className="text-xp-text-muted mb-1 text-sm">
+              {t('dialogs.encryption.fileLabel')}
+            </div>
             <div className="text-xp-text truncate text-sm font-medium" title={filePath}>
               {fileName}
             </div>
@@ -163,14 +175,14 @@ const EncryptionDialog = ({
 
           {/* Description */}
           <p className="text-xp-text-muted text-sm">
-            {isEncrypt
-              ? 'Enter a password to encrypt this file using AES-256-GCM. The encrypted file will be saved with a .enc extension.'
-              : 'Enter the password used to encrypt this file. The decrypted file will be saved without the .enc extension.'}
+            {isEncrypt ? t('dialogs.encryption.descEncrypt') : t('dialogs.encryption.descDecrypt')}
           </p>
 
           {/* Password field */}
           <div>
-            <label className="text-xp-text mb-2 block text-sm font-medium">Password</label>
+            <label className="text-xp-text mb-2 block text-sm font-medium">
+              {t('dialogs.encryption.passwordLabel')}
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
@@ -180,7 +192,7 @@ const EncryptionDialog = ({
                   setError(null);
                 }}
                 className="border-xp-border bg-xp-bg text-xp-text focus:ring-xp-blue focus:border-xp-blue w-full rounded-md border px-3 py-2 pr-10 focus:ring-2"
-                placeholder="Enter password..."
+                placeholder={t('dialogs.encryption.passwordPlaceholder')}
                 autoFocus
                 disabled={processing}
               />
@@ -188,7 +200,11 @@ const EncryptionDialog = ({
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="text-xp-text-muted hover:text-xp-text absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors"
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-label={
+                  showPassword
+                    ? t('dialogs.encryption.hidePassword')
+                    : t('dialogs.encryption.showPassword')
+                }
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -200,7 +216,7 @@ const EncryptionDialog = ({
           {isEncrypt && (
             <div>
               <label className="text-xp-text mb-2 block text-sm font-medium">
-                Confirm Password
+                {t('dialogs.encryption.confirmPasswordLabel')}
               </label>
               <div className="relative">
                 <input
@@ -211,7 +227,7 @@ const EncryptionDialog = ({
                     setError(null);
                   }}
                   className="border-xp-border bg-xp-bg text-xp-text focus:ring-xp-blue focus:border-xp-blue w-full rounded-md border px-3 py-2 pr-10 focus:ring-2"
-                  placeholder="Confirm password..."
+                  placeholder={t('dialogs.encryption.confirmPasswordPlaceholder')}
                   disabled={processing}
                 />
                 <button
@@ -219,7 +235,9 @@ const EncryptionDialog = ({
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="text-xp-text-muted hover:text-xp-text absolute right-2 top-1/2 -translate-y-1/2 p-1 transition-colors"
                   aria-label={
-                    showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'
+                    showConfirmPassword
+                      ? t('dialogs.encryption.hideConfirmPassword')
+                      : t('dialogs.encryption.showConfirmPassword')
                   }
                   tabIndex={-1}
                 >
@@ -242,7 +260,9 @@ const EncryptionDialog = ({
             <div className="flex items-center justify-center py-2">
               <div className="border-xp-blue h-5 w-5 animate-spin rounded-full border-b-2" />
               <span className="text-xp-text-muted ml-3 text-sm">
-                {isEncrypt ? 'Encrypting...' : 'Decrypting...'}
+                {isEncrypt
+                  ? t('dialogs.encryption.encrypting')
+                  : t('dialogs.encryption.decrypting')}
               </span>
             </div>
           )}
@@ -254,15 +274,19 @@ const EncryptionDialog = ({
             onClick={handleClose}
             disabled={processing}
             className="text-xp-text hover:bg-xp-surface-light rounded px-4 py-2 transition-colors disabled:opacity-50"
-            aria-label="Cancel"
+            aria-label={t('common.cancel')}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSubmit}
             disabled={processing || !password}
             className="bg-xp-blue hover:bg-xp-blue-dark flex items-center space-x-2 rounded px-4 py-2 text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label={isEncrypt ? 'Encrypt file' : 'Decrypt file'}
+            aria-label={
+              isEncrypt
+                ? t('dialogs.encryption.encryptFileAriaLabel')
+                : t('dialogs.encryption.decryptFileAriaLabel')
+            }
           >
             {processing && (
               <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />

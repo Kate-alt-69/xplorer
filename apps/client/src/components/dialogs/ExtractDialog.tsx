@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { TauriAPI, type ExtractionOptions, type ArchiveInfo } from '@/lib/tauri-api';
 import { formatFileSize } from '@/lib/utils';
@@ -21,6 +22,7 @@ interface ExtractDialogProps {
 }
 
 const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDialogProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [archiveInfo, setArchiveInfo] = useState<ArchiveInfo | null>(null);
   const [loading, setLoading] = useState(false);
@@ -84,8 +86,8 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
     } catch (err) {
       setError((err as Error).message);
       toast({
-        title: 'Error Loading Archive Info',
-        description: `Failed to analyze archive: ${(err as Error).message}`,
+        title: t('dialogs.extract.errorLoadingTitle'),
+        description: t('dialogs.extract.errorLoadingDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     } finally {
@@ -109,8 +111,8 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
   const handleExtract = async () => {
     if (!outputDirectory.trim()) {
       toast({
-        title: 'Output Directory Required',
-        description: 'Please specify an output directory for the extracted files.',
+        title: t('dialogs.extract.outputDirRequiredTitle'),
+        description: t('dialogs.extract.outputDirRequiredDesc'),
         variant: 'destructive',
       });
       return;
@@ -118,8 +120,8 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
 
     if (archiveInfo?.is_encrypted && !password.trim()) {
       toast({
-        title: 'Password Required',
-        description: 'This archive is encrypted and requires a password.',
+        title: t('dialogs.extract.passwordRequiredTitle'),
+        description: t('dialogs.extract.passwordRequiredDesc'),
         variant: 'destructive',
       });
       return;
@@ -139,16 +141,18 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
       const resultPath = await TauriAPI.extractArchive(archivePath, options);
 
       toast({
-        title: 'Extraction Complete',
-        description: `Successfully extracted to ${resultPath.split(/[/\\]/).pop()}`,
+        title: t('dialogs.extract.successTitle'),
+        description: t('dialogs.extract.successDesc', {
+          name: resultPath.split(/[/\\]/).pop(),
+        }),
       });
 
       onComplete?.();
       onClose();
     } catch (err) {
       toast({
-        title: 'Extraction Failed',
-        description: `Failed to extract archive: ${(err as Error).message}`,
+        title: t('dialogs.extract.failedTitle'),
+        description: t('dialogs.extract.failedDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     } finally {
@@ -159,8 +163,8 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
   const handleExtractSelected = async () => {
     if (!outputDirectory.trim()) {
       toast({
-        title: 'Output Directory Required',
-        description: 'Please specify an output directory for the extracted files.',
+        title: t('dialogs.extract.outputDirRequiredTitle'),
+        description: t('dialogs.extract.outputDirRequiredDesc'),
         variant: 'destructive',
       });
       return;
@@ -168,8 +172,8 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
 
     if (selectedEntries.size === 0) {
       toast({
-        title: 'No Files Selected',
-        description: 'Please select at least one file to extract.',
+        title: t('dialogs.extract.noFilesSelectedTitle'),
+        description: t('dialogs.extract.noFilesSelectedDesc'),
         variant: 'destructive',
       });
       return;
@@ -177,8 +181,8 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
 
     if (archiveInfo?.is_encrypted && !password.trim()) {
       toast({
-        title: 'Password Required',
-        description: 'This archive is encrypted and requires a password.',
+        title: t('dialogs.extract.passwordRequiredTitle'),
+        description: t('dialogs.extract.passwordRequiredDesc'),
         variant: 'destructive',
       });
       return;
@@ -195,16 +199,19 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
       );
 
       toast({
-        title: 'Extraction Complete',
-        description: `Successfully extracted ${selectedEntries.size} item${selectedEntries.size !== 1 ? 's' : ''} to ${resultPath.split(/[/\\]/).pop()}`,
+        title: t('dialogs.extract.successTitle'),
+        description: t('dialogs.extract.successSelectedDesc', {
+          count: selectedEntries.size,
+          name: resultPath.split(/[/\\]/).pop(),
+        }),
       });
 
       onComplete?.();
       onClose();
     } catch (err) {
       toast({
-        title: 'Extraction Failed',
-        description: `Failed to extract selected entries: ${(err as Error).message}`,
+        title: t('dialogs.extract.failedTitle'),
+        description: t('dialogs.extract.failedSelectedDesc', { error: (err as Error).message }),
         variant: 'destructive',
       });
     } finally {
@@ -240,7 +247,7 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
   const getCompressionRatio = (): string => {
     if (!archiveInfo || archiveInfo.total_size === 0) return '';
     const ratio = (archiveInfo.compressed_size / archiveInfo.total_size) * 100;
-    return `${Math.round(ratio)}% of original size`;
+    return t('dialogs.extract.compressionRatio', { percent: Math.round(ratio) });
   };
 
   const getArchiveIcon = (): React.ReactNode => {
@@ -254,7 +261,7 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
       <div className="bg-xp-surface max-h-[90vh] w-[600px] max-w-[90vw] overflow-hidden rounded-lg shadow-2xl">
         {/* Header */}
         <div className="border-xp-border flex items-center justify-between border-b p-6">
-          <h2 className="text-xp-text text-xl font-semibold">Extract Archive</h2>
+          <h2 className="text-xp-text text-xl font-semibold">{t('dialogs.extract.title')}</h2>
           <button
             onClick={handleClose}
             disabled={extracting}
@@ -276,20 +283,22 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="border-xp-blue h-8 w-8 animate-spin rounded-full border-b-2" />
-              <span className="text-xp-text-muted ml-3">Analyzing archive...</span>
+              <span className="text-xp-text-muted ml-3">{t('dialogs.extract.analyzing')}</span>
             </div>
           ) : error ? (
             <div className="py-12 text-center">
               <div className="mb-4 text-4xl text-red-400">
                 <AlertTriangle size="1em" className="inline-block" />
               </div>
-              <h3 className="text-xp-text mb-2 text-lg font-medium">Error Analyzing Archive</h3>
+              <h3 className="text-xp-text mb-2 text-lg font-medium">
+                {t('dialogs.extract.errorAnalyzingTitle')}
+              </h3>
               <p className="text-xp-text-muted mb-4">{error}</p>
               <button
                 onClick={loadArchiveInfo}
                 className="bg-xp-blue hover:bg-xp-blue-dark rounded px-4 py-2 text-white transition-colors"
               >
-                Try Again
+                {t('dialogs.extract.tryAgain')}
               </button>
             </div>
           ) : (
@@ -304,10 +313,10 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                         {archivePath.split(/[/\\]/).pop()}
                       </h3>
                       <p className="text-xp-text-muted text-sm">
-                        {archiveInfo.format} Archive
+                        {t('dialogs.extract.archiveFormat', { format: archiveInfo.format })}
                         {archiveInfo.is_encrypted && (
                           <span className="ml-2 inline-flex items-center gap-1 text-yellow-400">
-                            <Lock size={14} /> Encrypted
+                            <Lock size={14} /> {t('dialogs.extract.encrypted')}
                           </span>
                         )}
                       </p>
@@ -316,25 +325,29 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
 
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-xp-text-muted">Files:</span>
+                      <span className="text-xp-text-muted">{t('dialogs.extract.files')}</span>
                       <span className="text-xp-text ml-2">
                         {archiveInfo.total_files.toLocaleString()}
                       </span>
                     </div>
                     <div>
-                      <span className="text-xp-text-muted">Directories:</span>
+                      <span className="text-xp-text-muted">{t('dialogs.extract.directories')}</span>
                       <span className="text-xp-text ml-2">
                         {archiveInfo.total_directories.toLocaleString()}
                       </span>
                     </div>
                     <div>
-                      <span className="text-xp-text-muted">Compressed size:</span>
+                      <span className="text-xp-text-muted">
+                        {t('dialogs.extract.compressedSize')}
+                      </span>
                       <span className="text-xp-text ml-2">
                         {formatFileSize(archiveInfo.compressed_size)}
                       </span>
                     </div>
                     <div>
-                      <span className="text-xp-text-muted">Uncompressed size:</span>
+                      <span className="text-xp-text-muted">
+                        {t('dialogs.extract.uncompressedSize')}
+                      </span>
                       <span className="text-xp-text ml-2">
                         {formatFileSize(archiveInfo.total_size)}
                         <span className="text-xp-green ml-1 text-xs">
@@ -349,7 +362,7 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
               {/* Output Directory */}
               <div>
                 <label className="text-xp-text mb-2 block text-sm font-medium">
-                  Extract to Directory
+                  {t('dialogs.extract.outputDir')}
                 </label>
                 <div className="flex space-x-2">
                   <input
@@ -357,7 +370,7 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                     value={outputDirectory}
                     onChange={(e) => setOutputDirectory(e.target.value)}
                     className="border-xp-border bg-xp-bg text-xp-text focus:ring-xp-blue focus:border-xp-blue flex-1 rounded-md border px-3 py-2"
-                    placeholder="Enter output directory..."
+                    placeholder={t('dialogs.extract.outputDirPlaceholder')}
                   />
                   <button
                     onClick={handleBrowseOutputDirectory}
@@ -372,25 +385,25 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
               {archiveInfo?.is_encrypted && (
                 <div>
                   <label className="text-xp-text mb-2 block text-sm font-medium">
-                    Archive Password
+                    {t('dialogs.extract.passwordLabel')}
                   </label>
                   <input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="border-xp-border bg-xp-bg text-xp-text focus:ring-xp-blue focus:border-xp-blue w-full rounded-md border px-3 py-2"
-                    placeholder="Enter archive password..."
+                    placeholder={t('dialogs.extract.passwordPlaceholder')}
                   />
                   <p className="mt-1 text-xs text-yellow-400">
-                    <Lock size={12} className="mr-1 inline-block" /> This archive is encrypted and
-                    requires a password to extract
+                    <Lock size={12} className="mr-1 inline-block" />
+                    {t('dialogs.extract.encryptedNote')}
                   </p>
                 </div>
               )}
 
               {/* Options */}
               <div className="space-y-3">
-                <h4 className="text-xp-text text-sm font-medium">Extraction Options</h4>
+                <h4 className="text-xp-text text-sm font-medium">{t('dialogs.extract.options')}</h4>
                 <div className="space-y-2">
                   <label className="flex cursor-pointer items-center space-x-2">
                     <input
@@ -399,7 +412,9 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                       onChange={(e) => setOverwriteExisting(e.target.checked)}
                       className="text-xp-blue bg-xp-bg border-xp-border focus:ring-xp-blue h-4 w-4 rounded"
                     />
-                    <span className="text-xp-text text-sm">Overwrite existing files</span>
+                    <span className="text-xp-text text-sm">
+                      {t('dialogs.extract.overwriteExisting')}
+                    </span>
                   </label>
                   <label className="flex cursor-pointer items-center space-x-2">
                     <input
@@ -408,7 +423,9 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                       onChange={(e) => setPreservePermissions(e.target.checked)}
                       className="text-xp-blue bg-xp-bg border-xp-border focus:ring-xp-blue h-4 w-4 rounded"
                     />
-                    <span className="text-xp-text text-sm">Preserve file permissions</span>
+                    <span className="text-xp-text text-sm">
+                      {t('dialogs.extract.preservePermissions')}
+                    </span>
                   </label>
                   <label className="flex cursor-pointer items-center space-x-2">
                     <input
@@ -417,7 +434,9 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                       onChange={(e) => setIncludeHidden(e.target.checked)}
                       className="text-xp-blue bg-xp-bg border-xp-border focus:ring-xp-blue h-4 w-4 rounded"
                     />
-                    <span className="text-xp-text text-sm">Include hidden files</span>
+                    <span className="text-xp-text text-sm">
+                      {t('dialogs.extract.includeHidden')}
+                    </span>
                   </label>
                 </div>
               </div>
@@ -427,10 +446,12 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                 <div>
                   <div className="mb-2 flex items-center justify-between">
                     <h4 className="text-xp-text text-sm font-medium">
-                      Archive Contents ({archiveInfo.files.length} items)
+                      {t('dialogs.extract.archiveContents', {
+                        count: archiveInfo.files.length,
+                      })}
                       {selectionCount > 0 && (
                         <span className="bg-xp-blue ml-2 rounded-full px-2 py-0.5 text-xs text-white">
-                          {selectionCount} selected
+                          {t('dialogs.extract.selectionCount', { count: selectionCount })}
                         </span>
                       )}
                     </h4>
@@ -439,7 +460,7 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
                       className="text-xp-blue hover:text-xp-blue-dark flex items-center gap-1 px-2 py-1 text-xs transition-colors"
                     >
                       {allSelected ? <CheckSquare size={14} /> : <Square size={14} />}
-                      {allSelected ? 'Deselect All' : 'Select All'}
+                      {allSelected ? t('dialogs.extract.deselectAll') : t('common.selectAll')}
                     </button>
                   </div>
                   <div className="bg-xp-bg border-xp-border max-h-48 overflow-y-auto rounded border">
@@ -483,7 +504,7 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
             disabled={extracting}
             className="text-xp-text hover:bg-xp-surface-light rounded px-4 py-2 transition-colors disabled:opacity-50"
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           {selectionCount > 0 && (
             <button
@@ -499,7 +520,11 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
               {extracting && (
                 <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
               )}
-              <span>{extracting ? 'Extracting...' : `Extract Selected (${selectionCount})`}</span>
+              <span>
+                {extracting
+                  ? t('dialogs.extract.extracting')
+                  : t('dialogs.extract.extractSelected', { count: selectionCount })}
+              </span>
             </button>
           )}
           <button
@@ -515,7 +540,9 @@ const ExtractDialog = ({ isOpen, onClose, onComplete, archivePath }: ExtractDial
             {extracting && (
               <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white" />
             )}
-            <span>{extracting ? 'Extracting...' : 'Extract All'}</span>
+            <span>
+              {extracting ? t('dialogs.extract.extracting') : t('dialogs.extract.extractAll')}
+            </span>
           </button>
         </div>
       </div>

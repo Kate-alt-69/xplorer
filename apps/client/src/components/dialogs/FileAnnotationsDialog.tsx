@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileAnnotation } from '@/lib/tauri-api';
 import { MessageSquare, X, Plus, Trash2, CheckCircle, Circle } from 'lucide-react';
 
@@ -9,6 +10,7 @@ interface FileAnnotationsDialogProps {
 }
 
 const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDialogProps) => {
+  const { t } = useTranslation();
   const [annotations, setAnnotations] = useState<FileAnnotation[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +95,9 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
           <div className="flex items-center space-x-2">
             <MessageSquare className="text-xp-text-muted h-4 w-4" />
             <div>
-              <h2 className="text-xp-text text-sm font-semibold">Annotations</h2>
+              <h2 className="text-xp-text text-sm font-semibold">
+                {t('dialogs.annotations.title')}
+              </h2>
               <p className="text-xp-text-muted max-w-xs truncate text-xs" title={filePath}>
                 {fileName}
               </p>
@@ -111,9 +115,9 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
         <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
           {/* eslint-disable-next-line no-nested-ternary */}
           {loading ? (
-            <p className="text-xp-text-muted text-sm">Loading...</p>
+            <p className="text-xp-text-muted text-sm">{t('common.loading')}</p>
           ) : annotations.length === 0 ? (
-            <p className="text-xp-text-muted text-sm italic">No annotations yet — add one below.</p>
+            <p className="text-xp-text-muted text-sm italic">{t('dialogs.annotations.empty')}</p>
           ) : (
             <>
               {/* Active annotations */}
@@ -127,7 +131,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
                       <button
                         onClick={() => handleToggleResolved(a.id)}
                         className="text-xp-text-muted mt-0.5 flex-shrink-0 transition-colors hover:text-green-400"
-                        title="Mark as resolved"
+                        title={t('dialogs.annotations.markResolved')}
                       >
                         <Circle className="h-4 w-4" />
                       </button>
@@ -140,7 +144,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
                       <button
                         onClick={() => handleDelete(a.id)}
                         className="hover:bg-xp-surface-light text-xp-text-muted flex-shrink-0 rounded p-1 opacity-0 transition-all hover:text-red-400 group-hover:opacity-100"
-                        title="Delete"
+                        title={t('common.delete')}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -153,7 +157,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
               {resolvedAnnotations.length > 0 && (
                 <div className="space-y-1">
                   <p className="text-xp-text-muted pt-1 text-xs font-medium uppercase tracking-wide">
-                    Resolved ({resolvedAnnotations.length})
+                    {t('dialogs.annotations.resolved', { count: resolvedAnnotations.length })}
                   </p>
                   {resolvedAnnotations.map((a) => (
                     <div
@@ -163,7 +167,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
                       <button
                         onClick={() => handleToggleResolved(a.id)}
                         className="hover:text-xp-text-muted mt-0.5 flex-shrink-0 text-green-400 transition-colors"
-                        title="Unresolve"
+                        title={t('dialogs.annotations.unresolve')}
                       >
                         <CheckCircle className="h-4 w-4" />
                       </button>
@@ -176,7 +180,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
                       <button
                         onClick={() => handleDelete(a.id)}
                         className="hover:bg-xp-surface-light text-xp-text-muted flex-shrink-0 rounded p-1 opacity-0 transition-all hover:text-red-400 group-hover:opacity-100"
-                        title="Delete"
+                        title={t('common.delete')}
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
@@ -212,7 +216,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
                   handleAdd();
                 } else if (e.key === 'Escape') onClose();
               }}
-              placeholder="Add an annotation..."
+              placeholder={t('dialogs.annotations.inputPlaceholder')}
               maxLength={500}
               className="bg-xp-bg border-xp-border text-xp-text placeholder-xp-text-muted focus:border-xp-blue flex-1 rounded border px-3 py-1.5 text-sm transition-colors focus:outline-none"
             />
@@ -226,7 +230,7 @@ const FileAnnotationsDialog = ({ isOpen, onClose, filePath }: FileAnnotationsDia
               ) : (
                 <Plus className="h-3.5 w-3.5" />
               )}
-              <span>Add</span>
+              <span>{t('common.add')}</span>
             </button>
           </div>
         </div>

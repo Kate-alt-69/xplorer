@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { TauriAPI, type FileVersion } from '@/lib/tauri-api';
 import {
@@ -39,6 +40,7 @@ const VersionHistoryDialog = ({
   filePath,
   onRefetch,
 }: VersionHistoryDialogProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const [versions, setVersions] = useState<FileVersion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,11 +78,18 @@ const VersionHistoryDialog = ({
     setActionInProgress('creating');
     try {
       await TauriAPI.createVersion(filePath);
-      toast({ title: 'Version created', description: `Snapshot of "${fileName}" saved` });
+      toast({
+        title: t('dialogs.versionHistory.toastCreatedTitle'),
+        description: t('dialogs.versionHistory.toastCreatedDesc', { fileName }),
+      });
       await loadVersions();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: 'Failed to create version', description: msg, variant: 'destructive' });
+      toast({
+        title: t('dialogs.versionHistory.toastCreateFailedTitle'),
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -91,14 +100,18 @@ const VersionHistoryDialog = ({
     try {
       await TauriAPI.restoreVersion(filePath, versionNumber);
       toast({
-        title: 'Version restored',
-        description: `Restored version ${versionNumber} of "${fileName}"`,
+        title: t('dialogs.versionHistory.toastRestoredTitle'),
+        description: t('dialogs.versionHistory.toastRestoredDesc', { versionNumber, fileName }),
       });
       await loadVersions();
       onRefetch?.();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: 'Failed to restore version', description: msg, variant: 'destructive' });
+      toast({
+        title: t('dialogs.versionHistory.toastRestoreFailedTitle'),
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -108,11 +121,18 @@ const VersionHistoryDialog = ({
     setActionInProgress(`delete-${versionNumber}`);
     try {
       await TauriAPI.deleteVersion(filePath, versionNumber);
-      toast({ title: 'Version deleted', description: `Deleted version ${versionNumber}` });
+      toast({
+        title: t('dialogs.versionHistory.toastDeletedTitle'),
+        description: t('dialogs.versionHistory.toastDeletedDesc', { versionNumber }),
+      });
       await loadVersions();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: 'Failed to delete version', description: msg, variant: 'destructive' });
+      toast({
+        title: t('dialogs.versionHistory.toastDeleteFailedTitle'),
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -123,13 +143,17 @@ const VersionHistoryDialog = ({
     try {
       const count = await TauriAPI.deleteAllVersions(filePath);
       toast({
-        title: 'All versions deleted',
-        description: `Removed ${count} version${count !== 1 ? 's' : ''}`,
+        title: t('dialogs.versionHistory.toastDeleteAllTitle'),
+        description: t('dialogs.versionHistory.toastDeleteAllDesc', { count }),
       });
       await loadVersions();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: 'Failed to delete versions', description: msg, variant: 'destructive' });
+      toast({
+        title: t('dialogs.versionHistory.toastDeleteAllFailedTitle'),
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -148,7 +172,11 @@ const VersionHistoryDialog = ({
       setPreviewVersion(versionNumber);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      toast({ title: 'Failed to read version', description: msg, variant: 'destructive' });
+      toast({
+        title: t('dialogs.versionHistory.toastPreviewFailedTitle'),
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setActionInProgress(null);
     }
@@ -167,7 +195,9 @@ const VersionHistoryDialog = ({
               <History size={18} className="text-xp-accent" />
             </div>
             <div>
-              <h2 className="text-xp-text text-sm font-semibold">Version History</h2>
+              <h2 className="text-xp-text text-sm font-semibold">
+                {t('dialogs.versionHistory.title')}
+              </h2>
               <p
                 className="text-xp-text-secondary mt-0.5 max-w-[360px] truncate text-xs"
                 title={filePath}
@@ -192,7 +222,7 @@ const VersionHistoryDialog = ({
             className="bg-xp-accent/10 text-xp-accent hover:bg-xp-accent/20 flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
           >
             <Plus size={14} />
-            Create Snapshot
+            {t('dialogs.versionHistory.createSnapshot')}
           </button>
           {versions.length > 0 && (
             <button
@@ -201,11 +231,11 @@ const VersionHistoryDialog = ({
               className="flex items-center gap-1.5 rounded-md bg-red-500/10 px-3 py-1.5 text-xs font-medium text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
             >
               <Trash size={14} />
-              Delete All
+              {t('dialogs.versionHistory.deleteAll')}
             </button>
           )}
           <div className="text-xp-text-secondary ml-auto text-xs">
-            {versions.length} version{versions.length !== 1 ? 's' : ''}
+            {t('dialogs.versionHistory.versionCount', { count: versions.length })}
           </div>
         </div>
 
@@ -215,7 +245,9 @@ const VersionHistoryDialog = ({
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <div className="border-xp-accent h-5 w-5 animate-spin rounded-full border-2 border-t-transparent" />
-              <span className="text-xp-text-secondary ml-3 text-sm">Loading versions...</span>
+              <span className="text-xp-text-secondary ml-3 text-sm">
+                {t('dialogs.versionHistory.loading')}
+              </span>
             </div>
           ) : // eslint-disable-next-line no-nested-ternary
           error ? (
@@ -226,15 +258,17 @@ const VersionHistoryDialog = ({
                 onClick={loadVersions}
                 className="text-xp-accent mt-3 text-xs hover:underline"
               >
-                Try again
+                {t('dialogs.versionHistory.tryAgain')}
               </button>
             </div>
           ) : versions.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-6 py-12 text-center">
               <History size={32} className="text-xp-text-secondary/40 mb-3" />
-              <p className="text-xp-text-secondary text-sm">No versions saved yet</p>
+              <p className="text-xp-text-secondary text-sm">
+                {t('dialogs.versionHistory.noVersions')}
+              </p>
               <p className="text-xp-text-secondary/60 mt-1 text-xs">
-                Click "Create Snapshot" to save the current state of this file
+                {t('dialogs.versionHistory.noVersionsHint')}
               </p>
             </div>
           ) : (
@@ -254,7 +288,9 @@ const VersionHistoryDialog = ({
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-xp-text text-sm font-medium">
-                            Version {version.version_number}
+                            {t('dialogs.versionHistory.versionLabel', {
+                              n: version.version_number,
+                            })}
                           </span>
                         </div>
                         <div className="mt-0.5 flex items-center gap-3">
@@ -273,7 +309,7 @@ const VersionHistoryDialog = ({
                       <button
                         onClick={() => handlePreview(version.version_number)}
                         disabled={!!actionInProgress}
-                        title="Preview"
+                        title={t('dialogs.versionHistory.previewTitle')}
                         className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors disabled:opacity-50 ${
                           previewVersion === version.version_number
                             ? 'bg-xp-accent/20 text-xp-accent'
@@ -285,7 +321,7 @@ const VersionHistoryDialog = ({
                       <button
                         onClick={() => handleRestore(version.version_number)}
                         disabled={!!actionInProgress}
-                        title="Restore this version"
+                        title={t('dialogs.versionHistory.restoreTitle')}
                         className="text-xp-text-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-emerald-500/10 hover:text-emerald-400 disabled:opacity-50"
                       >
                         <RotateCcw size={14} />
@@ -293,7 +329,7 @@ const VersionHistoryDialog = ({
                       <button
                         onClick={() => handleDelete(version.version_number)}
                         disabled={!!actionInProgress}
-                        title="Delete this version"
+                        title={t('dialogs.versionHistory.deleteTitle')}
                         className="text-xp-text-secondary flex h-7 w-7 items-center justify-center rounded-md transition-colors hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
                       >
                         <Trash2 size={14} />
@@ -306,7 +342,7 @@ const VersionHistoryDialog = ({
                     <div className="border-xp-border/50 bg-xp-bg mt-3 overflow-hidden rounded-md border">
                       <div className="border-xp-border/30 bg-xp-surface/50 flex items-center justify-between border-b px-3 py-1.5">
                         <span className="text-xp-text-secondary text-[10px] font-medium uppercase tracking-wider">
-                          Preview - v{version.version_number}
+                          {t('dialogs.versionHistory.previewLabel', { n: version.version_number })}
                         </span>
                         <button
                           onClick={() => {
@@ -320,7 +356,7 @@ const VersionHistoryDialog = ({
                       </div>
                       <pre className="text-xp-text max-h-[200px] overflow-x-auto overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-xs">
                         {previewContent.length > 10000
-                          ? `${previewContent.slice(0, 10000)}\n\n... (truncated)`
+                          ? `${previewContent.slice(0, 10000)}\n\n${t('dialogs.versionHistory.truncated')}`
                           : previewContent}
                       </pre>
                     </div>
@@ -337,7 +373,7 @@ const VersionHistoryDialog = ({
             onClick={onClose}
             className="text-xp-text-secondary hover:bg-xp-surface rounded-md px-4 py-1.5 text-xs font-medium transition-colors"
           >
-            Close
+            {t('common.close')}
           </button>
         </div>
       </div>

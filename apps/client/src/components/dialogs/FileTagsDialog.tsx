@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileTag } from '@/lib/tauri-api';
 import { Tag, X, Plus, Check } from 'lucide-react';
 
@@ -20,6 +21,7 @@ interface FileTagsDialogProps {
 }
 
 const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogProps) => {
+  const { t } = useTranslation();
   const [tags, setTags] = useState<FileTag[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,8 +56,8 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
     if (!name) return;
 
     // Prevent duplicate names
-    if (tags.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
-      setError(`Tag "${name}" already exists on this file.`);
+    if (tags.some((tag) => tag.name.toLowerCase() === name.toLowerCase())) {
+      setError(t('dialogs.tags.duplicateError', { name }));
       return;
     }
 
@@ -111,7 +113,7 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
           <div className="flex items-center space-x-2">
             <Tag className="text-xp-text-muted h-4 w-4" />
             <div>
-              <h2 className="text-xp-text text-sm font-semibold">Manage Tags</h2>
+              <h2 className="text-xp-text text-sm font-semibold">{t('dialogs.tags.title')}</h2>
               <p className="text-xp-text-muted max-w-xs truncate text-xs" title={filePath}>
                 {fileName}
               </p>
@@ -120,7 +122,7 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
           <button
             onClick={onClose}
             className="hover:bg-xp-surface-light text-xp-text-muted hover:text-xp-text rounded p-1 transition-colors"
-            aria-label="Close tags dialog"
+            aria-label={t('dialogs.tags.closeAria')}
           >
             <X className="h-4 w-4" />
           </button>
@@ -131,13 +133,14 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
           {/* Current tags */}
           <div>
             <p className="text-xp-text-muted mb-2 text-xs font-medium uppercase tracking-wide">
-              Current Tags
+              {t('dialogs.tags.currentTags')}
             </p>
             {(() => {
-              if (loading) return <p className="text-xp-text-muted text-sm">Loading...</p>;
+              if (loading)
+                {return <p className="text-xp-text-muted text-sm">{t('common.loading')}</p>;}
               if (tags.length === 0) {
                 return (
-                  <p className="text-xp-text-muted text-sm italic">No tags — add one below.</p>
+                  <p className="text-xp-text-muted text-sm italic">{t('dialogs.tags.empty')}</p>
                 );
               }
               return (
@@ -153,8 +156,8 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
                       <button
                         onClick={() => handleRemoveTag(idx)}
                         className="ml-0.5 rounded-full p-0.5 transition-colors hover:bg-black hover:bg-opacity-20"
-                        title={`Remove "${tag.name}"`}
-                        aria-label={`Remove tag "${tag.name}"`}
+                        title={t('dialogs.tags.removeTag', { name: tag.name })}
+                        aria-label={t('dialogs.tags.removeTagAria', { name: tag.name })}
                       >
                         <X className="h-2.5 w-2.5" />
                       </button>
@@ -171,7 +174,7 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
           {/* Add new tag */}
           <div>
             <p className="text-xp-text-muted mb-2 text-xs font-medium uppercase tracking-wide">
-              Add Tag
+              {t('dialogs.tags.addTag')}
             </p>
 
             {/* Color picker */}
@@ -187,7 +190,7 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
                     boxShadow: selectedColor === c.value ? `0 0 0 1px ${c.value}` : 'none',
                   }}
                   title={c.label}
-                  aria-label={`Select ${c.label} color`}
+                  aria-label={t('dialogs.tags.selectColor', { color: c.label })}
                 >
                   {selectedColor === c.value && (
                     <Check className="h-2.5 w-2.5 text-white drop-shadow" />
@@ -212,7 +215,7 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
                     setError(null);
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Tag name..."
+                  placeholder={t('dialogs.tags.tagNamePlaceholder')}
                   maxLength={32}
                   className="bg-xp-bg border-xp-border text-xp-text placeholder-xp-text-muted focus:ring-xp-blue focus:border-xp-blue w-full rounded border py-1.5 pl-7 pr-3 text-sm transition-colors focus:outline-none focus:ring-2"
                 />
@@ -221,10 +224,11 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
                 onClick={handleAddTag}
                 disabled={!newTagName.trim()}
                 className="bg-xp-blue flex items-center space-x-1 rounded px-2.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Add tag"
+                aria-label={t('dialogs.tags.addTagAria')}
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>Add</span>
+                {/* add tag button */}
+                <span>{t('common.add')}</span>
               </button>
             </div>
           </div>
@@ -242,25 +246,25 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
           <button
             onClick={onClose}
             className="text-xp-text-muted hover:text-xp-text hover:bg-xp-surface-light rounded px-3 py-1.5 text-sm transition-colors"
-            aria-label="Cancel tag changes"
+            aria-label={t('dialogs.tags.cancelAria')}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             onClick={handleSave}
             disabled={saving || loading}
             className="bg-xp-blue flex items-center space-x-1.5 rounded px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-            aria-label="Save tags"
+            aria-label={t('dialogs.tags.saveAria')}
           >
             {saving ? (
               <>
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                <span>Saving...</span>
+                <span>{t('dialogs.tags.saving')}</span>
               </>
             ) : (
               <>
                 <Check className="h-3.5 w-3.5" />
-                <span>Save Tags</span>
+                <span>{t('dialogs.tags.saveTags')}</span>
               </>
             )}
           </button>

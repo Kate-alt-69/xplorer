@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { FileEntry } from '@/lib/tauri-api';
 import {
   type FileCollection,
@@ -241,6 +242,7 @@ const CollectionEditorDialogInner = ({
   currentFiles = [],
   currentPath = '',
 }: CollectionEditorDialogProps) => {
+  const { t } = useTranslation();
   const isEditing = !!collection;
 
   const [name, setName] = useState(collection?.name ?? '');
@@ -358,12 +360,20 @@ const CollectionEditorDialogInner = ({
         style={S.dialog}
         role="dialog"
         aria-modal="true"
-        aria-label={isEditing ? 'Edit Collection' : 'New Collection'}
+        aria-label={
+          isEditing ? t('dialogs.collection.editTitle') : t('dialogs.collection.newTitle')
+        }
       >
         {/* Header */}
         <div style={S.header}>
-          <h2 style={S.title}>{isEditing ? 'Edit Collection' : 'New Collection'}</h2>
-          <button style={S.closeBtn} onClick={onClose} aria-label="Close dialog">
+          <h2 style={S.title}>
+            {isEditing ? t('dialogs.collection.editTitle') : t('dialogs.collection.newTitle')}
+          </h2>
+          <button
+            style={S.closeBtn}
+            onClick={onClose}
+            aria-label={t('dialogs.collection.closeDialog')}
+          >
             &times;
           </button>
         </div>
@@ -372,27 +382,27 @@ const CollectionEditorDialogInner = ({
         <div style={S.body}>
           {/* Name */}
           <div style={S.section}>
-            <label style={S.label}>Name</label>
+            <label style={S.label}>{t('dialogs.collection.nameLabel')}</label>
             <input
               style={S.input}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="My Collection"
+              placeholder={t('dialogs.collection.namePlaceholder')}
               autoFocus
             />
           </div>
 
           {/* Icon */}
           <div style={S.section}>
-            <label style={S.label}>Icon</label>
+            <label style={S.label}>{t('dialogs.collection.iconLabel')}</label>
             <div style={S.iconRow}>
               {COLLECTION_ICONS.map((ic) => (
                 <button
                   key={ic}
                   style={S.iconBtn(icon === ic)}
                   onClick={() => setIcon(ic)}
-                  aria-label={`Select icon ${ic}`}
+                  aria-label={t('dialogs.collection.selectIcon', { icon: ic })}
                   type="button"
                 >
                   {renderIcon(ic, 16)}
@@ -403,14 +413,14 @@ const CollectionEditorDialogInner = ({
 
           {/* Color */}
           <div style={S.section}>
-            <label style={S.label}>Color</label>
+            <label style={S.label}>{t('dialogs.collection.colorLabel')}</label>
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
               {COLLECTION_COLORS.map((c) => (
                 <button
                   key={c}
                   style={S.colorBtn(c, color === c)}
                   onClick={() => setColor(c)}
-                  aria-label={`Select color ${c}`}
+                  aria-label={t('dialogs.collection.selectColor', { color: c })}
                   type="button"
                 />
               ))}
@@ -419,24 +429,24 @@ const CollectionEditorDialogInner = ({
 
           {/* Base path */}
           <div style={S.section}>
-            <label style={S.label}>Base Directory (optional)</label>
+            <label style={S.label}>{t('dialogs.collection.baseDirLabel')}</label>
             <input
               style={S.input}
               type="text"
               value={basePath}
               onChange={(e) => setBasePath(e.target.value)}
-              placeholder="Leave empty to use as quick filter on current directory"
+              placeholder={t('dialogs.collection.baseDirPlaceholder')}
             />
             <div style={{ fontSize: '11px', color: 'var(--xp-text-muted)', marginTop: '4px' }}>
               {basePath
-                ? 'Smart folder: navigates to this directory with filters applied.'
-                : 'Quick filter: applies filters to whatever directory you are viewing.'}
+                ? t('dialogs.collection.baseDirHintSet')
+                : t('dialogs.collection.baseDirHintEmpty')}
             </div>
           </div>
 
           {/* Filters */}
           <div style={S.section}>
-            <label style={S.label}>Filters</label>
+            <label style={S.label}>{t('dialogs.collection.filtersLabel')}</label>
             {filters.map((filter, idx) => (
               // eslint-disable-next-line react/no-array-index-key
               <div style={S.filterRow} key={idx}>
@@ -459,9 +469,9 @@ const CollectionEditorDialogInner = ({
                     value={filter.value}
                     onChange={(e) => handleFilterValueChange(idx, e.target.value)}
                   >
-                    <option value="">-- select --</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
+                    <option value="">{t('dialogs.collection.selectValue')}</option>
+                    <option value="true">{t('common.yes')}</option>
+                    <option value="false">{t('common.no')}</option>
                   </select>
                 ) : (
                   <input
@@ -475,16 +485,16 @@ const CollectionEditorDialogInner = ({
                 <button
                   style={S.removeBtn}
                   onClick={() => removeFilter(idx)}
-                  aria-label="Remove filter"
+                  aria-label={t('dialogs.collection.removeFilter')}
                   type="button"
-                  title="Remove this filter"
+                  title={t('dialogs.collection.removeFilterTitle')}
                 >
                   &times;
                 </button>
               </div>
             ))}
             <button style={S.addBtn} onClick={addFilter} type="button">
-              + Add Filter
+              {t('dialogs.collection.addFilter')}
             </button>
           </div>
 
@@ -504,10 +514,7 @@ const CollectionEditorDialogInner = ({
                 <circle cx="11" cy="11" r="8" />
                 <path d="m21 21-4.3-4.3" />
               </svg>
-              <span>
-                <strong style={{ color: 'var(--xp-blue)' }}>{matchCount}</strong> file
-                {matchCount !== 1 ? 's' : ''} match in current directory
-              </span>
+              <span>{t('dialogs.collection.matchCount', { count: matchCount })}</span>
             </div>
           </div>
         </div>
@@ -515,7 +522,7 @@ const CollectionEditorDialogInner = ({
         {/* Footer */}
         <div style={S.footer}>
           <button style={S.cancelBtn} onClick={onClose} type="button">
-            Cancel
+            {t('common.cancel')}
           </button>
           <button
             style={{ ...S.saveBtn, ...(canSave ? {} : S.saveBtnDisabled) }}
@@ -523,7 +530,9 @@ const CollectionEditorDialogInner = ({
             disabled={!canSave}
             type="button"
           >
-            {isEditing ? 'Save Changes' : 'Create Collection'}
+            {isEditing
+              ? t('dialogs.collection.saveChanges')
+              : t('dialogs.collection.createCollection')}
           </button>
         </div>
       </div>

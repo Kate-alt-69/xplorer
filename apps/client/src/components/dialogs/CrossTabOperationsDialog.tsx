@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { CrossTabSelection } from '@/hooks/use-cross-tab-selection';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -273,6 +274,7 @@ const CrossTabOperationsDialog = ({
   onDeleteAll,
   onPickFolder,
 }: CrossTabOperationsDialogProps) => {
+  const { t } = useTranslation();
   const [destination, setDestination] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -292,7 +294,7 @@ const CrossTabOperationsDialog = ({
       if (requiresDest && !destination.trim()) return;
       setIsProcessing(true);
       setProgress(0);
-      setStatusMessage('Starting operation...');
+      setStatusMessage(t('dialogs.crossTab.statusStarting'));
       try {
         // Simulate progress updates (actual progress comes from operation)
         const progressInterval = setInterval(() => {
@@ -303,7 +305,7 @@ const CrossTabOperationsDialog = ({
 
         clearInterval(progressInterval);
         setProgress(100);
-        setStatusMessage('Operation completed successfully.');
+        setStatusMessage(t('dialogs.crossTab.statusDone'));
         setTimeout(() => {
           setIsProcessing(false);
           setProgress(0);
@@ -313,7 +315,11 @@ const CrossTabOperationsDialog = ({
       } catch (err) {
         setIsProcessing(false);
         setProgress(0);
-        setStatusMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+        setStatusMessage(
+          t('dialogs.crossTab.statusError', {
+            message: err instanceof Error ? err.message : String(err),
+          }),
+        );
       }
     },
     [destination, onClose],
@@ -328,7 +334,7 @@ const CrossTabOperationsDialog = ({
   const handleDeleteAll = useCallback(async () => {
     setIsProcessing(true);
     setProgress(0);
-    setStatusMessage('Deleting files...');
+    setStatusMessage(t('dialogs.crossTab.statusDeleting'));
     try {
       const progressInterval = setInterval(() => {
         setProgress((p) => Math.min(p + 5, 90));
@@ -336,7 +342,7 @@ const CrossTabOperationsDialog = ({
       await onDeleteAll();
       clearInterval(progressInterval);
       setProgress(100);
-      setStatusMessage('All files deleted.');
+      setStatusMessage(t('dialogs.crossTab.statusDeleted'));
       setTimeout(() => {
         setIsProcessing(false);
         setProgress(0);
@@ -346,7 +352,11 @@ const CrossTabOperationsDialog = ({
     } catch (err) {
       setIsProcessing(false);
       setProgress(0);
-      setStatusMessage(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      setStatusMessage(
+        t('dialogs.crossTab.statusError', {
+          message: err instanceof Error ? err.message : String(err),
+        }),
+      );
     }
   }, [onDeleteAll, onClose]);
 
@@ -365,10 +375,12 @@ const CrossTabOperationsDialog = ({
         {/* Header */}
         <div style={headerStyle}>
           <div>
-            <h2 style={titleStyle}>Batch Operations</h2>
+            <h2 style={titleStyle}>{t('dialogs.crossTab.title')}</h2>
             <div style={subtitleStyle}>
-              {totalSelectedCount} file{totalSelectedCount !== 1 ? 's' : ''} from {selectedTabCount}{' '}
-              tab{selectedTabCount !== 1 ? 's' : ''}
+              {t('dialogs.crossTab.subtitle', {
+                fileCount: totalSelectedCount,
+                tabCount: selectedTabCount,
+              })}
             </div>
           </div>
           <button
@@ -381,7 +393,7 @@ const CrossTabOperationsDialog = ({
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.background = 'transparent';
             }}
-            aria-label="Close"
+            aria-label={t('common.close')}
           >
             <CloseIcon />
           </button>
@@ -401,7 +413,7 @@ const CrossTabOperationsDialog = ({
                     fontWeight: 400,
                   }}
                 >
-                  ({sel.files.length} file{sel.files.length !== 1 ? 's' : ''})
+                  ({t('dialogs.crossTab.fileCount', { count: sel.files.length })})
                 </span>
               </div>
               {sel.files.map((file) => (
@@ -437,14 +449,14 @@ const CrossTabOperationsDialog = ({
         {/* Destination input */}
         <div style={destinationSectionStyle}>
           <div style={{ fontSize: 11, color: 'var(--xp-text-muted)', marginBottom: 6 }}>
-            Destination folder (for Move, Copy, Compress):
+            {t('dialogs.crossTab.destinationLabel')}
           </div>
           <div style={destinationRowStyle}>
             <input
               style={destinationInputStyle}
               value={destination}
               onChange={(e) => setDestination(e.target.value)}
-              placeholder="Select a destination folder..."
+              placeholder={t('dialogs.crossTab.destinationPlaceholder')}
               disabled={isProcessing}
               onFocus={(e) => {
                 (e.currentTarget as HTMLElement).style.borderColor = 'var(--xp-blue)';
@@ -464,7 +476,7 @@ const CrossTabOperationsDialog = ({
                 (e.currentTarget as HTMLElement).style.background = 'var(--xp-surface-light)';
               }}
             >
-              Browse...
+              {t('dialogs.crossTab.browse')}
             </button>
           </div>
 
@@ -501,7 +513,7 @@ const CrossTabOperationsDialog = ({
             }}
           >
             <MoveIcon />
-            Move All to...
+            {t('dialogs.crossTab.moveAll')}
           </button>
           <button
             style={{
@@ -523,7 +535,7 @@ const CrossTabOperationsDialog = ({
             }}
           >
             <CopyIcon />
-            Copy All to...
+            {t('dialogs.crossTab.copyAll')}
           </button>
           <button
             style={{
@@ -545,7 +557,7 @@ const CrossTabOperationsDialog = ({
             }}
           >
             <CompressIcon />
-            Compress All
+            {t('dialogs.crossTab.compressAll')}
           </button>
           <button
             style={{
@@ -567,7 +579,7 @@ const CrossTabOperationsDialog = ({
             }}
           >
             <TrashIcon />
-            Delete All
+            {t('dialogs.crossTab.deleteAll')}
           </button>
 
           {/* Spacer + close */}
@@ -582,7 +594,7 @@ const CrossTabOperationsDialog = ({
             onClick={onClose}
             disabled={isProcessing}
           >
-            Cancel
+            {t('common.cancel')}
           </button>
         </div>
       </div>

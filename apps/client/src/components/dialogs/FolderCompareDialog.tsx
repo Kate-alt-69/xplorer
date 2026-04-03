@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useToast } from '@/hooks/use-toast';
 import { TauriAPI } from '@/lib/tauri-api';
 import { formatFileSize, formatDate } from '@/lib/utils';
@@ -185,12 +186,28 @@ const tdStyle: React.CSSProperties = {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const statusBadge = (status: ResultRow['status']): React.ReactNode => {
+const statusBadge = (status: ResultRow['status'], t: (key: string) => string): React.ReactNode => {
   const map: Record<string, { label: string; bg: string; fg: string }> = {
-    'only-left': { label: 'Left Only', bg: 'rgba(239,68,68,0.15)', fg: '#f87171' },
-    'only-right': { label: 'Right Only', bg: 'rgba(239,68,68,0.15)', fg: '#f87171' },
-    different: { label: 'Different', bg: 'rgba(234,179,8,0.15)', fg: '#facc15' },
-    identical: { label: 'Identical', bg: 'rgba(34,197,94,0.15)', fg: '#4ade80' },
+    'only-left': {
+      label: t('dialogs.folderCompare.statusLeftOnly'),
+      bg: 'rgba(239,68,68,0.15)',
+      fg: '#f87171',
+    },
+    'only-right': {
+      label: t('dialogs.folderCompare.statusRightOnly'),
+      bg: 'rgba(239,68,68,0.15)',
+      fg: '#f87171',
+    },
+    different: {
+      label: t('dialogs.folderCompare.statusDifferent'),
+      bg: 'rgba(234,179,8,0.15)',
+      fg: '#facc15',
+    },
+    identical: {
+      label: t('dialogs.folderCompare.statusIdentical'),
+      bg: 'rgba(34,197,94,0.15)',
+      fg: '#4ade80',
+    },
   };
   const s = map[status];
   return (
@@ -231,6 +248,7 @@ const FolderCompareDialog = ({
   initialLeft = '',
   initialRight = '',
 }: FolderCompareDialogProps) => {
+  const { t } = useTranslation();
   const { toast } = useToast();
 
   // Path inputs
@@ -269,8 +287,8 @@ const FolderCompareDialog = ({
   const handleCompare = useCallback(async () => {
     if (!leftPath.trim() || !rightPath.trim()) {
       toast({
-        title: 'Paths required',
-        description: 'Please enter both left and right folder paths.',
+        title: t('dialogs.folderCompare.toastPathsRequiredTitle'),
+        description: t('dialogs.folderCompare.toastPathsRequiredDesc'),
         variant: 'destructive',
       });
       return;
@@ -287,11 +305,15 @@ const FolderCompareDialog = ({
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
-      toast({ title: 'Comparison failed', description: msg, variant: 'destructive' });
+      toast({
+        title: t('dialogs.folderCompare.toastComparisonFailedTitle'),
+        description: msg,
+        variant: 'destructive',
+      });
     } finally {
       setComparing(false);
     }
-  }, [leftPath, rightPath, toast]);
+  }, [leftPath, rightPath, t, toast]);
 
   // ── Build flat rows ──────────────────────────────────────────────────────
 
@@ -390,8 +412,8 @@ const FolderCompareDialog = ({
     async (direction: 'left-to-right' | 'right-to-left') => {
       if (selectedRows.size === 0) {
         toast({
-          title: 'No files selected',
-          description: 'Select files to copy.',
+          title: t('dialogs.folderCompare.toastNoFilesSelectedTitle'),
+          description: t('dialogs.folderCompare.toastNoFilesSelectedDesc'),
           variant: 'destructive',
         });
         return;
@@ -428,13 +450,17 @@ const FolderCompareDialog = ({
 
       if (errors.length === 0) {
         toast({
-          title: 'Copy complete',
-          description: `${copied} file${copied !== 1 ? 's' : ''} copied.`,
+          title: t('dialogs.folderCompare.toastCopyCompleteTitle'),
+          description: t('dialogs.folderCompare.toastCopyCompleteDesc', { count: copied }),
         });
       } else {
         toast({
-          title: 'Copy completed with errors',
-          description: `${copied} copied, ${errors.length} failed: ${errors.slice(0, 3).join('; ')}`,
+          title: t('dialogs.folderCompare.toastCopyWithErrorsTitle'),
+          description: t('dialogs.folderCompare.toastCopyWithErrorsDesc', {
+            copied,
+            failed: errors.length,
+            errors: errors.slice(0, 3).join('; '),
+          }),
           variant: 'destructive',
         });
       }
@@ -444,7 +470,7 @@ const FolderCompareDialog = ({
         await handleCompare();
       }
     },
-    [selectedRows, allRows, leftPath, rightPath, toast, handleCompare],
+    [selectedRows, allRows, leftPath, rightPath, t, toast, handleCompare],
   );
 
   // ── Open diff viewer ─────────────────────────────────────────────────────
@@ -483,7 +509,7 @@ const FolderCompareDialog = ({
         {/* Header */}
         <div style={headerStyle}>
           <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--xp-text)', margin: 0 }}>
-            Compare Folders
+            {t('dialogs.folderCompare.title')}
           </h2>
           <button
             onClick={onClose}
@@ -494,7 +520,7 @@ const FolderCompareDialog = ({
               display: 'flex',
               alignItems: 'center',
             }}
-            aria-label="Close folder compare dialog"
+            aria-label={t('dialogs.folderCompare.ariaClose')}
           >
             <X size={18} />
           </button>
@@ -515,14 +541,14 @@ const FolderCompareDialog = ({
                   marginBottom: 4,
                 }}
               >
-                Left Folder
+                {t('dialogs.folderCompare.leftFolder')}
               </label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input
                   type="text"
                   value={leftPath}
                   onChange={(e) => setLeftPath(e.target.value)}
-                  placeholder="Enter left folder path..."
+                  placeholder={t('dialogs.folderCompare.leftFolderPlaceholder')}
                   style={inputStyle}
                 />
                 <button
@@ -533,7 +559,7 @@ const FolderCompareDialog = ({
                     alignItems: 'center',
                     padding: '6px 8px',
                   }}
-                  aria-label="Browse for left folder"
+                  aria-label={t('dialogs.folderCompare.ariaBrowseLeft')}
                 >
                   <FolderOpen size={14} />
                 </button>
@@ -551,14 +577,14 @@ const FolderCompareDialog = ({
                   marginBottom: 4,
                 }}
               >
-                Right Folder
+                {t('dialogs.folderCompare.rightFolder')}
               </label>
               <div style={{ display: 'flex', gap: 4 }}>
                 <input
                   type="text"
                   value={rightPath}
                   onChange={(e) => setRightPath(e.target.value)}
-                  placeholder="Enter right folder path..."
+                  placeholder={t('dialogs.folderCompare.rightFolderPlaceholder')}
                   style={inputStyle}
                 />
                 <button
@@ -569,7 +595,7 @@ const FolderCompareDialog = ({
                     alignItems: 'center',
                     padding: '6px 8px',
                   }}
-                  aria-label="Browse for right folder"
+                  aria-label={t('dialogs.folderCompare.ariaBrowseRight')}
                 >
                   <FolderOpen size={14} />
                 </button>
@@ -590,7 +616,11 @@ const FolderCompareDialog = ({
                 gap: 6,
                 whiteSpace: 'nowrap',
               }}
-              aria-label={comparing ? 'Comparing folders' : 'Compare folders'}
+              aria-label={
+                comparing
+                  ? t('dialogs.folderCompare.ariaComparing')
+                  : t('dialogs.folderCompare.ariaCompare')
+              }
             >
               {comparing ? (
                 <span
@@ -607,7 +637,9 @@ const FolderCompareDialog = ({
               ) : (
                 <Search size={14} />
               )}
-              {comparing ? 'Comparing...' : 'Compare'}
+              {comparing
+                ? t('dialogs.folderCompare.comparing')
+                : t('dialogs.folderCompare.compare')}
             </button>
           </div>
 
@@ -640,7 +672,7 @@ const FolderCompareDialog = ({
                 }}
               />
               <span style={{ marginLeft: 10, color: 'var(--xp-text-muted)', fontSize: 13 }}>
-                Comparing folders...
+                {t('dialogs.folderCompare.comparingFolders')}
               </span>
             </div>
           )}
@@ -651,42 +683,48 @@ const FolderCompareDialog = ({
               {/* Summary bar */}
               <div style={summaryBarStyle}>
                 <span>
-                  Left:{' '}
+                  {t('dialogs.folderCompare.summaryLeft')}{' '}
                   <strong style={{ color: 'var(--xp-text)' }}>{result.summary.totalLeft}</strong>{' '}
-                  files
+                  {t('dialogs.folderCompare.summaryFiles')}
                 </span>
                 <span>
-                  Right:{' '}
+                  {t('dialogs.folderCompare.summaryRight')}{' '}
                   <strong style={{ color: 'var(--xp-text)' }}>{result.summary.totalRight}</strong>{' '}
-                  files
+                  {t('dialogs.folderCompare.summaryFiles')}
                 </span>
                 <span style={{ color: '#facc15' }}>
-                  Different: <strong>{result.summary.different}</strong>
+                  {t('dialogs.folderCompare.summaryDifferent')}{' '}
+                  <strong>{result.summary.different}</strong>
                 </span>
                 <span style={{ color: '#f87171' }}>
-                  Only Left: <strong>{result.summary.onlyLeft}</strong>
+                  {t('dialogs.folderCompare.summaryOnlyLeft')}{' '}
+                  <strong>{result.summary.onlyLeft}</strong>
                 </span>
                 <span style={{ color: '#f87171' }}>
-                  Only Right: <strong>{result.summary.onlyRight}</strong>
+                  {t('dialogs.folderCompare.summaryOnlyRight')}{' '}
+                  <strong>{result.summary.onlyRight}</strong>
                 </span>
                 <span style={{ color: '#4ade80' }}>
-                  Identical: <strong>{result.summary.identical}</strong>
+                  {t('dialogs.folderCompare.summaryIdentical')}{' '}
+                  <strong>{result.summary.identical}</strong>
                 </span>
               </div>
 
               {/* Filter buttons */}
               <div style={filterBarStyle}>
                 <button onClick={() => setFilter('all')} style={filterBtnStyle('all')}>
-                  All ({allRows.length})
+                  {t('dialogs.folderCompare.filterAll', { count: allRows.length })}
                 </button>
                 <button onClick={() => setFilter('different')} style={filterBtnStyle('different')}>
-                  Different ({result.summary.different})
+                  {t('dialogs.folderCompare.filterDifferent', { count: result.summary.different })}
                 </button>
                 <button onClick={() => setFilter('missing')} style={filterBtnStyle('missing')}>
-                  Missing ({result.summary.onlyLeft + result.summary.onlyRight})
+                  {t('dialogs.folderCompare.filterMissing', {
+                    count: result.summary.onlyLeft + result.summary.onlyRight,
+                  })}
                 </button>
                 <button onClick={() => setFilter('identical')} style={filterBtnStyle('identical')}>
-                  Identical ({result.summary.identical})
+                  {t('dialogs.folderCompare.filterIdentical', { count: result.summary.identical })}
                 </button>
               </div>
 
@@ -712,13 +750,25 @@ const FolderCompareDialog = ({
                           style={{ accentColor: 'var(--xp-blue)' }}
                         />
                       </th>
-                      <th style={{ ...thStyle, width: 90 }}>Status</th>
-                      <th style={thStyle}>File Name</th>
-                      <th style={{ ...thStyle, width: 90, textAlign: 'right' }}>Left Size</th>
-                      <th style={{ ...thStyle, width: 90, textAlign: 'right' }}>Right Size</th>
-                      <th style={{ ...thStyle, width: 140 }}>Left Modified</th>
-                      <th style={{ ...thStyle, width: 140 }}>Right Modified</th>
-                      <th style={{ ...thStyle, width: 60 }}>Actions</th>
+                      <th style={{ ...thStyle, width: 90 }}>
+                        {t('dialogs.folderCompare.colStatus')}
+                      </th>
+                      <th style={thStyle}>{t('dialogs.folderCompare.colFileName')}</th>
+                      <th style={{ ...thStyle, width: 90, textAlign: 'right' }}>
+                        {t('dialogs.folderCompare.colLeftSize')}
+                      </th>
+                      <th style={{ ...thStyle, width: 90, textAlign: 'right' }}>
+                        {t('dialogs.folderCompare.colRightSize')}
+                      </th>
+                      <th style={{ ...thStyle, width: 140 }}>
+                        {t('dialogs.folderCompare.colLeftModified')}
+                      </th>
+                      <th style={{ ...thStyle, width: 140 }}>
+                        {t('dialogs.folderCompare.colRightModified')}
+                      </th>
+                      <th style={{ ...thStyle, width: 60 }}>
+                        {t('dialogs.folderCompare.colActions')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -733,7 +783,7 @@ const FolderCompareDialog = ({
                             color: 'var(--xp-text-muted)',
                           }}
                         >
-                          No files match the current filter.
+                          {t('dialogs.folderCompare.noFilesMatchFilter')}
                         </td>
                       </tr>
                     ) : (
@@ -755,7 +805,7 @@ const FolderCompareDialog = ({
                               style={{ accentColor: 'var(--xp-blue)' }}
                             />
                           </td>
-                          <td style={tdStyle}>{statusBadge(row.status)}</td>
+                          <td style={tdStyle}>{statusBadge(row.status, t)}</td>
                           <td style={{ ...tdStyle, fontWeight: 500 }}>{row.name}</td>
                           <td
                             style={{
@@ -793,9 +843,9 @@ const FolderCompareDialog = ({
                                   fontSize: 11,
                                   border: '1px solid var(--xp-border)',
                                 }}
-                                title="Open in Diff Viewer"
+                                title={t('dialogs.folderCompare.diffViewerTitle')}
                               >
-                                Diff
+                                {t('dialogs.folderCompare.diffButton')}
                               </button>
                             )}
                           </td>
@@ -823,9 +873,10 @@ const FolderCompareDialog = ({
                   gap: 4,
                   opacity: copying ? 0.5 : 1,
                 }}
-                title="Copy selected files from left folder to right folder"
+                title={t('dialogs.folderCompare.copyLeftToRightTitle')}
               >
-                Copy Left <ArrowRight size={14} /> Right
+                {t('dialogs.folderCompare.copyLeftLabel')} <ArrowRight size={14} />{' '}
+                {t('dialogs.folderCompare.copyRightLabel')}
               </button>
               <button
                 onClick={() => handleCopy('right-to-left')}
@@ -837,14 +888,19 @@ const FolderCompareDialog = ({
                   gap: 4,
                   opacity: copying ? 0.5 : 1,
                 }}
-                title="Copy selected files from right folder to left folder"
+                title={t('dialogs.folderCompare.copyRightToLeftTitle')}
               >
-                Copy Right <ArrowLeft size={14} /> Left
+                {t('dialogs.folderCompare.copyRightLabel')} <ArrowLeft size={14} />{' '}
+                {t('dialogs.folderCompare.copyLeftLabel')}
               </button>
             </>
           )}
-          <button onClick={onClose} style={btnSecondary} aria-label="Close folder compare dialog">
-            Close
+          <button
+            onClick={onClose}
+            style={btnSecondary}
+            aria-label={t('dialogs.folderCompare.ariaClose')}
+          >
+            {t('common.close')}
           </button>
         </div>
       </div>

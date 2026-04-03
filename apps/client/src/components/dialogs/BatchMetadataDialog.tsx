@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileTag, type FileNote } from '@/lib/tauri-api';
 import { Tag, X, Check, StickyNote, Loader2 } from 'lucide-react';
 import { getFileIcon } from '@/lib/utils';
@@ -14,6 +15,7 @@ import {
 
 const BatchMetadataDialog = React.memo(
   ({ isOpen, onClose, files, onComplete }: BatchMetadataDialogProps) => {
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState<ActiveTab>('tags');
     const [loading, setLoading] = useState(false);
     const [applying, setApplying] = useState(false);
@@ -30,7 +32,7 @@ const BatchMetadataDialog = React.memo(
 
     // Notes state
     const [fileNotes, setFileNotes] = useState<Record<string, FileNote[]>>({});
-    const [noteTitle, setNoteTitle] = useState('Batch Note');
+    const [noteTitle, setNoteTitle] = useState('');
     const [noteContent, setNoteContent] = useState('');
     const [noteMode, setNoteMode] = useState<'replace' | 'append'>('append');
 
@@ -48,7 +50,7 @@ const BatchMetadataDialog = React.memo(
       setPendingTagsToAdd([]);
       setPendingTagsToRemove([]);
       setNoteContent('');
-      setNoteTitle('Batch Note');
+      setNoteTitle(t('dialogs.batchMetadata.defaultNoteTitle'));
       setNoteMode('append');
       setProgress(0);
       setApplying(false);
@@ -78,7 +80,7 @@ const BatchMetadataDialog = React.memo(
       };
 
       loadData();
-    }, [isOpen, filePaths, files.length]);
+    }, [isOpen, filePaths, files.length, t]);
 
     // ── Computed tag data ────────────────────────────────────────────────
 
@@ -119,20 +121,22 @@ const BatchMetadataDialog = React.memo(
     const changeSummary = useMemo(() => {
       const parts: string[] = [];
       if (pendingTagsToAdd.length > 0) {
-        parts.push(`+${pendingTagsToAdd.length} tag${pendingTagsToAdd.length > 1 ? 's' : ''}`);
+        parts.push(t('dialogs.batchMetadata.summaryTagsAdded', { count: pendingTagsToAdd.length }));
       }
       if (pendingTagsToRemove.length > 0) {
         parts.push(
-          `-${pendingTagsToRemove.length} tag${pendingTagsToRemove.length > 1 ? 's' : ''}`,
+          t('dialogs.batchMetadata.summaryTagsRemoved', { count: pendingTagsToRemove.length }),
         );
       }
       if (noteContent.trim()) {
         parts.push(
-          `notes ${noteMode === 'replace' ? 'replaced' : 'appended'} for ${files.length} files`,
+          noteMode === 'replace'
+            ? t('dialogs.batchMetadata.summaryNotesReplaced', { count: files.length })
+            : t('dialogs.batchMetadata.summaryNotesAppended', { count: files.length }),
         );
       }
-      return parts.length > 0 ? parts.join(', ') : 'No changes';
-    }, [pendingTagsToAdd, pendingTagsToRemove, noteContent, noteMode, files.length]);
+      return parts.length > 0 ? parts.join(', ') : t('dialogs.batchMetadata.noChanges');
+    }, [pendingTagsToAdd, pendingTagsToRemove, noteContent, noteMode, files.length, t]);
 
     const hasChanges =
       pendingTagsToAdd.length > 0 ||
@@ -144,18 +148,18 @@ const BatchMetadataDialog = React.memo(
     const handleAddNewTag = useCallback(() => {
       const name = newTagName.trim();
       if (!name) return;
-      if (pendingTagsToAdd.some((t) => t.name.toLowerCase() === name.toLowerCase())) {
-        setError(`Tag "${name}" is already queued to add.`);
+      if (pendingTagsToAdd.some((tg) => tg.name.toLowerCase() === name.toLowerCase())) {
+        setError(t('dialogs.batchMetadata.tagAlreadyQueued', { name }));
         return;
       }
       setPendingTagsToAdd((prev) => [...prev, { name, color: selectedColor }]);
       setNewTagName('');
       setError(null);
       tagInputRef.current?.focus();
-    }, [newTagName, selectedColor, pendingTagsToAdd]);
+    }, [newTagName, selectedColor, pendingTagsToAdd, t]);
 
     const handleRemoveFromPendingAdd = useCallback((name: string) => {
-      setPendingTagsToAdd((prev) => prev.filter((t) => t.name !== name));
+      setPendingTagsToAdd((prev) => prev.filter((tg) => tg.name !== name));
     }, []);
 
     const handleAddToRemoveList = useCallback((tagName: string) => {
@@ -168,7 +172,7 @@ const BatchMetadataDialog = React.memo(
 
     const handleQuickAddSystemTag = useCallback(
       (tag: FileTag) => {
-        if (pendingTagsToAdd.some((t) => t.name === tag.name)) return;
+        if (pendingTagsToAdd.some((tg) => tg.name === tag.name)) return;
         setPendingTagsToAdd((prev) => [...prev, tag]);
       },
       [pendingTagsToAdd],
@@ -218,7 +222,7 @@ const BatchMetadataDialog = React.memo(
         if (noteContent.trim()) {
           await TauriAPI.batchSetNotes(
             filePaths,
-            noteTitle.trim() || 'Note',
+            noteTitle.trim() || t('dialogs.batchMetadata.defaultNoteTitle'),
             noteContent.trim(),
             noteMode,
           );
@@ -243,6 +247,7 @@ const BatchMetadataDialog = React.memo(
       noteMode,
       onClose,
       onComplete,
+      t,
     ]);
 
     // ── Render ───────────────────────────────────────────────────────────
@@ -331,10 +336,10 @@ const BatchMetadataDialog = React.memo(
                 <h2
                   style={{ fontSize: '14px', fontWeight: 600, color: 'var(--xp-text)', margin: 0 }}
                 >
-                  Edit Metadata
+                  {t('dialogs.batchMetadata.title')}
                 </h2>
                 <p style={{ fontSize: '11px', color: 'var(--xp-text-muted)', margin: 0 }}>
-                  {files.length} file{files.length !== 1 ? 's' : ''} selected
+                  {t('dialogs.batchMetadata.filesSelected', { count: files.length })}
                 </p>
               </div>
             </div>
@@ -348,7 +353,7 @@ const BatchMetadataDialog = React.memo(
                 color: 'var(--xp-text-muted)',
                 cursor: 'pointer',
               }}
-              aria-label="Close dialog"
+              aria-label={t('dialogs.batchMetadata.closeDialog')}
             >
               <X style={{ width: '16px', height: '16px' }} />
             </button>
@@ -377,7 +382,7 @@ const BatchMetadataDialog = React.memo(
                   margin: '0 0 4px 0',
                 }}
               >
-                Selected Files
+                {t('dialogs.batchMetadata.selectedFiles')}
               </p>
               {files.map((file) => {
                 const currentTags = fileTags[file.path] || [];
@@ -467,7 +472,6 @@ const BatchMetadataDialog = React.memo(
                       borderBottom:
                         activeTab === tab ? '2px solid var(--xp-blue)' : '2px solid transparent',
                       cursor: 'pointer',
-                      textTransform: 'capitalize',
                     }}
                   >
                     {tab === 'tags' ? (
@@ -475,7 +479,9 @@ const BatchMetadataDialog = React.memo(
                     ) : (
                       <StickyNote style={{ width: '12px', height: '12px' }} />
                     )}
-                    {tab}
+                    {tab === 'tags'
+                      ? t('dialogs.batchMetadata.tabTags')
+                      : t('dialogs.batchMetadata.tabNotes')}
                   </button>
                 ))}
               </div>
@@ -501,7 +507,7 @@ const BatchMetadataDialog = React.memo(
                         animation: 'spin 1s linear infinite',
                       }}
                     />
-                    Loading metadata...
+                    {t('dialogs.batchMetadata.loadingMetadata')}
                   </div>
                 ) : (
                   tabContent
@@ -577,7 +583,7 @@ const BatchMetadataDialog = React.memo(
                   opacity: applying ? 0.5 : 1,
                 }}
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleApply}
@@ -607,12 +613,12 @@ const BatchMetadataDialog = React.memo(
                         animation: 'spin 1s linear infinite',
                       }}
                     />
-                    Applying...
+                    {t('dialogs.batchMetadata.applying')}
                   </>
                 ) : (
                   <>
                     <Check style={{ width: '12px', height: '12px' }} />
-                    Apply Changes
+                    {t('dialogs.batchMetadata.applyChanges')}
                   </>
                 )}
               </button>

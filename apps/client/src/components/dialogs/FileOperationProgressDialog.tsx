@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { TauriAPI, type FileOperationProgress } from '@/lib/tauri-api';
 import { formatFileSize } from '@/lib/utils';
-import { X } from 'lucide-react';
+import { X, Square } from 'lucide-react';
 
 const formatSpeed = (bytesPerSecond: number): string => {
   if (bytesPerSecond <= 0) return '—';
@@ -13,6 +14,19 @@ const formatETA = (seconds?: number): string => {
   if (seconds < 60) return `${Math.ceil(seconds)}s`;
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${Math.ceil(seconds % 60)}s`;
   return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
+};
+
+const getStatusLabel = (op: FileOperationProgress, t: (key: string) => string): string => {
+  switch (op.status) {
+    case 'Completed':
+      return t('dialogs.fileOp.statusDone');
+    case 'Cancelled':
+      return t('dialogs.fileOp.statusCancelled');
+    case 'Failed':
+      return op.error_message || t('dialogs.fileOp.statusFailed');
+    default:
+      return `${Math.round(op.progress_percentage || 0)}%`;
+  }
 };
 
 const getStatusColor = (status: string): string => {
@@ -29,6 +43,7 @@ const getStatusColor = (status: string): string => {
 };
 
 const FileOperationProgressDialog = () => {
+  const { t } = useTranslation();
   const [operations, setOperations] = useState<Map<string, FileOperationProgress>>(new Map());
   const dismissTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -50,8 +65,12 @@ const FileOperationProgressDialog = () => {
       return next;
     });
 
-    // Auto-dismiss completed/failed after 4s
-    if (progress.status === 'Completed' || progress.status === 'Failed') {
+    // Auto-dismiss completed/failed/cancelled after 4s
+    if (
+      progress.status === 'Completed' ||
+      progress.status === 'Failed' ||
+      progress.status === 'Cancelled'
+    ) {
       // Clear any existing timer for this operation
       const existingTimer = dismissTimers.current.get(progress.operation_id);
       if (existingTimer) clearTimeout(existingTimer);
@@ -86,6 +105,10 @@ const FileOperationProgressDialog = () => {
     });
   };
 
+  const cancelOperation = useCallback(async (id: string) => {
+    await TauriAPI.cancelFileOperation(id);
+  }, []);
+
   if (operations.size === 0) return null;
 
   return (
@@ -94,10 +117,9 @@ const FileOperationProgressDialog = () => {
         const fileName =
           op.current_file?.split(/[/\\]/).pop() ||
           op.source_path?.split(/[/\\]/).pop() ||
-          'Unknown';
+          t('dialogs.fileOp.unknownFile');
         const isActive = op.status === 'Starting' || op.status === 'InProgress';
         const isDone = op.status === 'Completed';
-        const isFailed = op.status === 'Failed';
 
         return (
           <div
@@ -111,15 +133,26 @@ const FileOperationProgressDialog = () => {
                   className={`h-2 w-2 flex-shrink-0 rounded-full ${getStatusColor(op.status)} ${isActive ? 'animate-pulse' : ''}`}
                 />
                 <span className="text-xp-text truncate text-xs font-medium capitalize">
-                  {op.operation_type || 'File Operation'}
+                  {op.operation_type || t('dialogs.fileOp.fileOperation')}
                 </span>
               </div>
-              <button
-                onClick={() => dismiss(op.operation_id)}
-                className="text-xp-text-muted hover:text-xp-text p-0.5 transition-colors"
-              >
-                <X size={12} />
-              </button>
+              <div className="flex items-center gap-1">
+                {isActive && (
+                  <button
+                    onClick={() => cancelOperation(op.operation_id)}
+                    className="text-xp-text-muted p-0.5 transition-colors hover:text-red-400"
+                    title={t('dialogs.fileOp.cancelOperation')}
+                  >
+                    <Square size={10} />
+                  </button>
+                )}
+                <button
+                  onClick={() => dismiss(op.operation_id)}
+                  className="text-xp-text-muted hover:text-xp-text p-0.5 transition-colors"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             </div>
 
             {/* Current file */}
@@ -130,10 +163,7 @@ const FileOperationProgressDialog = () => {
             {/* Progress bar */}
             <div className="bg-xp-bg mb-1.5 h-1.5 w-full overflow-hidden rounded-full">
               <div
-                className={`h-full rounded-full transition-all duration-300 ${
-                  // eslint-disable-next-line no-nested-ternary
-                  isDone ? 'bg-green-500' : isFailed ? 'bg-red-500' : 'bg-xp-blue'
-                }`}
+                className={`h-full rounded-full transition-all duration-300 ${getStatusColor(op.status)}`}
                 style={{ width: `${Math.min(100, op.progress_percentage || 0)}%` }}
               />
             </div>
@@ -141,15 +171,10 @@ const FileOperationProgressDialog = () => {
             {/* Stats */}
             <div className="text-xp-text-muted flex items-center justify-between text-[10px]">
               <span>
-                {/* eslint-disable-next-line no-nested-ternary */}
-                {isDone
-                  ? 'Done'
-                  : isFailed
-                    ? op.error_message || 'Failed'
-                    : `${Math.round(op.progress_percentage || 0)}%`}
+                {getStatusLabel(op, t)}
                 {isActive &&
                   op.total_files > 1 &&
-                  ` (${op.files_processed}/${op.total_files} files)`}
+                  ` (${op.files_processed}/${op.total_files} ${t('dialogs.fileOp.files')})`}
               </span>
               {isActive && (
                 <span>

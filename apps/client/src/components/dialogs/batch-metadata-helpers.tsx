@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { type FileTag, type FileNote, type FileEntry } from '@/lib/tauri-api';
 import { X, Plus, Check, FileText } from 'lucide-react';
 
@@ -56,6 +57,7 @@ export const TagPill = ({
   highlight?: boolean;
   prefix?: string;
 }) => {
+  const { t } = useTranslation();
   return (
     <span
       style={{
@@ -86,7 +88,7 @@ export const TagPill = ({
             display: 'flex',
             alignItems: 'center',
           }}
-          aria-label={`Remove "${tag.name}"`}
+          aria-label={t('dialogs.batchMetadata.removeTag', { name: tag.name })}
         >
           <X style={{ width: '10px', height: '10px' }} />
         </button>
@@ -138,12 +140,13 @@ export const TagsPanel = ({
   error,
   setError,
 }: TagsPanelProps) => {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* Common Tags (shared by all files) */}
       {commonTags.length > 0 && (
         <div>
-          <SectionHeader label="Common Tags (on all files)" />
+          <SectionHeader label={t('dialogs.batchMetadata.commonTags')} />
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {commonTags.map((tag) => (
               <TagPill key={tag.name} tag={tag} highlight />
@@ -154,7 +157,7 @@ export const TagsPanel = ({
 
       {/* Add to All */}
       <div>
-        <SectionHeader label="Add to All Files" />
+        <SectionHeader label={t('dialogs.batchMetadata.addToAll')} />
 
         {/* Tags queued for adding */}
         {pendingTagsToAdd.length > 0 && (
@@ -190,7 +193,7 @@ export const TagsPanel = ({
                 padding: 0,
               }}
               title={c.label}
-              aria-label={`Select ${c.label} color`}
+              aria-label={t('dialogs.batchMetadata.selectColor', { color: c.label })}
             >
               {selectedColor === c.value && (
                 <Check
@@ -230,7 +233,7 @@ export const TagsPanel = ({
                 setError(null);
               }}
               onKeyDown={handleTagInputKeyDown}
-              placeholder="Tag name..."
+              placeholder={t('dialogs.batchMetadata.tagNamePlaceholder')}
               maxLength={32}
               style={{
                 width: '100%',
@@ -263,7 +266,7 @@ export const TagsPanel = ({
             }}
           >
             <Plus style={{ width: '12px', height: '12px' }} />
-            Add
+            {t('common.add')}
           </button>
         </div>
       </div>
@@ -271,9 +274,9 @@ export const TagsPanel = ({
       {/* Remove from All */}
       {removableTags.length > 0 && (
         <div>
-          <SectionHeader label="Remove from All Files" />
+          <SectionHeader label={t('dialogs.batchMetadata.removeFromAll')} />
           <p style={{ fontSize: '11px', color: 'var(--xp-text-muted)', margin: '0 0 6px 0' }}>
-            Click a tag to mark it for removal.
+            {t('dialogs.batchMetadata.clickToRemove')}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {removableTags.map((tag) => (
@@ -294,7 +297,7 @@ export const TagsPanel = ({
                   cursor: 'pointer',
                   opacity: 0.85,
                 }}
-                title={`Click to remove "${tag.name}" from all files`}
+                title={t('dialogs.batchMetadata.removeTagFromAll', { name: tag.name })}
               >
                 {tag.name}
                 <X style={{ width: '10px', height: '10px' }} />
@@ -333,9 +336,9 @@ export const TagsPanel = ({
                       cursor: 'pointer',
                       fontSize: '10px',
                     }}
-                    title="Undo remove"
+                    title={t('dialogs.batchMetadata.undoRemove')}
                   >
-                    undo
+                    {t('dialogs.batchMetadata.undo')}
                   </button>
                 </span>
               ))}
@@ -347,9 +350,9 @@ export const TagsPanel = ({
       {/* Available System Tags */}
       {availableSystemTags.length > 0 && (
         <div>
-          <SectionHeader label="Available Tags" />
+          <SectionHeader label={t('dialogs.batchMetadata.availableTags')} />
           <p style={{ fontSize: '11px', color: 'var(--xp-text-muted)', margin: '0 0 6px 0' }}>
-            Click to add to all files.
+            {t('dialogs.batchMetadata.clickToAddToAll')}
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
             {availableSystemTags.map((tag) => (
@@ -370,7 +373,7 @@ export const TagsPanel = ({
                   cursor: 'pointer',
                   opacity: 0.7,
                 }}
-                title={`Add "${tag.name}" to all files`}
+                title={t('dialogs.batchMetadata.addTagToAll', { name: tag.name })}
               >
                 <Plus style={{ width: '10px', height: '10px' }} />
                 {tag.name}
@@ -423,11 +426,12 @@ export const NotesPanel = ({
   noteMode,
   setNoteMode,
 }: NotesPanelProps) => {
+  const { t } = useTranslation();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* Mode toggle */}
       <div>
-        <SectionHeader label="Mode" />
+        <SectionHeader label={t('dialogs.batchMetadata.noteMode')} />
         <div style={{ display: 'flex', gap: '4px' }}>
           {(['append', 'replace'] as const).map((mode) => (
             <button
@@ -442,28 +446,29 @@ export const NotesPanel = ({
                 border: `1px solid ${noteMode === mode ? 'var(--xp-blue)' : 'var(--xp-border)'}`,
                 borderRadius: '6px',
                 cursor: 'pointer',
-                textTransform: 'capitalize',
               }}
             >
-              {mode}
+              {mode === 'append'
+                ? t('dialogs.batchMetadata.noteModeAppend')
+                : t('dialogs.batchMetadata.noteModeReplace')}
             </button>
           ))}
         </div>
         <p style={{ fontSize: '10px', color: 'var(--xp-text-muted)', margin: '4px 0 0 0' }}>
           {noteMode === 'append'
-            ? 'Adds this note to each file, keeping existing notes.'
-            : 'Replaces all existing notes on each file with this note.'}
+            ? t('dialogs.batchMetadata.noteModeAppendDesc')
+            : t('dialogs.batchMetadata.noteModeReplaceDesc')}
         </p>
       </div>
 
       {/* Note title */}
       <div>
-        <SectionHeader label="Note Title" />
+        <SectionHeader label={t('dialogs.batchMetadata.noteTitleLabel')} />
         <input
           type="text"
           value={noteTitle}
           onChange={(e) => setNoteTitle(e.target.value)}
-          placeholder="Note title..."
+          placeholder={t('dialogs.batchMetadata.noteTitlePlaceholder')}
           style={{
             width: '100%',
             backgroundColor: 'var(--xp-bg)',
@@ -479,11 +484,11 @@ export const NotesPanel = ({
 
       {/* Note content */}
       <div>
-        <SectionHeader label="Note Content" />
+        <SectionHeader label={t('dialogs.batchMetadata.noteContentLabel')} />
         <textarea
           value={noteContent}
           onChange={(e) => setNoteContent(e.target.value)}
-          placeholder="Type your note here... This will be applied to all selected files."
+          placeholder={t('dialogs.batchMetadata.noteContentPlaceholder')}
           rows={5}
           style={{
             width: '100%',
@@ -503,7 +508,7 @@ export const NotesPanel = ({
 
       {/* Existing notes preview */}
       <div>
-        <SectionHeader label="Current Notes per File" />
+        <SectionHeader label={t('dialogs.batchMetadata.currentNotesPerFile')} />
         <div
           style={{
             maxHeight: '140px',
@@ -543,7 +548,7 @@ export const NotesPanel = ({
                   />
                   {file.name}
                   <span style={{ color: 'var(--xp-text-muted)', fontWeight: 400 }}>
-                    ({notes.length} note{notes.length !== 1 ? 's' : ''})
+                    {t('dialogs.batchMetadata.noteCount', { count: notes.length })}
                   </span>
                 </div>
                 {notes.length > 0 && (
