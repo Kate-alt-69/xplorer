@@ -22,7 +22,12 @@ Thumbs.db
 apps/client/dist/
 apps/src-tauri/gen/
 .tsbuildinfo
+*.tsbuildinfo
 .next
+
+# One-off publish scripts (contain local paths)
+apps/web/_bulk-publish.mjs
+apps/web/_publish-update.mjs
 
 # IDE
 .vscode/*
