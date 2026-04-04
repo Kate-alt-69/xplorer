@@ -68,13 +68,15 @@ export function Hero() {
         <div
           className={`reveal ${inView ? 'visible' : ''} reveal-delay-3 mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row`}
         >
-          <Link
-            href="/docs/getting-started/installation"
+          <a
+            href="https://github.com/kimlimjustin/xplorer/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
             className="pulse-glow group inline-flex items-center gap-2 rounded-xl bg-brand-600 px-8 py-3.5 font-semibold text-white shadow-lg shadow-brand-600/25 transition-all hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-brand-600/40"
           >
             Download for Free
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
+          </a>
           <a
             href="https://github.com/kimlimjustin/xplorer"
             target="_blank"

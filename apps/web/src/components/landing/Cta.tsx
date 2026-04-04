@@ -34,13 +34,15 @@ export function Cta() {
         <div
           className={`reveal ${inView ? 'visible' : ''} reveal-delay-2 mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row`}
         >
-          <Link
-            href="/docs/getting-started/installation"
+          <a
+            href="https://github.com/kimlimjustin/xplorer/releases/latest"
+            target="_blank"
+            rel="noopener noreferrer"
             className="group inline-flex items-center gap-2 rounded-xl bg-brand-600 px-8 py-3.5 font-semibold text-white shadow-lg shadow-brand-600/25 transition-all hover:-translate-y-0.5 hover:bg-brand-700 hover:shadow-brand-600/40"
           >
             <Download className="h-5 w-5" />
             Download Xplorer
-          </Link>
+          </a>
           <a
             href="https://github.com/kimlimjustin/xplorer"
             target="_blank"

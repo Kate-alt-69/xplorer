@@ -40,7 +40,7 @@ const PLANS: Plan[] = [
       { text: 'Reduced platform fee', included: false },
     ],
     cta: 'Get Started',
-    href: '/docs/getting-started/installation',
+    href: 'https://github.com/kimlimjustin/xplorer/releases/latest',
   },
   {
     name: 'Pro',
