@@ -111,6 +111,13 @@ class ExtensionHost {
     return stateMap;
   }
 
+  /** Emit a message to the Activity Log output panel */
+  private log(msg: string) {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('xplorer-output', { detail: msg }));
+    }
+  }
+
   constructor() {
     if (typeof window !== 'undefined') {
       Object.defineProperty(window, '__xplorer_register__', {
@@ -444,8 +451,9 @@ class ExtensionHost {
     } else {
       try {
         jsContent = await TauriAPI.readTextFile(fullPath);
-      } catch {
-        console.warn(`[ExtensionHost] No JS bundle found for ${pkg.manifest.id} at ${fullPath}`);
+        this.log(`[INFO] ${pkg.manifest.id}: loaded bundle (${jsContent.length} bytes)`);
+      } catch (err) {
+        this.log(`[WARN] ${pkg.manifest.id}: failed to read ${fullPath} — ${err}`);
         return;
       }
     }
@@ -515,42 +523,43 @@ class ExtensionHost {
         ...BLOCKED_GLOBALS.map(() => undefined),
       ];
 
-      const execFn = new Function(...paramNames, jsContent);
+      // Use blob: URL to execute extension JS, avoiding CSP 'unsafe-eval' restriction.
+      // The sandbox parameters are passed via a temporary global that the wrapper reads and deletes.
+      const sandboxKey = `__xplorer_ext_sandbox_${extId.replace(/[^a-zA-Z0-9_]/g, '_')}__`;
+      (window as unknown as Record<string, unknown>)[sandboxKey] = paramValues;
 
-      const execResult = execFn(...paramValues);
-      if (
-        execResult &&
-        typeof execResult === 'object' &&
-        typeof (execResult as Promise<void>).then === 'function'
-      ) {
-        const EXTENSION_EXEC_TIMEOUT = 10_000; // 10 seconds
-        let timeoutId: ReturnType<typeof setTimeout> | undefined;
-        const timeout = new Promise<never>((_, reject) => {
-          timeoutId = setTimeout(
-            () =>
-              reject(
-                new Error(
-                  `Extension "${pkg.manifest.id}" execution timed out after ${EXTENSION_EXEC_TIMEOUT}ms`,
-                ),
-              ),
-            EXTENSION_EXEC_TIMEOUT,
-          );
-        });
-        try {
-          await Promise.race([execResult as Promise<void>, timeout]);
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      }
+      const wrappedCode = `(function(){var __s=window['${sandboxKey}'];delete window['${sandboxKey}'];(function(${paramNames.join(',')}){${jsContent}}).apply(null,__s);})();`;
+      const blob = new Blob([wrappedCode], { type: 'application/javascript' });
+      const blobUrl = URL.createObjectURL(blob);
+
+      await new Promise<void>((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = blobUrl;
+        script.onload = () => {
+          URL.revokeObjectURL(blobUrl);
+          script.remove();
+          resolve();
+        };
+        script.onerror = () => {
+          URL.revokeObjectURL(blobUrl);
+          script.remove();
+          delete (window as unknown as Record<string, unknown>)[sandboxKey];
+          reject(new Error(`Failed to load extension script for "${extId}"`));
+        };
+        document.head.appendChild(script);
+      });
     } catch (err) {
-      console.error(`[ExtensionHost] Failed to execute JS for ${pkg.manifest.id}:`, err);
+      this.log(`[ERROR] ${pkg.manifest.id}: JS execution failed — ${err}`);
     }
 
     // Restore original handler and clear expected ID
     this.expectedExtensionId = null;
     window.__xplorer_register__ = prevRegister;
 
-    if (capturedAll.length === 0) return;
+    if (capturedAll.length === 0) {
+      this.log(`[WARN] ${pkg.manifest.id}: no registrations captured`);
+      return;
+    }
 
     const ext = this.extensions.get(pkg.manifest.id);
     if (!ext) return;
@@ -827,22 +836,26 @@ class ExtensionHost {
   async loadInstalledExtensions(): Promise<void> {
     try {
       const installed = await TauriAPI.getInstalledExtensions();
+      this.log(`[INFO] Found ${installed.length} installed extensions`);
       for (const pkg of installed) {
         await this.loadExtension(pkg);
-        // Activate if previously active OR if the extension declares onStartup
         const shouldActivate =
           pkg.is_active || (pkg.manifest.activation_events ?? []).includes('onStartup');
         if (shouldActivate) {
           await this.activateExtension(pkg.manifest.id);
         }
       }
-      // Notify UI that extensions have been loaded
       this.notifyChange();
 
-      // Load marketplace-installed extensions from localStorage cache
       await this.loadMarketplaceInstalledExtensions();
 
-      // Check for updates in the background (non-blocking)
+      const sidebarCount = this.getSidebarTabs().length;
+      const panelCount = this.getRegisteredPanels().length;
+      const bottomCount = this.getBottomTabs().length;
+      this.log(
+        `[INFO] Extensions ready: ${sidebarCount} sidebar, ${panelCount} panels, ${bottomCount} bottom tabs`,
+      );
+
       this.checkForUpdatesAndNotify(installed).catch(() => {});
     } catch (err) {
       console.error('[ExtensionHost] Failed to load installed extensions:', err);
@@ -1087,11 +1100,12 @@ class ExtensionHost {
       try {
         await (inst.activate as () => Promise<void>)();
       } catch (err) {
-        console.error(`[ExtensionHost] Failed to activate extension ${id}:`, err);
-        // Clean up any partial registrations from the failed activation
+        this.log(`[ERROR] ${id}: activation failed — ${err}`);
         this.cleanupExtension(id);
         return;
       }
+    } else if (!inst) {
+      this.log(`[WARN] ${id}: no instance (JS bundle may have failed to load)`);
     }
 
     // Fallback: if a theme style element was injected but CustomEvent didn't

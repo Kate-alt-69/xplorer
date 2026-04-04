@@ -616,6 +616,10 @@
       "title": "Selamat Datang di Xplorer!",
       "description": "Mari kami tunjukkan. Tur singkat ini menyoroti area utama aplikasi. Anda bisa keluar kapan saja atau memutar ulang dari Pengaturan."
     },
+    "fullDiskAccess": {
+      "title": "Berikan Akses Disk Penuh",
+      "description": "Untuk menjelajahi semua file tanpa permintaan akses, berikan Xplorer Akses Disk Penuh:\n\n1. Buka Pengaturan Sistem → Privasi & Keamanan → Akses Disk Penuh\n2. Aktifkan Xplorer\n3. Mulai ulang Xplorer\n\nTanpa ini, macOS akan meminta izin setiap kali Anda membuka folder yang dilindungi seperti Foto, Dokumen, atau iCloud Drive."
+    },
     "sidebar": {
       "title": "Navigasi Sidebar",
       "description": "Jelajahi pohon file, akses cepat folder, dan kelola bookmark — semua dari sini."

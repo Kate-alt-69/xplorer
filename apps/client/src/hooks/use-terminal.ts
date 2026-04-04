@@ -81,6 +81,21 @@ export const useTerminal = (deps: UseTerminalDeps) => {
     };
   }, []);
 
+  // Listen for app-level output messages (extension host, etc.)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const msg = (e as CustomEvent<string>).detail;
+      if (msg) {
+        setOutputMessages((prev) => {
+          const next = [...prev, msg];
+          return next.length > MAX_OUTPUT_LINES ? next.slice(-MAX_OUTPUT_LINES) : next;
+        });
+      }
+    };
+    window.addEventListener('xplorer-output', handler);
+    return () => window.removeEventListener('xplorer-output', handler);
+  }, []);
+
   return {
     terminalHistory,
     terminalInput,

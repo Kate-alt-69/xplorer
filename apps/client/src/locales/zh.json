@@ -616,6 +616,10 @@
       "title": "欢迎使用 Xplorer！",
       "description": "让我们带您了解一下。这个快速导览将介绍应用的主要功能区域。您可以随时退出或稍后从设置中重新播放。"
     },
+    "fullDiskAccess": {
+      "title": "授予完全磁盘访问权限",
+      "description": "要无提示地浏览所有文件，请授予 Xplorer 完全磁盘访问权限：\n\n1. 打开系统设置 → 隐私与安全性 → 完全磁盘访问权限\n2. 开启 Xplorer\n3. 重新启动 Xplorer\n\n如果不授权，macOS 每次打开照片、文稿或 iCloud 云盘等受保护文件夹时都会弹出提示。"
+    },
     "sidebar": {
       "title": "侧边栏导航",
       "description": "在这里浏览文件树、快速访问文件夹和管理书签。"

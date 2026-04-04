@@ -1,7 +1,7 @@
 import React, {
   useState,
   useRef,
-  useEffect,
+  useMemo,
   useImperativeHandle,
   forwardRef,
   useSyncExternalStore,
@@ -78,23 +78,19 @@ const LeftSidebar = forwardRef<LeftSidebarHandle, LeftSidebarProps>(function Lef
   // ─── Extension sidebar tabs ────────────────────────────────────────────
   const [activeExtensionTab, setActiveExtensionTab] = useState<string | null>(null);
 
-  const _extVersion = useSyncExternalStore(
+  const extRefreshKey = useSyncExternalStore(
     extensionHost.subscribe,
     extensionHost.getSnapshotVersion,
   );
 
-  // Safety net: force re-render after extensions have had time to load
-  const [, forceRender] = useState(0);
-  useEffect(() => {
-    const t1 = setTimeout(() => forceRender((n) => n + 1), 1500);
-    const t2 = setTimeout(() => forceRender((n) => n + 1), 3000);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, []);
-
-  const extensionSidebarTabs = extensionHost.getSidebarTabs();
+  const extensionSidebarTabs = useMemo(() => {
+    try {
+      return extensionHost.getSidebarTabs();
+    } catch {
+      return [];
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [extRefreshKey]);
 
   let activeTabId: string;
   if (activeExtensionTab) {

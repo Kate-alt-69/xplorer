@@ -616,6 +616,10 @@
       "title": "Welcome to Xplorer!",
       "description": "Let us show you around. This quick tour highlights the key areas of the app. You can exit anytime or replay later from Settings."
     },
+    "fullDiskAccess": {
+      "title": "Grant Full Disk Access",
+      "description": "To browse all your files without access prompts, grant Xplorer Full Disk Access:\n\n1. Open System Settings → Privacy & Security → Full Disk Access\n2. Toggle Xplorer ON\n3. Restart Xplorer\n\nWithout this, macOS will prompt you each time you open protected folders like Photos, Documents, or iCloud Drive."
+    },
     "sidebar": {
       "title": "Sidebar Navigation",
       "description": "Browse your file tree, jump to quick-access folders, and manage bookmarks — all from here."

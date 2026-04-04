@@ -21,6 +21,13 @@ export const getTourSteps = (): TourStep[] => {
       icon: 'Sparkles',
     },
     {
+      target: null,
+      title: i18n.t('tour.fullDiskAccess.title'),
+      description: i18n.t('tour.fullDiskAccess.description'),
+      placement: 'center',
+      icon: 'Shield',
+    },
+    {
       target: 'sidebar',
       title: i18n.t('tour.sidebar.title'),
       description: i18n.t('tour.sidebar.description'),
