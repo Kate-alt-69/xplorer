@@ -220,6 +220,7 @@ fn main() {
             // File system operations (modular)
             operations::read_directory,
             operations::read_text_file,
+            operations::extract_document_text,
             operations::read_binary_file,
             operations::get_file_properties,
             operations::get_file_meta_data,

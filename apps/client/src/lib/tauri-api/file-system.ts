@@ -192,6 +192,9 @@ export const getDirSize = async (path: string): Promise<DirectorySize> =>
 export const readTextFile = async (path: string): Promise<string> =>
   await transport('read_text_file', { path });
 
+export const extractDocumentText = async (path: string): Promise<string> =>
+  await transport('extract_document_text', { path });
+
 export const readBinaryFile = async (path: string): Promise<Uint8Array> => {
   const data = await transport('read_binary_file', { path });
   return new Uint8Array(data as number[]);

@@ -75,6 +75,7 @@ export class TauriAPI {
   static createSymlink = fileSystem.createSymlink;
   static getDirSize = fileSystem.getDirSize;
   static readTextFile = fileSystem.readTextFile;
+  static extractDocumentText = fileSystem.extractDocumentText;
   static readBinaryFile = fileSystem.readBinaryFile;
   static calculateFolderSize = fileSystem.calculateFolderSize;
   static getCachedFolderSizes = fileSystem.getCachedFolderSizes;

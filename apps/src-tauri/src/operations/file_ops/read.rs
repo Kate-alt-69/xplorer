@@ -15,6 +15,15 @@ pub async fn read_text_file(path: String) -> Result<String, String> {
 }
 
 #[command]
+pub async fn extract_document_text(path: String) -> Result<String, String> {
+    validate_file_path(&path)?;
+
+    tokio::task::spawn_blocking(move || crate::document_extractor::extract_text(&path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[command]
 pub async fn read_binary_file(path: String) -> Result<Vec<u8>, String> {
     validate_file_path(&path)?;
 
