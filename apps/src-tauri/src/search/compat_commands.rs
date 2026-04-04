@@ -544,6 +544,9 @@ pub async fn smart_search(
     query: String,
     current_directory: String,
     limit: Option<usize>,
+    provider: Option<String>,
+    api_key: Option<String>,
+    model: Option<String>,
 ) -> Result<SmartSearchResult, String> {
     let generation = SMART_SEARCH_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let lim = limit.unwrap_or(DEFAULT_SEARCH_LIMIT);
@@ -594,8 +597,23 @@ pub async fn smart_search(
         });
     }
 
-    // Step 2: Detect LLM provider
-    let provider_info = crate::ai::detect_best_provider().await;
+    // Step 2: Detect LLM provider (use explicit settings if provided, else auto-detect)
+    let provider_info = if let Some(ref p) = provider {
+        if p == "auto" || p.is_empty() {
+            crate::ai::detect_best_provider().await
+        } else {
+            Some((p.clone(), api_key.clone(), model.clone().unwrap_or_else(|| {
+                match p.as_str() {
+                    "claude" => "claude-haiku-4-5-20251001".to_string(),
+                    "openai" => "gpt-4o-mini".to_string(),
+                    "ollama" => "llama3".to_string(),
+                    _ => "llama3".to_string(),
+                }
+            })))
+        }
+    } else {
+        crate::ai::detect_best_provider().await
+    };
 
     if provider_info.is_none() {
         // Fallback to enhanced_search
@@ -615,7 +633,7 @@ pub async fn smart_search(
         });
     }
 
-    let (provider, api_key, model) = provider_info.unwrap();
+    let (prov, prov_api_key, prov_model) = provider_info.unwrap();
 
     // Step 3: Build prompt
     let item_list: String = dir_items
@@ -655,9 +673,9 @@ pub async fn smart_search(
     // Step 4: Call AI
     let ai_response = crate::ai::search_rerank_with_ai(
         &prompt,
-        &provider,
-        api_key.as_deref(),
-        Some(&model),
+        &prov,
+        prov_api_key.as_deref(),
+        Some(&prov_model),
         Some(SMART_SEARCH_SYSTEM_PROMPT),
     )
     .await;
@@ -843,7 +861,7 @@ pub async fn smart_search(
         results: all_results,
         matched_items: validated_matches,
         explanation,
-        provider,
+        provider: prov,
         search_terms_used: sanitized_terms,
     })
 }

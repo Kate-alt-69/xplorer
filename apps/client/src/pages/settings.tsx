@@ -345,6 +345,8 @@ const Settings = () => {
             setApiKeyInput={setApiKeyInput}
             openaiKeyInput={openaiKeyInput}
             setOpenaiKeyInput={setOpenaiKeyInput}
+            settings={settings}
+            updateSetting={updateSetting}
           />
         );
       case 'permissions':

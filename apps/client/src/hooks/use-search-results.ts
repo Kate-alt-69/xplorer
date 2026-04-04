@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { TauriAPI, type SearchResult, type FileEntry } from '@/lib/tauri-api';
 import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
+import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 /** Emit a message to the Activity Log */
 const logOutput = (msg: string) => {
@@ -72,7 +73,32 @@ export const useAiSearch = (basePath: string) => {
           setAiParsedInfo((prev) => (prev ? `${prev} — waiting for AI...` : 'Waiting for AI...'));
           logOutput('[INFO] AI Search: querying LLM for smart interpretation...');
 
-          const response = await TauriAPI.smartSearch(trimmed, basePath, 50);
+          // Read AI search provider settings from localStorage
+          let searchProvider: string | undefined;
+          let searchApiKey: string | undefined;
+          let searchModel: string | undefined;
+          try {
+            const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+            if (raw) {
+              const s = JSON.parse(raw) as Record<string, unknown>;
+              if (s.aiSearchProvider && s.aiSearchProvider !== 'auto') {
+                searchProvider = s.aiSearchProvider as string;
+              }
+              if (s.aiSearchModel) searchModel = s.aiSearchModel as string;
+              if (s.aiSearchApiKey) searchApiKey = s.aiSearchApiKey as string;
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+
+          const response = await TauriAPI.smartSearch(
+            trimmed,
+            basePath,
+            50,
+            searchProvider,
+            searchApiKey,
+            searchModel,
+          );
 
           if (!signal.aborted) {
             setAiResults(response.results);

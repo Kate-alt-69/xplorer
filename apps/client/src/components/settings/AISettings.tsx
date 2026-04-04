@@ -22,7 +22,7 @@ import {
   SelectSeparator,
 } from '@/components/ui/select';
 import { type SafeAgentSettings } from '@/lib/agent-service';
-import { Toggle, SettingRow, SectionTitle, Divider } from './shared';
+import { Toggle, SettingRow, SectionTitle, Divider, type AppSettings } from './shared';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 interface AISettingsProps {
@@ -36,6 +36,8 @@ interface AISettingsProps {
   setApiKeyInput: (v: string) => void;
   openaiKeyInput: string;
   setOpenaiKeyInput: (v: string) => void;
+  settings: AppSettings;
+  updateSetting: (key: string, value: string | boolean | number) => void;
 }
 
 const AISettings = ({
@@ -46,6 +48,8 @@ const AISettings = ({
   setApiKeyInput,
   openaiKeyInput,
   setOpenaiKeyInput,
+  settings,
+  updateSetting,
 }: AISettingsProps) => {
   const { t } = useTranslation();
   const [showApiKey, setShowApiKey] = useState(false);
@@ -75,6 +79,14 @@ const AISettings = ({
     return { label: t('settings.ai.openaiApiKey'), desc: t('settings.ai.openaiApiKeyDesc') };
   };
   const { label: thirdPartyKeyLabel, desc: thirdPartyKeyDesc } = resolveThirdPartyKeyInfo();
+
+  const searchModelPlaceholderMap: Record<string, string> = {
+    claude: 'claude-haiku-4-5-20251001',
+    openai: 'gpt-4o-mini',
+    ollama: 'llama3',
+  };
+  const searchModelPlaceholder =
+    searchModelPlaceholderMap[settings.aiSearchProvider] || t('settings.ai.searchModelPlaceholder');
 
   return (
     <div className="space-y-1">
@@ -243,27 +255,75 @@ const AISettings = ({
       <Divider />
       <SectionTitle title={t('settings.ai.aiSearch')} />
 
-      {/* OpenAI API Key for search */}
+      {/* AI Search Provider */}
+      <SettingRow
+        icon={Cpu}
+        label={t('settings.ai.searchProvider')}
+        description={t('settings.ai.searchProviderDesc')}
+      >
+        <Select
+          value={settings.aiSearchProvider || 'auto'}
+          onValueChange={(v) => updateSetting('aiSearchProvider', v)}
+        >
+          <SelectTrigger className="h-9 min-w-[160px]" aria-label="AI Search Provider">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="auto">{t('settings.ai.providerAuto')}</SelectItem>
+            <SelectItem value="ollama">{t('settings.ai.providerOllama')}</SelectItem>
+            <SelectItem value="claude">{t('settings.ai.providerClaude')}</SelectItem>
+            <SelectItem value="openai">{t('settings.ai.providerOpenAI')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingRow>
+
+      {/* AI Search Model */}
       <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
         <div className="mb-2 flex items-center gap-3">
-          <Key size={18} className="text-xp-text-secondary shrink-0" />
+          <Brain size={18} className="text-xp-text-secondary shrink-0" />
           <div>
-            <div className="text-xp-text text-sm font-medium">{t('settings.ai.openaiApiKey')}</div>
+            <div className="text-xp-text text-sm font-medium">{t('settings.ai.searchModel')}</div>
             <div className="text-xp-text-secondary mt-0.5 text-xs">
-              {t('settings.ai.openaiApiKeySearchDesc')}
+              {t('settings.ai.searchModelDesc')}
             </div>
           </div>
         </div>
         <div className="ml-[30px]">
           <input
-            type="password"
-            defaultValue={localStorage.getItem(STORAGE_KEYS.OPENAI_KEY) || ''}
-            onChange={(e) => localStorage.setItem(STORAGE_KEYS.OPENAI_KEY, e.target.value)}
-            placeholder="sk-..."
+            type="text"
+            value={settings.aiSearchModel || ''}
+            onChange={(e) => updateSetting('aiSearchModel', e.target.value)}
+            placeholder={searchModelPlaceholder}
             className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
           />
         </div>
       </div>
+
+      {/* AI Search API Key (for Claude/OpenAI) */}
+      {settings.aiSearchProvider !== 'auto' && settings.aiSearchProvider !== 'ollama' && (
+        <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
+          <div className="mb-2 flex items-center gap-3">
+            <Key size={18} className="text-xp-text-secondary shrink-0" />
+            <div>
+              <div className="text-xp-text text-sm font-medium">
+                {t('settings.ai.searchApiKey')}
+              </div>
+              <div className="text-xp-text-secondary mt-0.5 text-xs">
+                {t('settings.ai.searchApiKeyDesc')}
+              </div>
+            </div>
+          </div>
+          <div className="ml-[30px]">
+            <input
+              type="password"
+              value={settings.aiSearchApiKey || ''}
+              onChange={(e) => updateSetting('aiSearchApiKey', e.target.value)}
+              placeholder={settings.aiSearchProvider === 'claude' ? 'sk-ant-...' : 'sk-...'}
+              className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Ollama URL */}
       <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">

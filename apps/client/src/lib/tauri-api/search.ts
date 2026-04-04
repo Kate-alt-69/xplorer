@@ -109,11 +109,17 @@ export const smartSearch = async (
   query: string,
   currentDirectory: string,
   limit?: number,
+  provider?: string,
+  apiKey?: string,
+  model?: string,
 ): Promise<SmartSearchResult> =>
   await transport('smart_search', {
     query,
     currentDirectory,
     limit: limit || null,
+    provider: provider || null,
+    apiKey: apiKey || null,
+    model: model || null,
   });
 
 // ── Structured / enhanced search ────────────────────────────────────────────

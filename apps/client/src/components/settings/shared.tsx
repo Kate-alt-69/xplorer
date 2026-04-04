@@ -256,6 +256,9 @@ export interface AppSettings {
   highContrast: boolean;
   autoCalculateFolderSizes: boolean;
   rememberViewPerFolder: boolean;
+  aiSearchProvider: string;
+  aiSearchModel: string;
+  aiSearchApiKey: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -275,6 +278,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   highContrast: false,
   autoCalculateFolderSizes: false,
   rememberViewPerFolder: false,
+  aiSearchProvider: 'auto',
+  aiSearchModel: '',
+  aiSearchApiKey: '',
 };
 
 export const SETTINGS_KEY = STORAGE_KEYS.SETTINGS;
