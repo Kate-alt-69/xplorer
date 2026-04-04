@@ -92,17 +92,14 @@ fn is_read_only_query(sql: &str) -> bool {
     }
 
     // For PRAGMA: only allow read-only pragmas from the allowlist
-    if upper.starts_with("PRAGMA ") {
-        let pragma_body = upper["PRAGMA ".len()..].trim();
+    if let Some(pragma_body) = upper.strip_prefix("PRAGMA ").map(str::trim) {
         // Extract the pragma name (before any '(' or whitespace)
         let pragma_name = pragma_body
-            .split(|c: char| c == '(' || c == ' ' || c == '=')
+            .split(['(', ' ', '='])
             .next()
             .unwrap_or("")
             .trim();
-        return READONLY_PRAGMAS
-            .iter()
-            .any(|allowed| pragma_name == *allowed);
+        return READONLY_PRAGMAS.contains(&pragma_name);
     }
 
     // For WITH (CTEs): verify the body does NOT contain mutating keywords

@@ -205,7 +205,9 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div
             className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => { if (!archiving) setArchiveTarget(null); }}
+            onClick={() => {
+              if (!archiving) setArchiveTarget(null);
+            }}
           />
           <div className="relative mx-4 w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl dark:border-gray-700 dark:bg-gray-900">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -227,12 +229,7 @@ export default function DashboardPage() {
               >
                 Cancel
               </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={handleArchive}
-                loading={archiving}
-              >
+              <Button variant="danger" size="sm" onClick={handleArchive} loading={archiving}>
                 Archive
               </Button>
             </div>

@@ -15,9 +15,7 @@ export default function PricingPage() {
       <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-500/10">
         <Clock className="h-8 w-8 text-brand-500" />
       </div>
-      <h1 className="mb-4 text-4xl font-bold text-gray-900 dark:text-white">
-        Pricing Coming Soon
-      </h1>
+      <h1 className="mb-4 text-4xl font-bold text-gray-900 dark:text-white">Pricing Coming Soon</h1>
       <p className="mx-auto mb-8 max-w-xl text-lg text-gray-500 dark:text-gray-400">
         Xplorer is currently <strong>free and open source</strong>. Pro plans with premium features
         are being designed and will launch soon.

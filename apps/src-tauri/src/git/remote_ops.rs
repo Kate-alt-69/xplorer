@@ -95,7 +95,7 @@ pub async fn git_get_remotes(directory: String) -> Result<Vec<GitRemote>, String
             if parts.len() >= 2 {
                 let name = parts[0].to_string();
                 let url = parts[1].to_string();
-                let is_push = parts.get(2).map_or(false, |s| s.contains("push"));
+                let is_push = parts.get(2).is_some_and(|s| s.contains("push"));
 
                 if let Some(existing) = remotes.iter_mut().find(|r| r.name == name) {
                     if is_push {

@@ -11,7 +11,7 @@ pub(super) fn parse_git_log(log_output: &str, _file_path: &str) -> Result<Vec<Gi
         if line.contains('|')
             && line
                 .chars()
-                .nth(0)
+                .next()
                 .map(|c| c.is_alphanumeric())
                 .unwrap_or(false)
         {

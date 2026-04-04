@@ -142,6 +142,7 @@ pub(crate) fn apply_metadata_filters(
 /// - Phrase-only query: seed doc_scores from phrase results.
 ///
 /// Scores phrase constituent words via BM25F so results get proper ranking.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_phrase_filters(
     state: &mut SearchState,
     phrases: &[String],

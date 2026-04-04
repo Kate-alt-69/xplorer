@@ -17,26 +17,38 @@ const PublishPage = () => {
 
       <div className="mx-auto max-w-md space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-6 text-left dark:border-gray-800 dark:bg-gray-900">
         <div className="flex items-start gap-3">
-          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">1</span>
+          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">
+            1
+          </span>
           <div>
             <p className="font-medium">Install the CLI</p>
-            <code className="mt-1 block rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-800">npm i -g @xplorer/cli</code>
+            <code className="mt-1 block rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-800">
+              npm i -g @xplorer/cli
+            </code>
           </div>
         </div>
 
         <div className="flex items-start gap-3">
-          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">2</span>
+          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">
+            2
+          </span>
           <div>
             <p className="font-medium">Login to your account</p>
-            <code className="mt-1 block rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-800">xplorer login</code>
+            <code className="mt-1 block rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-800">
+              xplorer login
+            </code>
           </div>
         </div>
 
         <div className="flex items-start gap-3">
-          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">3</span>
+          <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white">
+            3
+          </span>
           <div>
             <p className="font-medium">Publish from your extension directory</p>
-            <code className="mt-1 block rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-800">cd my-extension && xplorer publish</code>
+            <code className="mt-1 block rounded bg-gray-100 px-2 py-1 text-sm dark:bg-gray-800">
+              cd my-extension && xplorer publish
+            </code>
           </div>
         </div>
       </div>

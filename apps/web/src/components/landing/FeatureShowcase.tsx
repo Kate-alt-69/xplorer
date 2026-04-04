@@ -168,7 +168,12 @@ export const FeatureShowcase = () => {
         {/* Feature list */}
         <div className="space-y-32 sm:space-y-40">
           {FEATURES.map((feature, i) => (
-            <FeatureSection key={feature.label} feature={feature} reversed={i % 2 === 1} index={i} />
+            <FeatureSection
+              key={feature.label}
+              feature={feature}
+              reversed={i % 2 === 1}
+              index={i}
+            />
           ))}
         </div>
       </div>

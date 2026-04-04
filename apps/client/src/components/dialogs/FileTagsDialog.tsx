@@ -136,8 +136,9 @@ const FileTagsDialog = ({ isOpen, onClose, filePath, onSaved }: FileTagsDialogPr
               {t('dialogs.tags.currentTags')}
             </p>
             {(() => {
-              if (loading)
-                {return <p className="text-xp-text-muted text-sm">{t('common.loading')}</p>;}
+              if (loading) {
+                return <p className="text-xp-text-muted text-sm">{t('common.loading')}</p>;
+              }
               if (tags.length === 0) {
                 return (
                   <p className="text-xp-text-muted text-sm italic">{t('dialogs.tags.empty')}</p>

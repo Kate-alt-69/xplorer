@@ -180,11 +180,7 @@ fn watch_extension(app_handle: &AppHandle, info: &DevExtensionInfo) -> Result<()
     )
     .map_err(|e| format!("Failed to create dev watcher: {e}"))?;
 
-    let mode = if watch_target.is_dir() {
-        RecursiveMode::NonRecursive
-    } else {
-        RecursiveMode::NonRecursive
-    };
+    let mode = RecursiveMode::NonRecursive;
 
     debouncer
         .watch(&watch_target, mode)

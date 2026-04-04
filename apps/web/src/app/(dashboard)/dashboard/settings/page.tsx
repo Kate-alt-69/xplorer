@@ -21,8 +21,11 @@ const SettingsPage = () => {
         setToken(data.token);
         setHasToken(true);
       }
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
   };
 
   const revokeToken = async () => {
@@ -33,8 +36,11 @@ const SettingsPage = () => {
         setToken(null);
         setHasToken(false);
       }
-    } catch { /* ignore */ }
-    finally { setRevoking(false); }
+    } catch {
+      /* ignore */
+    } finally {
+      setRevoking(false);
+    }
   };
 
   const copyToken = async () => {
@@ -80,30 +86,47 @@ const SettingsPage = () => {
                 className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-gray-200 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800"
                 title="Copy"
               >
-                {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
               </button>
             </div>
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
               Copy this token now — it won&apos;t be shown again.
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Run: <code className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">xplorer login</code> and paste this token.
+              Run:{' '}
+              <code className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+                xplorer login
+              </code>{' '}
+              and paste this token.
             </p>
             <div className="flex gap-2 pt-1">
-              <button onClick={generateToken} disabled={loading}
-                className="flex items-center gap-1.5 text-sm text-brand-500 hover:text-brand-600">
+              <button
+                onClick={generateToken}
+                disabled={loading}
+                className="flex items-center gap-1.5 text-sm text-brand-500 hover:text-brand-600"
+              >
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} /> Regenerate
               </button>
-              <button onClick={revokeToken} disabled={revoking}
-                className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600">
+              <button
+                onClick={revokeToken}
+                disabled={revoking}
+                className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600"
+              >
                 <Trash2 className="h-3.5 w-3.5" /> Revoke
               </button>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
-            <button onClick={generateToken} disabled={loading}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50">
+            <button
+              onClick={generateToken}
+              disabled={loading}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+            >
               {loading ? 'Generating...' : 'Generate CLI Token'}
             </button>
             {hasToken === false && (

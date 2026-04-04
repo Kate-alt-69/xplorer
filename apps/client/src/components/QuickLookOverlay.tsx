@@ -266,8 +266,9 @@ const TextQuickPreview: React.FC<{ file: FileEntry }> = ({ file }) => {
         setContent(truncated);
       })
       .catch((err) => {
-        if (!cancelled)
-          {setError(err instanceof Error ? err.message : t('explorer.quickLook.failedToReadFile'));}
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : t('explorer.quickLook.failedToReadFile'));
+        }
       });
 
     return () => {

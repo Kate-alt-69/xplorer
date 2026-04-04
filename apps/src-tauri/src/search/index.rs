@@ -735,7 +735,7 @@ impl SearchIndex {
         );
 
         // e. Exclude negation terms.
-        apply_negations(&mut state, &parsed.negations, &self.postings, &stemmer);
+        apply_negations(&mut state, &parsed.negations, &self.postings, stemmer);
 
         // f. Apply metadata filters via bitmap index.
         apply_metadata_filters(&mut state, &parsed, &self.bitmap_index);
@@ -760,7 +760,7 @@ impl SearchIndex {
             &parsed.field_filters,
             &self.documents,
             &self.doc_content,
-            &stemmer,
+            stemmer,
         );
 
         // i. Fuzzy search fallback.
