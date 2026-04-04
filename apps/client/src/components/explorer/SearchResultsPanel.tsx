@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
 
 // Auto-trigger content search when local filename search returns nothing
@@ -52,6 +53,7 @@ const FILTERS: { key: SearchFilterType; label: string }[] = [
 
 const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResultsPanelProps>(
   function SearchResultsPanel({ basePath, navigateToPath, onFileSelect, onFileOpen, width }, ref) {
+    const { t } = useTranslation();
     const [searchMode, setSearchMode] = useState<SearchMode>('local');
 
     // ── Local search ────────────────────────────────────────────────────────
@@ -81,6 +83,9 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
       aiResults,
       isAiSearching,
       aiParsedInfo,
+      matchedItems,
+      provider: aiProvider,
+      searchTermsUsed,
       handleAiResultSelect,
       clearAiSearch,
     } = useAiSearch(basePath);
@@ -274,17 +279,56 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
             {isAiSearching ? (
               <>
                 <Spinner />
-                <span>Searching with AI...</span>
+                <span>{t('search.aiThinking')}</span>
               </>
             ) : noResults ? (
               <span>No results for &apos;{query}&apos;</span>
             ) : aiResults.length > 0 ? (
-              <span>
-                {aiResults.length} result{aiResults.length !== 1 ? 's' : ''}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <span>
+                  {aiResults.length} result{aiResults.length !== 1 ? 's' : ''}
+                  {aiProvider && aiProvider !== 'fallback' && aiProvider !== 'cancelled' && (
+                    <span
+                      style={{
+                        marginLeft: '6px',
+                        fontSize: '10px',
+                        opacity: 0.6,
+                        padding: '1px 5px',
+                        borderRadius: '3px',
+                        background: 'rgba(var(--xp-blue-rgb, 99, 102, 241), 0.1)',
+                      }}
+                    >
+                      {t('search.aiProvider', { provider: aiProvider })}
+                    </span>
+                  )}
+                  {aiProvider === 'fallback' && (
+                    <span style={{ marginLeft: '6px', fontSize: '10px', opacity: 0.5 }}>
+                      {t('search.aiNoProvider')}
+                    </span>
+                  )}
+                </span>
                 {aiParsedInfo && (
-                  <span style={{ marginLeft: '4px', opacity: 0.7 }}>({aiParsedInfo})</span>
+                  <span style={{ fontSize: '11px', opacity: 0.7 }}>{aiParsedInfo}</span>
                 )}
-              </span>
+                {searchTermsUsed.length > 0 && (
+                  <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                    {searchTermsUsed.map((term) => (
+                      <span
+                        key={term}
+                        style={{
+                          fontSize: '10px',
+                          padding: '1px 5px',
+                          borderRadius: '3px',
+                          background: 'rgba(var(--xp-blue-rgb, 99, 102, 241), 0.1)',
+                          color: 'var(--xp-text-muted)',
+                        }}
+                      >
+                        {term}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : null}
           </SearchStatusBar>
         )}
@@ -351,7 +395,7 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
             >
               <Spinner />
               <span style={{ fontSize: '12px' }}>
-                {searchMode === 'ai' ? 'Searching with AI...' : 'Searching...'}
+                {searchMode === 'ai' ? t('search.aiThinking') : 'Searching...'}
               </span>
             </div>
           ) : noResults && searchMode === 'local' && !contentSearchTriggered ? (
@@ -367,13 +411,34 @@ const SearchResultsPanel = React.forwardRef<SearchResultsPanelHandle, SearchResu
             />
           ) : searchMode === 'ai' ? (
             <div>
+              {matchedItems.length > 0 && (
+                <div
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    color: 'var(--xp-text-muted)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  {t('search.aiMatchedItems')}
+                </div>
+              )}
               {aiResults.map((result) => (
-                <AIResultRow
+                <div
                   key={result.path}
-                  result={result}
-                  query={aiQuery}
-                  onSelect={onAiResultSelect}
-                />
+                  style={
+                    matchedItems.includes(result.filename)
+                      ? {
+                          borderLeft: '2px solid var(--xp-blue)',
+                          background: 'rgba(var(--xp-blue-rgb, 99, 102, 241), 0.05)',
+                        }
+                      : undefined
+                  }
+                >
+                  <AIResultRow result={result} query={aiQuery} onSelect={onAiResultSelect} />
+                </div>
               ))}
             </div>
           ) : (

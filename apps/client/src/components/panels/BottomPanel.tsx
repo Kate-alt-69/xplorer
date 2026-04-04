@@ -371,25 +371,25 @@ const ActivityLogContent = ({
               </div>
             )}
             <div className="space-y-1 p-3 text-xs">
-              {outputMessages.map((message, index) => (
+              {selectedFile && (
+                <div className="text-xp-green">[INFO] Active file: {selectedFile.name}</div>
+              )}
+              {selectedFiles.size > 0 && (
+                <div className="text-xp-blue">[INFO] {selectedFiles.size} file(s) selected</div>
+              )}
+              <div className="text-xp-text-muted">
+                [INFO] Terminal working directory: {terminalCwd}
+              </div>
+              <div className="text-xp-text-muted">[INFO] Theme applied: {themes[theme]?.name}</div>
+              <div className="text-xp-text-muted">
+                [INFO] Loaded {files.length} files from {currentPath}
+              </div>
+              {[...outputMessages].reverse().map((message, index) => (
                 // eslint-disable-next-line react/no-array-index-key
                 <div key={`${index}-${message.slice(0, 32)}`} className="text-xp-text-muted">
                   {message}
                 </div>
               ))}
-              <div className="text-xp-text-muted">
-                [INFO] Loaded {files.length} files from {currentPath}
-              </div>
-              <div className="text-xp-text-muted">[INFO] Theme applied: {themes[theme]?.name}</div>
-              <div className="text-xp-text-muted">
-                [INFO] Terminal working directory: {terminalCwd}
-              </div>
-              {selectedFiles.size > 0 && (
-                <div className="text-xp-blue">[INFO] {selectedFiles.size} file(s) selected</div>
-              )}
-              {selectedFile && (
-                <div className="text-xp-green">[INFO] Active file: {selectedFile.name}</div>
-              )}
             </div>
           </div>
         )}

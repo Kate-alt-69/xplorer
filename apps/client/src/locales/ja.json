@@ -616,6 +616,10 @@
       "title": "Xplorer へようこそ！",
       "description": "アプリを紹介します。このクイックツアーではアプリの主要な機能を紹介します。いつでも終了でき、設定から後で再生できます。"
     },
+    "fullDiskAccess": {
+      "title": "フルディスクアクセスを許可",
+      "description": "すべてのファイルをアクセス許可なしで閲覧するには、Xplorer にフルディスクアクセスを許可してください：\n\n1. システム設定 → プライバシーとセキュリティ → フルディスクアクセスを開く\n2. Xplorer をオンにする\n3. Xplorer を再起動する\n\nこれを許可しないと、写真、書類、iCloud Drive などの保護されたフォルダを開くたびに macOS がアクセス許可を求めます。"
+    },
     "sidebar": {
       "title": "サイドバーナビゲーション",
       "description": "ファイルツリーの閲覧、クイックアクセスフォルダへのジャンプ、ブックマークの管理がここからできます。"
@@ -2056,5 +2060,12 @@
       "orKey": "or",
       "toClose": "to close"
     }
+  },
+  "search": {
+    "aiThinking": "AI が検索中...",
+    "aiProvider": "{{provider}} 経由",
+    "aiNoProvider": "AI 利用不可、テキスト検索を使用",
+    "aiSearchTerms": "検索キーワード",
+    "aiMatchedItems": "フォルダ一致"
   }
 }

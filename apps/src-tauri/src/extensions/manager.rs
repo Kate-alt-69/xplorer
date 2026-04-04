@@ -296,10 +296,9 @@ impl ExtensionManager {
 
         let active = self.active_extensions.clone();
 
-        // Workspace extensions are loaded on-demand via the dev watcher (.hotreload)
-        // or installed from the marketplace. No bulk scan of packages/extensions/.
+        info!("[ExtensionManager] Scanning extensions dir: {:?} (exists={})", self.extensions_dir, self.extensions_dir.exists());
 
-        // Then scan the user data extensions dir (marketplace installs)
+        // Scan the user data extensions dir (marketplace installs)
         if self.extensions_dir.exists() {
             Self::scan_extension_dir_into(
                 &self.extensions_dir,

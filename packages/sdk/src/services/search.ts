@@ -7,6 +7,7 @@ import type {
   StructuredQuery,
   EnhancedSearchResult,
   AISearchResult,
+  SmartSearchResult,
 } from '../types';
 
 export const findFiles = async (pattern: string, searchPath: string): Promise<string[]> => {
@@ -51,6 +52,18 @@ export const aiSearch = async (
     provider,
     apiKey: apiKey || null,
     model: model || null,
+    limit: limit || null,
+  });
+};
+
+export const smartSearch = async (
+  query: string,
+  currentDirectory: string,
+  limit?: number,
+): Promise<SmartSearchResult> => {
+  return await transport('smart_search', {
+    query,
+    currentDirectory,
     limit: limit || null,
   });
 };

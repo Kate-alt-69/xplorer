@@ -118,8 +118,23 @@ const ICON_MAP: Record<string, LucideIcon> = {
   scissors: Scissors,
 };
 
-export const resolveIcon = (icon: unknown): React.ReactNode => {
+// SVG icon cache: extensionId -> SVG string
+const svgIconCache = new Map<string, string>();
+
+/** Store a loaded SVG icon for an extension */
+export const cacheExtensionSvgIcon = (extensionId: string, svgContent: string): void => {
+  svgIconCache.set(extensionId, svgContent);
+};
+
+export const resolveIcon = (icon: unknown, extensionId?: string): React.ReactNode => {
   if (React.isValidElement(icon)) return icon;
+  // Prefer the extension's own icon.svg if cached
+  if (extensionId && svgIconCache.has(extensionId)) {
+    return React.createElement('span', {
+      style: { display: 'inline-flex', width: 18, height: 18 },
+      dangerouslySetInnerHTML: { __html: svgIconCache.get(extensionId) as string },
+    });
+  }
   if (typeof icon === 'string' && ICON_MAP[icon.toLowerCase()]) {
     return React.createElement(ICON_MAP[icon.toLowerCase()], { size: 18 });
   }

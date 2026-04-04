@@ -143,6 +143,7 @@ export class TauriAPI {
   static setSearchContext = search.setSearchContext;
   static addWhitelistedPath = search.addWhitelistedPath;
   static aiSearch = search.aiSearch;
+  static smartSearch = search.smartSearch;
   static parseSearchQuery = search.parseSearchQuery;
   static enhancedSearch = search.enhancedSearch;
   static getAIIndexStatus = search.getAIIndexStatus;
