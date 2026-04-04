@@ -1,6 +1,6 @@
 {
   "productName": "Xplorer",
-  "version": "0.1.0",
+  "version": "1.0.0-alpha.1",
   "identifier": "com.xplorer.app",
   "build": {
     "frontendDist": "../client/dist",

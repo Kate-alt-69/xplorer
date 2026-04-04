@@ -1,6 +1,6 @@
 [package]
 name = "xplorer"
-version = "0.1.0"
+version = "1.0.0-alpha.1"
 description = "A modern file explorer built with Tauri"
 authors = ["Justin Maximillian Kimlim"]
 license = "AGPL-3.0"
