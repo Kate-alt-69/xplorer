@@ -72,6 +72,9 @@ export const STORAGE_KEYS = {
   // AI Chat file access
   AI_FILE_ACCESS_GRANTED: 'xplorer:ai-file-access-granted',
 
+  // AI Chat history
+  AI_CHAT_HISTORY: 'xplorer:ai-chat-history',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

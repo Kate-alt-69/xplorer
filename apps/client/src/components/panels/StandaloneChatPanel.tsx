@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, FileText, FolderOpen, Code2, X, Loader2, RotateCcw } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { Send, FileText, Loader2, RotateCcw, History } from 'lucide-react';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { AgentService } from '@/lib/agent-service';
@@ -18,9 +18,27 @@ import {
   type PendingFileAction,
   type FileAction,
 } from './chat-file-actions';
+import {
+  type SavedConversation,
+  type ChatMessage as SavedChatMessage,
+  generateConversationId,
+  deriveConversationTitle,
+  loadChatHistory,
+  saveChatHistory,
+} from './chat-history';
+import { QUICK_ACTIONS, QuickActionsBar, type QuickAction } from './chat-quick-actions';
+import ChatHistoryView from './ChatHistoryView';
+import ChatContextHeader from './ChatContextHeader';
+import { DragOverlay, AttachedFilesBar } from './ChatDropZone';
 
 /** Max bytes of file content to include in AI context (~10 KB). */
 const MAX_FILE_CONTENT_LENGTH = 10_000;
+
+/** Max total context for multi-file reads (~30 KB split across files). */
+const MAX_MULTI_FILE_TOTAL = 30_000;
+
+/** Max number of files to read content for at once. */
+const MAX_MULTI_FILE_COUNT = 5;
 
 /** Max directory entries to include in context injection */
 const MAX_DIR_CONTEXT_ENTRIES = 50;
@@ -36,11 +54,10 @@ const getExt = (filePath: string): string => {
 };
 
 /** Read file content for AI context. Tries text first, then document extraction. */
-const readFileForAIContext = async (file: {
-  name: string;
-  path: string;
-  is_dir: boolean;
-}): Promise<{ name: string; path: string; file_type: string; content?: string }> => {
+const readFileForAIContext = async (
+  file: { name: string; path: string; is_dir: boolean },
+  maxLength = MAX_FILE_CONTENT_LENGTH,
+): Promise<{ name: string; path: string; file_type: string; content?: string }> => {
   const ext = getExt(file.path);
 
   if (file.is_dir) {
@@ -50,8 +67,8 @@ const readFileForAIContext = async (file: {
   // Try reading as plain text first
   try {
     let content = await TauriAPI.readTextFile(file.path);
-    if (content.length > MAX_FILE_CONTENT_LENGTH) {
-      content = `${content.slice(0, MAX_FILE_CONTENT_LENGTH)}\n\n[... truncated at 10KB ...]`;
+    if (content.length > maxLength) {
+      content = `${content.slice(0, maxLength)}\n\n[... truncated at ${Math.round(maxLength / 1000)}KB ...]`;
     }
     if (content.trim().length > 0) {
       return { name: file.name, path: file.path, file_type: ext, content };
@@ -63,8 +80,8 @@ const readFileForAIContext = async (file: {
   // Try document extraction (PDF, DOCX, XLSX, PPTX, etc.)
   try {
     let content = await TauriAPI.extractDocumentText(file.path);
-    if (content.length > MAX_FILE_CONTENT_LENGTH) {
-      content = `${content.slice(0, MAX_FILE_CONTENT_LENGTH)}\n\n[... truncated at 10KB ...]`;
+    if (content.length > maxLength) {
+      content = `${content.slice(0, maxLength)}\n\n[... truncated at ${Math.round(maxLength / 1000)}KB ...]`;
     }
     if (content.trim().length > 0) {
       return { name: file.name, path: file.path, file_type: ext, content };
@@ -73,13 +90,36 @@ const readFileForAIContext = async (file: {
     // Document extraction not available for this format
   }
 
-  // Fallback: send filename and type
   return {
     name: file.name,
     path: file.path,
     file_type: ext || 'unknown',
     content: `[File: ${file.name} (${ext || 'unknown'} format)]`,
   };
+};
+
+/**
+ * Read multiple files for AI context. Distributes the byte budget across files
+ * so that the total context stays manageable.
+ */
+const readMultipleFilesForAIContext = async (
+  files: Array<{ name: string; path: string; is_dir: boolean }>,
+): Promise<Array<{ name: string; path: string; file_type: string; content?: string }>> => {
+  const nonDirFiles = files.filter((f) => !f.is_dir);
+  const filesToRead = nonDirFiles.slice(0, MAX_MULTI_FILE_COUNT);
+  if (filesToRead.length === 0) return [];
+
+  const perFileLimit = Math.floor(MAX_MULTI_FILE_TOTAL / filesToRead.length);
+  const results = await Promise.allSettled(
+    filesToRead.map((f) => readFileForAIContext(f, perFileLimit)),
+  );
+
+  return results
+    .filter(
+      (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof readFileForAIContext>>> =>
+        r.status === 'fulfilled',
+    )
+    .map((r) => r.value);
 };
 
 // ---------------------------------------------------------------------------
@@ -100,10 +140,6 @@ interface XplorerState {
 const getXplorerState = (): XplorerState | undefined =>
   (window as unknown as { __xplorer_state__?: XplorerState }).__xplorer_state__;
 
-// ---------------------------------------------------------------------------
-// Context builder -- builds rich system context for the agent
-// ---------------------------------------------------------------------------
-
 /** Build directory listing context string */
 const buildDirectoryContext = async (dirPath: string): Promise<string> => {
   try {
@@ -122,16 +158,12 @@ const buildDirectoryContext = async (dirPath: string): Promise<string> => {
 };
 
 // ---------------------------------------------------------------------------
-// Chat message type
+// Chat message type (extends the saved version with runtime-only fields)
 // ---------------------------------------------------------------------------
 
-interface ChatMessage {
-  role: string;
-  content: string;
+interface ChatMessage extends SavedChatMessage {
   /** Pending file actions attached to this message (assistant only) */
   fileActions?: PendingFileAction[];
-  /** Whether this is a system/context injection message (hidden from user) */
-  isContextInjection?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -148,6 +180,17 @@ const StandaloneChatPanel = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef(false);
 
+  // Chat history state
+  const [chatHistory, setChatHistory] = useState<SavedConversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Drag & drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [droppedFiles, setDroppedFiles] = useState<
+    Array<{ name: string; path: string; is_dir: boolean }>
+  >([]);
+
   // File context state -- updated from __xplorer_state__
   const [currentPath, setCurrentPath] = useState('');
   const [selectedFiles, setSelectedFiles] = useState<
@@ -156,14 +199,17 @@ const StandaloneChatPanel = () => {
   const [editorSelection, setEditorSelection] = useState<XplorerState['editorSelection']>(null);
   const [includeSelection, setIncludeSelection] = useState(true);
 
+  // Load chat history on mount
   useEffect(() => {
-    // Read model from agent settings (configured in Settings > AI)
+    setChatHistory(loadChatHistory());
+  }, []);
+
+  useEffect(() => {
     AgentService.getSettings()
       .then((s) => {
         if (s.model) setModel(s.model);
       })
       .catch(() => {
-        // Fallback: read from localStorage
         try {
           const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
           if (raw) {
@@ -185,22 +231,60 @@ const StandaloneChatPanel = () => {
       setSelectedFiles(xState.selectedFiles || []);
       setEditorSelection(xState.editorSelection || null);
     };
-
-    // Initial sync
     syncState();
-
-    // Listen for state changes
     const onStateChange = () => syncState();
     window.addEventListener('xplorer-state-change', onStateChange);
-
-    // Also poll periodically for editorSelection changes (set by code-editor extension)
     const interval = setInterval(syncState, 1000);
-
     return () => {
       window.removeEventListener('xplorer-state-change', onStateChange);
       clearInterval(interval);
     };
   }, []);
+
+  // Auto-save conversation when messages change
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    const timer = setTimeout(() => {
+      const convId = currentConversationId || generateConversationId();
+      if (!currentConversationId) {
+        setCurrentConversationId(convId);
+      }
+
+      const title = deriveConversationTitle(messages);
+      const now = Date.now();
+
+      setChatHistory((prev) => {
+        const existingIdx = prev.findIndex((c) => c.id === convId);
+        const conv: SavedConversation = {
+          id: convId,
+          title,
+          messages: messages.map((m) => ({
+            role: m.role,
+            content: m.content,
+            isContextInjection: m.isContextInjection,
+            droppedFiles: m.droppedFiles,
+          })),
+          createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : now,
+          updatedAt: now,
+        };
+
+        let updated: SavedConversation[];
+        if (existingIdx >= 0) {
+          updated = [...prev];
+          updated[existingIdx] = conv;
+        } else {
+          updated = [conv, ...prev];
+        }
+
+        updated.sort((a, b) => b.updatedAt - a.updatedAt);
+        saveChatHistory(updated);
+        return updated;
+      });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [messages, currentConversationId]);
 
   const scrollToBottom = useCallback(() => {
     requestAnimationFrame(() => {
@@ -236,10 +320,8 @@ const StandaloneChatPanel = () => {
   const handleExecuteAction = useCallback(
     async (messageIndex: number, actionId: string) => {
       updateActionStatus(messageIndex, actionId, 'approved');
-
       const action = messages[messageIndex]?.fileActions?.find((a) => a.id === actionId);
       if (!action) return;
-
       try {
         const result = await executeFileAction(action.action);
         updateActionStatus(messageIndex, actionId, 'success', { result });
@@ -268,15 +350,10 @@ const StandaloneChatPanel = () => {
     [handleExecuteAction],
   );
 
-  // ---------------------------------------------------------------------------
-  // Batch action handlers
-  // ---------------------------------------------------------------------------
-
   const handleBatchAllowAll = useCallback(
     async (messageIndex: number) => {
       const msg = messages[messageIndex];
       if (!msg?.fileActions) return;
-
       for (const pa of msg.fileActions) {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
           updateActionStatus(messageIndex, pa.id, 'approved');
@@ -298,7 +375,6 @@ const StandaloneChatPanel = () => {
     (messageIndex: number) => {
       const msg = messages[messageIndex];
       if (!msg?.fileActions) return;
-
       for (const pa of msg.fileActions) {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
           updateActionStatus(messageIndex, pa.id, 'rejected');
@@ -319,7 +395,6 @@ const StandaloneChatPanel = () => {
 
   // ---------------------------------------------------------------------------
   // Auto-execute read-only actions + "always allow" mutating actions
-  // Returns results from read-only actions for the agent loop.
   // ---------------------------------------------------------------------------
 
   const autoExecuteActions = useCallback(
@@ -332,7 +407,6 @@ const StandaloneChatPanel = () => {
 
       for (const pa of pendingActions) {
         if (isReadOnlyAction(pa.action.action)) {
-          // Read-only: always auto-execute
           updateActionStatus(msgIndex, pa.id, 'approved');
           try {
             const result = await executeFileAction(pa.action);
@@ -344,7 +418,6 @@ const StandaloneChatPanel = () => {
             readOnlyResults.push(`Error executing ${pa.action.action}: ${errorMsg}`);
           }
         } else if (isAlwaysAllowed()) {
-          // Mutating with "always allow": auto-execute
           updateActionStatus(msgIndex, pa.id, 'approved');
           try {
             const result = await executeFileAction(pa.action);
@@ -370,26 +443,19 @@ const StandaloneChatPanel = () => {
   const buildSystemPrompt = useCallback(
     async (
       xState: XplorerState | undefined,
-      fileContext: { name: string; path: string; file_type: string; content?: string } | null,
+      fileContexts: Array<{ name: string; path: string; file_type: string; content?: string }>,
       agentLoopContext?: string,
     ): Promise<string> => {
       let systemContent =
         "You are an AI agent inside the Xplorer file manager. You can observe the user's filesystem, understand their context, and take actions to help them manage files.";
-
-      // Add file operations capability
       systemContent += `\n\n${FILE_OPS_SYSTEM_PROMPT}`;
 
-      // Context: current directory
       if (xState?.currentPath) {
-        systemContent += `\n\n## Current Context`;
-        systemContent += `\n[Current directory: ${xState.currentPath}]`;
-
-        // Add directory listing
+        systemContent += `\n\n## Current Context\n[Current directory: ${xState.currentPath}]`;
         const dirListing = await buildDirectoryContext(xState.currentPath);
         systemContent += `\n\n${dirListing}`;
       }
 
-      // Context: selected files
       const selectedFileList = xState?.selectedFiles ?? [];
       if (selectedFileList.length > 0) {
         const fileList = selectedFileList
@@ -398,20 +464,24 @@ const StandaloneChatPanel = () => {
         systemContent += `\n\n[Currently selected files]\n${fileList}`;
       }
 
-      // Context: file content loaded
-      if (fileContext?.content) {
+      if (fileContexts.length === 1 && fileContexts[0].content) {
         systemContent +=
-          '\n\n[File content loaded] The user has a file selected and its contents are available below. You can answer questions about it directly.';
-        systemContent += `\n\nFile: ${fileContext.name} (${fileContext.file_type})\n\`\`\`\n${fileContext.content}\n\`\`\``;
+          '\n\n[File content loaded] The user has a file selected and its contents are available below.';
+        systemContent += `\n\nFile: ${fileContexts[0].name} (${fileContexts[0].file_type})\n\`\`\`\n${fileContexts[0].content}\n\`\`\``;
+      } else if (fileContexts.length > 1) {
+        systemContent += `\n\n[Multiple file contents loaded] ${fileContexts.length} files in context.`;
+        for (const fc of fileContexts) {
+          if (fc.content) {
+            systemContent += `\n\n### ${fc.name} (${fc.file_type})\n\`\`\`\n${fc.content}\n\`\`\``;
+          }
+        }
       }
 
-      // Context: editor selection
       if (includeSelection && xState?.editorSelection) {
         const sel = xState.editorSelection;
         systemContent += `\n\n[Selected code in ${sel.filePath} lines ${sel.startLine}-${sel.endLine}]\n\`\`\`\n${sel.text}\n\`\`\``;
       }
 
-      // Agent loop context (results from previous iteration's read-only actions)
       if (agentLoopContext) {
         systemContent += `\n\n## Results from your previous actions\n${agentLoopContext}`;
         systemContent +=
@@ -424,19 +494,20 @@ const StandaloneChatPanel = () => {
   );
 
   // ---------------------------------------------------------------------------
-  // Agent loop: send message, auto-execute read-only actions, feed results back
+  // Agent loop
   // ---------------------------------------------------------------------------
 
   const runAgentLoop = useCallback(
     async (
       initialMessages: Array<{ role: string; content: string }>,
       xState: XplorerState | undefined,
-      fileContext: { name: string; path: string; file_type: string; content?: string } | null,
+      fileContexts: Array<{ name: string; path: string; file_type: string; content?: string }>,
       currentMsgs: ChatMessage[],
     ) => {
       let loopMessages = [...initialMessages];
       let iteration = 0;
       let messagesSnapshot = [...currentMsgs];
+      const primaryFileContext = fileContexts.length > 0 ? fileContexts[0] : null;
 
       while (iteration < MAX_AGENT_ITERATIONS && !abortRef.current) {
         iteration++;
@@ -449,30 +520,23 @@ const StandaloneChatPanel = () => {
                 .join('\n\n')
             : undefined;
 
-        const systemContent = await buildSystemPrompt(xState, fileContext, agentLoopContext);
-
-        // Build API messages -- filter out tool_result messages (those were folded into system prompt)
+        const systemContent = await buildSystemPrompt(xState, fileContexts, agentLoopContext);
         const apiMsgs = [
           { role: 'system', content: systemContent },
           ...loopMessages.filter((m) => m.role !== 'tool_result' && m.role !== 'system'),
         ];
 
-        if (iteration > 1) {
-          setAgentStep(`Agent iteration ${iteration}...`);
-        }
+        if (iteration > 1) setAgentStep(`Agent iteration ${iteration}...`);
 
         try {
           const response = await TauriAPI.chatWithAI(
             model || 'claude-sonnet-4-20250514',
             apiMsgs,
-            fileContext,
+            primaryFileContext,
           );
-
           if (abortRef.current) break;
 
-          // Parse file actions from the response
           const { cleanText, actions } = parseFileActions(response);
-
           const pendingActions: PendingFileAction[] = actions.map((a: FileAction) => ({
             id: generateActionId(),
             action: a,
@@ -489,12 +553,8 @@ const StandaloneChatPanel = () => {
           setMessages(messagesSnapshot);
           scrollToBottom();
 
-          if (pendingActions.length === 0) {
-            // No actions -- agent is done
-            break;
-          }
+          if (pendingActions.length === 0) break;
 
-          // Auto-execute read-only actions (and "always allow" mutating ones)
           const msgIndex = messagesSnapshot.length - 1;
           const { readOnlyResults, hasRemainingPending } = await autoExecuteActions(
             msgIndex,
@@ -502,18 +562,12 @@ const StandaloneChatPanel = () => {
           );
 
           if (readOnlyResults.length > 0 && !hasRemainingPending) {
-            // Only read-only actions were present -- feed results back for next iteration
             loopMessages = [
               ...loopMessages,
               { role: 'assistant', content: response },
-              {
-                role: 'tool_result',
-                content: readOnlyResults.join('\n\n'),
-              },
+              { role: 'tool_result', content: readOnlyResults.join('\n\n') },
             ];
-            // Continue loop
           } else {
-            // Mutating actions pending user approval -- stop the loop
             break;
           }
         } catch (err) {
@@ -522,7 +576,6 @@ const StandaloneChatPanel = () => {
           break;
         }
       }
-
       setAgentStep('');
     },
     [model, scrollToBottom, autoExecuteActions, buildSystemPrompt],
@@ -532,51 +585,63 @@ const StandaloneChatPanel = () => {
   // Send message
   // ---------------------------------------------------------------------------
 
-  const sendMessage = useCallback(async () => {
-    const text = input.trim();
-    if (!text || isLoading) return;
+  const sendMessage = useCallback(
+    async (overrideText?: string) => {
+      const text = (overrideText ?? input).trim();
+      if (!text || isLoading) return;
 
-    const xState = getXplorerState();
+      const xState = getXplorerState();
+      const userMsg: ChatMessage = {
+        role: 'user',
+        content: text,
+        droppedFiles:
+          droppedFiles.length > 0
+            ? droppedFiles.map((f) => ({ name: f.name, path: f.path }))
+            : undefined,
+      };
+      const newMessages = [...messages, userMsg];
+      setMessages(newMessages);
+      setInput('');
+      setIsLoading(true);
+      abortRef.current = false;
+      scrollToBottom();
 
-    const userMsg: ChatMessage = { role: 'user', content: text };
-    const newMessages = [...messages, userMsg];
-    setMessages(newMessages);
-    setInput('');
-    setIsLoading(true);
-    abortRef.current = false;
-    scrollToBottom();
+      // Dropped files take priority over xplorer selection
+      const filesToRead =
+        droppedFiles.length > 0 ? [...droppedFiles] : [...(xState?.selectedFiles ?? [])];
+      setDroppedFiles([]);
 
-    // Read file contents for selected files (first file only to keep context manageable)
-    let fileContext: { name: string; path: string; file_type: string; content?: string } | null =
-      null;
-    const selectedFileList = xState?.selectedFiles ?? [];
+      let fileContexts: Array<{
+        name: string;
+        path: string;
+        file_type: string;
+        content?: string;
+      }> = [];
 
-    if (selectedFileList.length > 0 && !selectedFileList[0].is_dir) {
-      setIsReadingFile(true);
-      try {
-        fileContext = await readFileForAIContext(selectedFileList[0]);
-      } catch {
-        // Silently fall back to no file content
-      } finally {
-        setIsReadingFile(false);
+      if (filesToRead.length > 0) {
+        setIsReadingFile(true);
+        try {
+          fileContexts =
+            filesToRead.length === 1 && !filesToRead[0].is_dir
+              ? [await readFileForAIContext(filesToRead[0])]
+              : await readMultipleFilesForAIContext(filesToRead);
+        } catch {
+          // Silently fall back
+        } finally {
+          setIsReadingFile(false);
+        }
       }
-    }
 
-    // Build message history (strip fileActions and context injection messages)
-    const historyMsgs = newMessages
-      .filter((m) => !m.isContextInjection)
-      .map((m) => ({ role: m.role, content: m.content }));
+      const historyMsgs = newMessages
+        .filter((m) => !m.isContextInjection)
+        .map((m) => ({ role: m.role, content: m.content }));
 
-    // Run the agent loop
-    await runAgentLoop(historyMsgs, xState, fileContext, newMessages);
-
-    setIsLoading(false);
-    scrollToBottom();
-  }, [input, isLoading, messages, scrollToBottom, runAgentLoop]);
-
-  // ---------------------------------------------------------------------------
-  // Stop the agent
-  // ---------------------------------------------------------------------------
+      await runAgentLoop(historyMsgs, xState, fileContexts, newMessages);
+      setIsLoading(false);
+      scrollToBottom();
+    },
+    [input, isLoading, messages, droppedFiles, scrollToBottom, runAgentLoop],
+  );
 
   const stopAgent = useCallback(() => {
     abortRef.current = true;
@@ -584,148 +649,175 @@ const StandaloneChatPanel = () => {
     setAgentStep('');
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Clear chat
-  // ---------------------------------------------------------------------------
-
   const clearChat = useCallback(() => {
     setMessages([]);
     setInput('');
     setIsLoading(false);
     setAgentStep('');
+    setDroppedFiles([]);
+    setCurrentConversationId(null);
     abortRef.current = false;
   }, []);
 
-  const hasContext = currentPath || selectedFiles.length > 0 || editorSelection;
+  const loadConversation = useCallback((conv: SavedConversation) => {
+    setMessages(conv.messages as ChatMessage[]);
+    setCurrentConversationId(conv.id);
+    setShowHistory(false);
+    setDroppedFiles([]);
+  }, []);
 
-  // Count pending mutating actions per message for batch card rendering
+  const deleteConversation = useCallback(
+    (convId: string) => {
+      setChatHistory((prev) => {
+        const updated = prev.filter((c) => c.id !== convId);
+        saveChatHistory(updated);
+        return updated;
+      });
+      if (currentConversationId === convId) clearChat();
+    },
+    [currentConversationId, clearChat],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Drag & drop handlers
+  // ---------------------------------------------------------------------------
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    let files: Array<{ name: string; path: string; is_dir: boolean }> = [];
+
+    // Xplorer internal drag format
+    const xplorerData = e.dataTransfer.getData('application/xplorer-files');
+    if (xplorerData) {
+      try {
+        const parsed: unknown = JSON.parse(xplorerData);
+        if (Array.isArray(parsed)) {
+          files = parsed.map((f: { name?: string; path?: string; is_dir?: boolean }) => ({
+            name: String(f.name ?? basename(String(f.path ?? ''))),
+            path: String(f.path ?? ''),
+            is_dir: Boolean(f.is_dir),
+          }));
+        }
+      } catch {
+        // Invalid JSON
+      }
+    }
+
+    // Fallback: text/plain with file paths
+    if (files.length === 0) {
+      const textData = e.dataTransfer.getData('text/plain');
+      if (textData) {
+        const paths = textData
+          .split('\n')
+          .map((p) => p.trim())
+          .filter((p) => p.startsWith('/') || /^[A-Z]:\\/i.test(p));
+        if (paths.length > 0) {
+          files = paths.map((p) => ({ name: basename(p), path: p, is_dir: false }));
+        }
+      }
+    }
+
+    // Fallback: browser File API (OS file drag into Tauri)
+    if (files.length === 0 && e.dataTransfer.files.length > 0) {
+      for (let i = 0; i < e.dataTransfer.files.length; i++) {
+        const file = e.dataTransfer.files[i];
+        const filePath = (file as unknown as { path?: string }).path ?? file.name;
+        files.push({ name: file.name, path: filePath, is_dir: false });
+      }
+    }
+
+    if (files.length > 0) {
+      setDroppedFiles((prev) => {
+        const existing = new Set(prev.map((f) => f.path));
+        const newFiles = files.filter((f) => !existing.has(f.path));
+        return [...prev, ...newFiles];
+      });
+    }
+  }, []);
+
+  const removeDroppedFile = useCallback((path: string) => {
+    setDroppedFiles((prev) => prev.filter((f) => f.path !== path));
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Quick actions
+  // ---------------------------------------------------------------------------
+
+  const handleQuickAction = useCallback(
+    (action: QuickAction) => {
+      if (isLoading) return;
+      sendMessage(action.prompt);
+    },
+    [isLoading, sendMessage],
+  );
+
+  const availableQuickActions = useMemo(
+    () =>
+      QUICK_ACTIONS.filter((action) => {
+        if (action.requiresSelection && selectedFiles.length === 0) return false;
+        if (action.requiresDirectory && !currentPath) return false;
+        return true;
+      }),
+    [selectedFiles.length, currentPath],
+  );
+
   const getPendingMutatingCount = (msg: ChatMessage): number =>
     msg.fileActions?.filter((a) => a.status === 'pending' && !isReadOnlyAction(a.action.action))
       .length ?? 0;
 
+  // ---------------------------------------------------------------------------
+  // Render: History view
+  // ---------------------------------------------------------------------------
+
+  if (showHistory) {
+    return (
+      <ChatHistoryView
+        chatHistory={chatHistory}
+        currentConversationId={currentConversationId}
+        onBack={() => setShowHistory(false)}
+        onLoad={loadConversation}
+        onDelete={deleteConversation}
+      />
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render: Main chat view
+  // ---------------------------------------------------------------------------
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* File context header */}
-      {hasContext && (
-        <div
-          style={{
-            borderBottom: '1px solid var(--xp-border)',
-            padding: '6px 8px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '4px',
-            fontSize: '12px',
-            flexShrink: 0,
-          }}
-        >
-          {/* Current directory */}
-          {currentPath && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                color: 'var(--xp-text-muted)',
-              }}
-            >
-              <FolderOpen size={12} style={{ flexShrink: 0 }} />
-              <span
-                style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                title={currentPath}
-              >
-                {basename(currentPath)}
-              </span>
-            </div>
-          )}
+    <div
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', position: 'relative' }}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {isDragOver && <DragOverlay />}
 
-          {/* Selected files badges */}
-          {selectedFiles.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-              {selectedFiles.slice(0, 5).map((file) => (
-                <span
-                  key={file.path}
-                  title={file.path}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '3px',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    background: 'var(--xp-surface-light)',
-                    color: 'var(--xp-text)',
-                    fontSize: '11px',
-                    maxWidth: '140px',
-                  }}
-                >
-                  <FileText size={10} style={{ flexShrink: 0 }} />
-                  <span
-                    style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    {file.name}
-                  </span>
-                </span>
-              ))}
-              {selectedFiles.length > 5 && (
-                <span
-                  style={{ fontSize: '11px', color: 'var(--xp-text-muted)', padding: '1px 4px' }}
-                >
-                  +{selectedFiles.length - 5} more
-                </span>
-              )}
-            </div>
-          )}
+      <ChatContextHeader
+        currentPath={currentPath}
+        selectedFiles={selectedFiles}
+        editorSelection={editorSelection}
+        includeSelection={includeSelection}
+        onToggleSelection={() => setIncludeSelection((v) => !v)}
+      />
 
-          {/* Editor selection indicator */}
-          {editorSelection && (
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '2px 6px',
-                borderRadius: '4px',
-                background: includeSelection
-                  ? 'rgba(122, 162, 247, 0.15)'
-                  : 'var(--xp-surface-light)',
-                color: includeSelection ? 'var(--xp-blue)' : 'var(--xp-text-muted)',
-              }}
-            >
-              <Code2 size={11} style={{ flexShrink: 0 }} />
-              <span
-                style={{
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  flex: 1,
-                }}
-              >
-                {basename(editorSelection.filePath)} L{editorSelection.startLine}-
-                {editorSelection.endLine}
-              </span>
-              <button
-                onClick={() => setIncludeSelection((v) => !v)}
-                title={
-                  includeSelection
-                    ? 'Exclude selection from context'
-                    : 'Include selection in context'
-                }
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '0 2px',
-                  color: 'inherit',
-                  fontSize: '11px',
-                  opacity: 0.7,
-                }}
-              >
-                {includeSelection ? <X size={10} /> : 'include'}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
+      {/* Messages area */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
         {messages.length === 0 && !isLoading && (
           <div
@@ -740,7 +832,7 @@ const StandaloneChatPanel = () => {
               gap: '8px',
             }}
           >
-            <span style={{ fontSize: '28px' }}>💬</span>
+            <span style={{ fontSize: '28px' }}>&#x1F4AC;</span>
             <span>Ask anything about your files</span>
             <span
               style={{
@@ -758,18 +850,60 @@ const StandaloneChatPanel = () => {
                 {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} in context
               </span>
             )}
+            <span
+              style={{
+                fontSize: '11px',
+                color: 'var(--xp-text-muted)',
+                marginTop: '4px',
+                opacity: 0.7,
+              }}
+            >
+              Drag files here to add them as context
+            </span>
           </div>
         )}
-        {messages.map((msg, i) => {
-          // Skip context injection messages
-          if (msg.isContextInjection) return null;
 
+        {messages.map((msg, i) => {
+          if (msg.isContextInjection) return null;
           const pendingMutatingCount = getPendingMutatingCount(msg);
           const showBatchCard = pendingMutatingCount > 1;
 
           return (
             <div key={i} style={{ marginBottom: '12px' }}>
-              {/* Message bubble */}
+              {/* Dropped files indicator on user messages */}
+              {msg.droppedFiles && msg.droppedFiles.length > 0 && (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '4px',
+                    marginBottom: '4px',
+                    marginLeft: '20%',
+                    justifyContent: 'flex-end',
+                  }}
+                >
+                  {msg.droppedFiles.map((f) => (
+                    <span
+                      key={f.path}
+                      title={f.path}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        background: 'rgba(122, 162, 247, 0.15)',
+                        color: 'var(--xp-blue)',
+                        fontSize: '10px',
+                      }}
+                    >
+                      <FileText size={9} style={{ flexShrink: 0 }} />
+                      {f.name}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               {msg.content && (
                 <div
                   style={{
@@ -793,7 +927,6 @@ const StandaloneChatPanel = () => {
                 </div>
               )}
 
-              {/* Batch action card for multi-step operations */}
               {showBatchCard && msg.fileActions && (
                 <BatchActionCard
                   actions={msg.fileActions}
@@ -803,7 +936,6 @@ const StandaloneChatPanel = () => {
                 />
               )}
 
-              {/* Inline file action cards */}
               {msg.fileActions?.map((pa) => (
                 <FileActionCard
                   key={pa.id}
@@ -816,6 +948,7 @@ const StandaloneChatPanel = () => {
             </div>
           );
         })}
+
         {isLoading && (
           <div
             style={{
@@ -827,13 +960,7 @@ const StandaloneChatPanel = () => {
               gap: '6px',
             }}
           >
-            <Loader2
-              size={12}
-              style={{
-                animation: 'spin 1s linear infinite',
-                flexShrink: 0,
-              }}
-            />
+            <Loader2 size={12} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
             {isReadingFile ? 'Reading file...' : agentStep || 'Thinking...'}
             <button
               onClick={stopAgent}
@@ -854,6 +981,23 @@ const StandaloneChatPanel = () => {
           </div>
         )}
       </div>
+
+      <AttachedFilesBar
+        files={droppedFiles}
+        onRemove={removeDroppedFile}
+        onClearAll={() => setDroppedFiles([])}
+      />
+
+      {/* Quick actions bar (only on empty chat) */}
+      {messages.length === 0 && (
+        <QuickActionsBar
+          actions={availableQuickActions}
+          isLoading={isLoading}
+          onAction={handleQuickAction}
+        />
+      )}
+
+      {/* Input bar */}
       <div
         style={{
           borderTop: '1px solid var(--xp-border)',
@@ -862,10 +1006,27 @@ const StandaloneChatPanel = () => {
           gap: '6px',
         }}
       >
+        <button
+          onClick={() => setShowHistory(true)}
+          title="Chat history"
+          style={{
+            padding: '8px',
+            borderRadius: '6px',
+            border: '1px solid var(--xp-border)',
+            background: 'transparent',
+            color: 'var(--xp-text-muted)',
+            cursor: 'pointer',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <History size={14} />
+        </button>
         {messages.length > 0 && (
           <button
             onClick={clearChat}
-            title="Clear chat"
+            title="New chat"
             style={{
               padding: '8px',
               borderRadius: '6px',
@@ -874,6 +1035,8 @@ const StandaloneChatPanel = () => {
               color: 'var(--xp-text-muted)',
               cursor: 'pointer',
               flexShrink: 0,
+              display: 'flex',
+              alignItems: 'center',
             }}
           >
             <RotateCcw size={14} />
@@ -888,7 +1051,11 @@ const StandaloneChatPanel = () => {
               sendMessage();
             }
           }}
-          placeholder="Ask about your files..."
+          placeholder={
+            droppedFiles.length > 0
+              ? `Ask about ${droppedFiles.length} attached file${droppedFiles.length !== 1 ? 's' : ''}...`
+              : 'Ask about your files...'
+          }
           disabled={isLoading}
           style={{
             flex: 1,
@@ -902,7 +1069,7 @@ const StandaloneChatPanel = () => {
           }}
         />
         <button
-          onClick={sendMessage}
+          onClick={() => sendMessage()}
           disabled={isLoading || !input.trim()}
           style={{
             padding: '8px',
@@ -912,6 +1079,8 @@ const StandaloneChatPanel = () => {
             color: 'white',
             cursor: 'pointer',
             opacity: isLoading || !input.trim() ? 0.5 : 1,
+            display: 'flex',
+            alignItems: 'center',
           }}
         >
           <Send size={16} />
