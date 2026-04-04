@@ -40,7 +40,7 @@ export const registerSidebarTab = (
     id: stConfig.id,
     extensionId,
     title: stConfig.title,
-    icon: resolveIcon(stConfig.icon),
+    icon: resolveIcon(stConfig.icon, extensionId),
     render: (props: TabRenderProps) => {
       try {
         return (extensionObj.renderSidebarTab as (props: TabRenderProps) => React.ReactElement)(
@@ -76,7 +76,7 @@ export const registerBottomTab = (
     id: btConfig.id,
     extensionId,
     title: btConfig.title,
-    icon: resolveIcon(btConfig.icon),
+    icon: resolveIcon(btConfig.icon, extensionId),
     render: (props: TabRenderProps) => {
       try {
         return (extensionObj.renderBottomTab as (props: TabRenderProps) => React.ReactElement)(

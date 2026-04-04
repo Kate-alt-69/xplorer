@@ -72,6 +72,10 @@ for (const dir of readdirSync(EXT_DIR, { withFileTypes: true })
     const zip = new JSZip();
     zip.file('package.json', readFileSync(pkgPath));
     zip.file('dist/index.js', readFileSync(distPath));
+    const iconPath = join(EXT_DIR, dir, 'icon.svg');
+    if (existsSync(iconPath)) {
+      zip.file('icon.svg', readFileSync(iconPath));
+    }
     const zipBuf = await zip.generateAsync({ type: 'nodebuffer' });
     const checksum = createHash('sha256').update(zipBuf).digest('hex');
     const blobPath = `extensions/${manifest.id}/${version}/${slug}.zip`;

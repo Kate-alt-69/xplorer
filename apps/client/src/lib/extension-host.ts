@@ -1,7 +1,7 @@
 import React from 'react';
 import { TauriAPI } from './tauri-api';
 import { listen } from '@tauri-apps/api/event';
-import { resolveIcon } from './extension-host-icon';
+import { resolveIcon, cacheExtensionSvgIcon } from './extension-host-icon';
 import { registerTheme } from './theme-registry';
 import {
   EventBus,
@@ -231,7 +231,7 @@ class ExtensionHost {
           id: panel.id,
           extensionId: manifest.id,
           title: panel.title,
-          icon: resolveIcon(panel.icon),
+          icon: resolveIcon(panel.icon, manifest.id),
           location: (panel.location as 'sidebar' | 'bottom' | 'right') || 'right',
           isBuiltin: false,
           render: (props: PanelRenderProps) => {
@@ -374,6 +374,17 @@ class ExtensionHost {
     // Store the package info for potential hot-reload later
     this.extensionPackages.set(pkg.manifest.id, pkg);
 
+    // Try to load the extension's icon.svg for custom icons
+    try {
+      const iconPath = `${pkg.path}/icon.svg`.replace(/\\/g, '/');
+      const svgContent = await TauriAPI.readTextFile(iconPath);
+      if (svgContent && svgContent.startsWith('<svg')) {
+        cacheExtensionSvgIcon(pkg.manifest.id, svgContent);
+      }
+    } catch {
+      // No icon.svg — will fall back to lucide icon
+    }
+
     // Check dependencies
     if (pkg.manifest.dependencies?.length) {
       const missing = pkg.manifest.dependencies.filter(
@@ -400,7 +411,7 @@ class ExtensionHost {
           id: panel.id,
           extensionId: pkg.manifest.id,
           title: panel.title,
-          icon: resolveIcon(panel.icon),
+          icon: resolveIcon(panel.icon, pkg.manifest.id),
           location: (panel.location as 'sidebar' | 'bottom' | 'right') || 'right',
           isBuiltin: false,
           render: () =>
@@ -642,7 +653,7 @@ class ExtensionHost {
                 id: panel.id,
                 extensionId: pkg.manifest.id,
                 title: panel.title,
-                icon: resolveIcon(panel.icon),
+                icon: resolveIcon(panel.icon, pkg.manifest.id),
                 location: (panel.location as 'sidebar' | 'bottom' | 'right') || 'right',
                 isBuiltin: false,
                 render: () =>
@@ -731,7 +742,7 @@ class ExtensionHost {
             id: stConfig.id,
             extensionId: pkg.manifest.id,
             title: stConfig.title,
-            icon: resolveIcon(stConfig.icon),
+            icon: resolveIcon(stConfig.icon, pkg.manifest.id),
             render: sidebarTabRenderFn,
           });
 
@@ -760,7 +771,7 @@ class ExtensionHost {
             id: btConfig.id,
             extensionId: pkg.manifest.id,
             title: btConfig.title,
-            icon: resolveIcon(btConfig.icon),
+            icon: resolveIcon(btConfig.icon, pkg.manifest.id),
             render: (props: { currentPath?: string; isActive?: boolean }) => {
               try {
                 return (
