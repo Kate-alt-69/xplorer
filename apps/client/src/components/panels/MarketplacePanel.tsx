@@ -19,12 +19,12 @@ import {
   AlertCircle,
   Inbox,
   FolderOpen,
-  Download,
-  Trash2,
+  Download as _Download,
+  Trash2 as _Trash2,
 } from 'lucide-react';
 import ExtensionDetailDialog from './ExtensionDetailDialog';
 import { BUILTIN_CATEGORIES } from '@/data/builtin-extensions';
-import { EXTENSION_PACKS, type ExtensionPack } from '@/data/extension-packs';
+import { EXTENSION_PACKS as _EXTENSION_PACKS, type ExtensionPack } from '@/data/extension-packs';
 import ExtensionCard from './marketplace/ExtensionCard';
 import MarketplaceFilters from './marketplace/MarketplaceFilters';
 import MarketplacePagination from './marketplace/MarketplacePagination';
@@ -210,8 +210,10 @@ const MarketplacePanel = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('popular');
   const [installingId, setInstallingId] = useState<string | null>(null);
-  const [view, setView] = useState<'extensions' | 'packs'>('packs');
-  const [installingPackId, setInstallingPackId] = useState<string | null>(null);
+  // TODO: re-enable packs view when extension packs are ready
+  // const [view, setView] = useState<'extensions' | 'packs'>('packs');
+  const view = 'extensions' as const;
+  const [_installingPackId, setInstallingPackId] = useState<string | null>(null);
 
   // Detail dialog
   const [selectedExtension, setSelectedExtension] = useState<MarketplaceExtension | null>(null);
@@ -443,7 +445,8 @@ const MarketplacePanel = () => {
     return requestBulkPermissionConsent(extDetails);
   };
 
-  const handleInstallPack = async (pack: ExtensionPack) => {
+  // TODO: re-enable when packs view is ready
+  const _handleInstallPack = async (pack: ExtensionPack) => {
     const toInstall = pack.extensions.filter((id) => !installedExtensions.includes(id));
 
     const granted = await requestBulkConsent(toInstall);
@@ -496,7 +499,7 @@ const MarketplacePanel = () => {
     }
   };
 
-  const handleUninstallPack = async (pack: ExtensionPack) => {
+  const _handleUninstallPack = async (pack: ExtensionPack) => {
     setInstallingPackId(pack.id);
     let removed = 0;
     const failedIds: string[] = [];
@@ -533,7 +536,7 @@ const MarketplacePanel = () => {
     }
   };
 
-  const getPackStatus = (pack: ExtensionPack) => {
+  const _getPackStatus = (pack: ExtensionPack) => {
     const total = pack.extensions.length;
     const installedCount = pack.extensions.filter((id) => installedExtensions.includes(id)).length;
     return { total, installedCount, isFullyInstalled: installedCount === total };
@@ -588,7 +591,7 @@ const MarketplacePanel = () => {
         </div>
       </div>
 
-      {/* View Toggle: Packs | Extensions */}
+      {/* TODO: re-enable packs view when extension packs are ready
       <div className="border-xp-border flex border-b">
         <button
           onClick={() => setView('packs')}
@@ -611,23 +614,21 @@ const MarketplacePanel = () => {
           All Extensions
         </button>
       </div>
+      */}
 
-      {view === 'extensions' && (
-        <>
-          {/* Category filters + Sort */}
-          <MarketplaceFilters
-            categories={categories}
-            selectedCategory={selectedCategory}
-            setSelectedCategory={setSelectedCategory}
-            sortBy={sortBy}
-            setSortBy={setSortBy}
-            pagination={pagination}
-          />
-        </>
-      )}
+      {/* Category filters + Sort */}
+      <MarketplaceFilters
+        categories={categories}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
+        pagination={pagination}
+      />
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
+        {/* TODO: re-enable packs view when extension packs are ready
         {view === 'packs' ? (
           <div className="space-y-3 p-3">
             {EXTENSION_PACKS.map((pack) => {
@@ -730,25 +731,24 @@ const MarketplacePanel = () => {
               );
             })}
           </div>
-        ) : (
-          <ExtensionsContent
-            isLoading={isLoading}
-            error={error}
-            extensions={extensions}
-            installedExtensions={installedExtensions}
-            devExtensions={devExtensions}
-            installingId={installingId}
-            debouncedSearch={debouncedSearch}
-            selectedCategory={selectedCategory}
-            handleInstall={handleInstall}
-            handleUninstall={handleUninstall}
-            loadExtensions={loadExtensions}
-            setSearchTerm={setSearchTerm}
-            setSelectedCategory={setSelectedCategory}
-            setSelectedExtension={setSelectedExtension}
-            setShowDetail={setShowDetail}
-          />
-        )}
+        ) : ( */}
+        <ExtensionsContent
+          isLoading={isLoading}
+          error={error}
+          extensions={extensions}
+          installedExtensions={installedExtensions}
+          devExtensions={devExtensions}
+          installingId={installingId}
+          debouncedSearch={debouncedSearch}
+          selectedCategory={selectedCategory}
+          handleInstall={handleInstall}
+          handleUninstall={handleUninstall}
+          loadExtensions={loadExtensions}
+          setSearchTerm={setSearchTerm}
+          setSelectedCategory={setSelectedCategory}
+          setSelectedExtension={setSelectedExtension}
+          setShowDetail={setShowDetail}
+        />
       </div>
 
       {/* Pagination (extensions view only) */}

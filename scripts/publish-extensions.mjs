@@ -96,6 +96,8 @@ for (const dir of readdirSync(EXT_DIR, { withFileTypes: true })
     }
     const blob = await res.json();
 
+    const iconSvg = existsSync(iconPath) ? readFileSync(iconPath, 'utf-8') : null;
+
     const ext = await prisma.extension.findUnique({ where: { slug } });
     if (ext) {
       await prisma.extension.update({
@@ -107,6 +109,7 @@ for (const dir of readdirSync(EXT_DIR, { withFileTypes: true })
           checksum,
           status: 'APPROVED',
           isPublished: true,
+          ...(iconSvg ? { icon: iconSvg } : {}),
         },
       });
       await prisma.extensionVersion.updateMany({

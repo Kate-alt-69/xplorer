@@ -2,6 +2,13 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { TauriAPI, type SearchResult, type FileEntry } from '@/lib/tauri-api';
 import { SEARCH_DEBOUNCE_MS } from '@/lib/constants';
 
+/** Emit a message to the Activity Log */
+const logOutput = (msg: string) => {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('xplorer-output', { detail: msg }));
+  }
+};
+
 // ── Hook ────────────────────────────────────────────────────────────────────
 
 export const useAiSearch = (basePath: string) => {
@@ -37,20 +44,56 @@ export const useAiSearch = (basePath: string) => {
       aiAbortRef.current = signal;
 
       try {
-        const response = await TauriAPI.smartSearch(trimmed, basePath, 50);
+        // Phase 1: Show fast BM25F results immediately
+        logOutput(`[INFO] AI Search: "${trimmed}" — fetching instant results...`);
+        setAiParsedInfo('Searching...');
 
+        try {
+          const fastResults = await TauriAPI.enhancedSearch(trimmed, undefined, 50);
+          if (!signal.aborted && fastResults.results.length > 0) {
+            setAiResults(fastResults.results);
+            setProvider('text');
+            const pq = fastResults.parsed_query;
+            if (pq) {
+              const parts: string[] = [];
+              if (pq.file_type_filter) parts.push(`type: ${pq.file_type_filter}`);
+              if (pq.sort_hint) parts.push(`sort: ${pq.sort_hint}`);
+              if (pq.keywords?.length) parts.push(`"${pq.keywords.join(' ')}"`);
+              setAiParsedInfo(parts.length > 0 ? parts.join(' | ') : 'Text search');
+            }
+            logOutput(`[INFO] AI Search: ${fastResults.results.length} instant results`);
+          }
+        } catch {
+          // BM25F unavailable — skip fast phase
+        }
+
+        // Phase 2: Call AI for smart results (runs in parallel feel)
         if (!signal.aborted) {
-          setAiResults(response.results);
-          setAiParsedInfo(response.explanation ?? null);
-          setMatchedItems(response.matched_items);
-          setProvider(response.provider);
-          setSearchTermsUsed(response.search_terms_used);
-          setIsAiSearching(false);
+          setAiParsedInfo((prev) => (prev ? `${prev} — waiting for AI...` : 'Waiting for AI...'));
+          logOutput('[INFO] AI Search: querying LLM for smart interpretation...');
+
+          const response = await TauriAPI.smartSearch(trimmed, basePath, 50);
+
+          if (!signal.aborted) {
+            setAiResults(response.results);
+            setAiParsedInfo(response.explanation ?? null);
+            setMatchedItems(response.matched_items);
+            setProvider(response.provider);
+            setSearchTermsUsed(response.search_terms_used);
+            setIsAiSearching(false);
+            logOutput(
+              `[INFO] AI Search: ${response.results.length} results via ${response.provider}${
+                response.search_terms_used.length > 0
+                  ? ` (terms: ${response.search_terms_used.join(', ')})`
+                  : ''
+              }`,
+            );
+          }
         }
       } catch (err: unknown) {
         if (!signal.aborted) {
-          console.error('AI search error:', err);
-          setAiResults([]);
+          const msg = err instanceof Error ? err.message : String(err);
+          logOutput(`[WARN] AI Search failed: ${msg}`);
           setAiParsedInfo(null);
           setMatchedItems([]);
           setProvider('fallback');
@@ -72,7 +115,6 @@ export const useAiSearch = (basePath: string) => {
       navigateToPath: (path: string) => void,
       onFileSelect: (file: FileEntry) => void,
     ) => {
-      // Navigate to parent directory and select file
       const sep = result.path.includes('/') ? '/' : '\\';
       const parts = result.path.split(sep);
       parts.pop();
@@ -81,7 +123,6 @@ export const useAiSearch = (basePath: string) => {
 
       navigateToPath(parentDir || basePath);
 
-      // Create a synthetic FileEntry for selection
       const syntheticFile: FileEntry = {
         name: result.filename,
         path: result.path,

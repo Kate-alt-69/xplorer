@@ -1126,17 +1126,6 @@ Sidebar.register({
 
   onActivate: async (api) => {
     extensionApi = api as ExtensionAPI;
-    let sshOk = false;
-    try {
-      const result = await extensionApi.nativeInvoke('check_availability');
-      const response = result as { ok?: boolean };
-      sshOk = response.ok === true;
-    } catch {
-      sshOk = false;
-    }
-    if (!sshOk) {
-      throw new Error('SSH client is not available');
-    }
   },
 
   render: () => {
