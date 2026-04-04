@@ -46,7 +46,14 @@ import {
 } from './chat-context-helpers';
 import ChatHistoryView from './ChatHistoryView';
 import ChatContextHeader from './ChatContextHeader';
+import ChatWelcome from './ChatWelcome';
 import { DragOverlay, AttachedFilesBar } from './ChatDropZone';
+import { useStreamingText, type StreamingEntry } from './use-streaming-text';
+import {
+  type WorkspaceContext,
+  detectWorkspaceContext,
+  buildWorkspacePrompt,
+} from './chat-workspace-awareness';
 
 // ---------------------------------------------------------------------------
 // Chat message type (extends the saved version with runtime-only fields)
@@ -94,6 +101,24 @@ const StandaloneChatPanel = () => {
   const [editorSelection, setEditorSelection] = useState<XplorerState['editorSelection']>(null);
   const [includeSelection, setIncludeSelection] = useState(true);
 
+  // Workspace awareness state
+  const [workspaceCtx, setWorkspaceCtx] = useState<WorkspaceContext | null>(null);
+
+  // Streaming text entries — built from assistant messages
+  const streamingEntries = useMemo<StreamingEntry[]>(
+    () =>
+      messages
+        .map((msg, i) => ({ msg, i }))
+        .filter(({ msg }) => msg.role === 'assistant' && !msg.isContextInjection && msg.content)
+        .map(({ msg, i }) => ({ id: `msg-${i}`, fullText: msg.content })),
+    [messages],
+  );
+  const {
+    getVisibleText,
+    isStreaming: isTextStreaming,
+    skipAll: skipStreaming,
+  } = useStreamingText(streamingEntries);
+
   // Load chat history on mount
   useEffect(() => {
     setChatHistory(loadChatHistory());
@@ -135,6 +160,25 @@ const StandaloneChatPanel = () => {
       clearInterval(interval);
     };
   }, []);
+
+  // Detect workspace context when currentPath changes
+  useEffect(() => {
+    if (!currentPath) {
+      setWorkspaceCtx(null);
+      return;
+    }
+    let cancelled = false;
+    detectWorkspaceContext(currentPath)
+      .then((ctx) => {
+        if (!cancelled) setWorkspaceCtx(ctx);
+      })
+      .catch(() => {
+        if (!cancelled) setWorkspaceCtx(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentPath]);
 
   // Auto-save conversation when messages change
   useEffect(() => {
@@ -186,6 +230,15 @@ const StandaloneChatPanel = () => {
       scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
     });
   }, []);
+
+  // Auto-scroll during streaming text reveal
+  useEffect(() => {
+    if (isTextStreaming) {
+      const interval = setInterval(scrollToBottom, 100);
+      return () => clearInterval(interval);
+    }
+    return undefined;
+  }, [isTextStreaming, scrollToBottom]);
 
   // ---------------------------------------------------------------------------
   // File action handlers
@@ -398,6 +451,14 @@ const StandaloneChatPanel = () => {
         "You are an AI agent inside the Xplorer file manager. You can observe the user's filesystem, understand their context, and take actions to help them manage files.";
       systemContent += `\n\n${FILE_OPS_SYSTEM_PROMPT}`;
 
+      // Inject workspace awareness (project type, git info, directory overview)
+      if (workspaceCtx) {
+        const workspacePrompt = buildWorkspacePrompt(workspaceCtx);
+        if (workspacePrompt) {
+          systemContent += `\n\n${workspacePrompt}`;
+        }
+      }
+
       if (xState?.currentPath) {
         systemContent += `\n\n## Current Context\n[Current directory: ${xState.currentPath}]`;
         const dirListing = await buildDirectoryContext(xState.currentPath);
@@ -438,7 +499,7 @@ const StandaloneChatPanel = () => {
 
       return systemContent;
     },
-    [includeSelection],
+    [includeSelection, workspaceCtx],
   );
 
   // ---------------------------------------------------------------------------
@@ -888,47 +949,12 @@ const StandaloneChatPanel = () => {
       {/* Messages area */}
       <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
         {messages.length === 0 && !isLoading && (
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '100%',
-              color: 'var(--xp-text-muted)',
-              fontSize: '13px',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '28px' }}>&#x1F4AC;</span>
-            <span>Ask anything about your files</span>
-            <span
-              style={{
-                fontSize: '11px',
-                color: 'var(--xp-text-muted)',
-                maxWidth: '220px',
-                textAlign: 'center',
-              }}
-            >
-              I can browse directories, search files, create, edit, move, rename, and organize your
-              files.
-            </span>
-            {selectedFiles.length > 0 && (
-              <span style={{ fontSize: '11px', color: 'var(--xp-text-muted)' }}>
-                {selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''} in context
-              </span>
-            )}
-            <span
-              style={{
-                fontSize: '11px',
-                color: 'var(--xp-text-muted)',
-                marginTop: '4px',
-                opacity: 0.7,
-              }}
-            >
-              Drag files here or type / for commands
-            </span>
-          </div>
+          <ChatWelcome
+            currentPath={currentPath}
+            selectedFileCount={selectedFiles.length}
+            onSendMessage={sendMessage}
+            isLoading={isLoading}
+          />
         )}
 
         {messages.map((msg, i) => {
@@ -972,31 +998,40 @@ const StandaloneChatPanel = () => {
                 </div>
               )}
 
-              {msg.content && (
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: '8px',
-                    fontSize: '13px',
-                    lineHeight: '1.5',
-                    background: msg.role === 'user' ? 'var(--xp-blue)' : 'var(--xp-surface-light)',
-                    color: msg.role === 'user' ? 'white' : 'var(--xp-text)',
-                    marginLeft: msg.role === 'user' ? '20%' : '0',
-                    marginRight: msg.role === 'assistant' ? '20%' : '0',
-                    whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {msg.role === 'assistant' ? (
-                    <MarkdownRenderer
-                      content={msg.content}
-                      onSaveCodeAsFile={handleSaveCodeAsFile}
-                    />
-                  ) : (
-                    msg.content
-                  )}
-                </div>
-              )}
+              {msg.content &&
+                (() => {
+                  const displayText =
+                    msg.role === 'assistant' && !msg.isContextInjection
+                      ? getVisibleText(`msg-${i}`) || msg.content
+                      : msg.content;
+
+                  return (
+                    <div
+                      style={{
+                        padding: '8px 12px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        lineHeight: '1.5',
+                        background:
+                          msg.role === 'user' ? 'var(--xp-blue)' : 'var(--xp-surface-light)',
+                        color: msg.role === 'user' ? 'white' : 'var(--xp-text)',
+                        marginLeft: msg.role === 'user' ? '20%' : '0',
+                        marginRight: msg.role === 'assistant' ? '20%' : '0',
+                        whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
+                        wordBreak: 'break-word',
+                      }}
+                    >
+                      {msg.role === 'assistant' ? (
+                        <MarkdownRenderer
+                          content={displayText}
+                          onSaveCodeAsFile={handleSaveCodeAsFile}
+                        />
+                      ) : (
+                        displayText
+                      )}
+                    </div>
+                  );
+                })()}
 
               {showBatchCard && msg.fileActions && (
                 <BatchActionCard
@@ -1049,6 +1084,32 @@ const StandaloneChatPanel = () => {
               }}
             >
               Stop
+            </button>
+          </div>
+        )}
+
+        {/* Streaming text indicator (skip button) */}
+        {!isLoading && isTextStreaming && (
+          <div
+            style={{
+              padding: '4px 8px',
+              display: 'flex',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <button
+              onClick={skipStreaming}
+              style={{
+                background: 'none',
+                border: '1px solid var(--xp-border)',
+                borderRadius: '4px',
+                padding: '2px 8px',
+                color: 'var(--xp-text-muted)',
+                cursor: 'pointer',
+                fontSize: '11px',
+              }}
+            >
+              Show all
             </button>
           </div>
         )}
