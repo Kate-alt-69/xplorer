@@ -183,22 +183,32 @@ const whoami = () => {
   print('Not logged in. Run: xplorer login');
 };
 
-const ask = (question) => new Promise((resolve) => {
-  process.stdout.write(question);
-  let data = '';
-  process.stdin.setEncoding('utf-8');
-  process.stdin.on('data', (chunk) => {
-    data += chunk;
-    if (data.includes('\n')) {
-      process.stdin.pause();
-      process.stdin.removeAllListeners('data');
-      resolve(data.trim());
-    }
+const ask = (question) =>
+  new Promise((resolve) => {
+    process.stdout.write(question);
+    let data = '';
+    process.stdin.setEncoding('utf-8');
+    process.stdin.on('data', (chunk) => {
+      data += chunk;
+      if (data.includes('\n')) {
+        process.stdin.pause();
+        process.stdin.removeAllListeners('data');
+        resolve(data.trim());
+      }
+    });
+    process.stdin.resume();
   });
-  process.stdin.resume();
-});
 
-const CATEGORIES = ['Themes', 'Previews', 'Productivity', 'Developer Tools', 'Cloud Storage', 'Security', 'Media', 'Utilities'];
+const CATEGORIES = [
+  'Themes',
+  'Previews',
+  'Productivity',
+  'Developer Tools',
+  'Cloud Storage',
+  'Security',
+  'Media',
+  'Utilities',
+];
 
 const publish = async () => {
   const token = loadToken();
@@ -229,7 +239,9 @@ const publish = async () => {
       const data = await checkRes.json();
       publishedVersion = data.version || data.extension?.version;
     }
-  } catch { /* not published yet */ }
+  } catch {
+    /* not published yet */
+  }
 
   let version = currentVersion;
   if (publishedVersion) {
@@ -245,7 +257,7 @@ const publish = async () => {
       print(`    2. Minor → ${minor}`);
       print(`    3. Major → ${major}`);
       print(`    4. Custom`);
-      const bumpChoice = await ask('  Bump [1]: ') || '1';
+      const bumpChoice = (await ask('  Bump [1]: ')) || '1';
       if (bumpChoice === '2') version = minor;
       else if (bumpChoice === '3') version = major;
       else if (bumpChoice === '4') version = await ask(`  Version: `);
@@ -266,16 +278,27 @@ const publish = async () => {
   print('');
   print('  Fill in the details below. Press Enter to accept defaults.\n');
 
-  const displayName = await ask(`  Display Name [${manifest.displayName || manifest.name || id}]: `) || manifest.displayName || manifest.name || id;
-  const description = await ask(`  Description [${manifest.description || pkg.description || ''}]: `) || manifest.description || pkg.description || '';
+  const displayName =
+    (await ask(`  Display Name [${manifest.displayName || manifest.name || id}]: `)) ||
+    manifest.displayName ||
+    manifest.name ||
+    id;
+  const description =
+    (await ask(`  Description [${manifest.description || pkg.description || ''}]: `)) ||
+    manifest.description ||
+    pkg.description ||
+    '';
 
   // Category selection
   print('\n  Categories (pick up to 3, comma-separated numbers):');
   CATEGORIES.forEach((cat, i) => print(`    ${i + 1}. ${cat}`));
   const catInput = await ask('  Categories []: ');
   const selectedCategories = catInput
-    ? catInput.split(',').map(n => CATEGORIES[parseInt(n.trim()) - 1]).filter(Boolean)
-    : (manifest.categories || []);
+    ? catInput
+        .split(',')
+        .map((n) => CATEGORIES[parseInt(n.trim()) - 1])
+        .filter(Boolean)
+    : manifest.categories || [];
 
   // Icon: auto-read icon.svg if exists
   let icon = '';
@@ -286,12 +309,13 @@ const publish = async () => {
   } else {
     print(`  Icon: no icon.svg found (skipped)`);
   }
-  const repoUrl = await ask(`  Repository URL [${pkg.repository?.url || ''}]: `) || pkg.repository?.url || '';
-  const homepage = await ask(`  Homepage URL [${pkg.homepage || ''}]: `) || pkg.homepage || '';
-  const license = await ask(`  License [${pkg.license || 'MIT'}]: `) || pkg.license || 'MIT';
+  const repoUrl =
+    (await ask(`  Repository URL [${pkg.repository?.url || ''}]: `)) || pkg.repository?.url || '';
+  const homepage = (await ask(`  Homepage URL [${pkg.homepage || ''}]: `)) || pkg.homepage || '';
+  const license = (await ask(`  License [${pkg.license || 'MIT'}]: `)) || pkg.license || 'MIT';
 
   // Pricing
-  const pricingInput = await ask('  Pricing (free/paid) [free]: ') || 'free';
+  const pricingInput = (await ask('  Pricing (free/paid) [free]: ')) || 'free';
   const pricing = pricingInput.toLowerCase() === 'paid' ? 'paid' : 'free';
 
   // Confirm
@@ -305,7 +329,7 @@ const publish = async () => {
   print(`    Pricing:     ${pricing}`);
   print('');
 
-  const confirm = await ask('  Publish? (y/n) [y]: ') || 'y';
+  const confirm = (await ask('  Publish? (y/n) [y]: ')) || 'y';
   if (confirm.toLowerCase() !== 'y') {
     print('  Cancelled.');
     return;
@@ -342,7 +366,9 @@ const publish = async () => {
   if (existsSync(iconZipPath)) filesToZip.push('icon.svg');
 
   try {
-    execSyncPkg(`zip -j "${tmpZip}" ${filesToZip.map(f => `"${f}"`).join(' ')}`, { stdio: 'pipe' });
+    execSyncPkg(`zip -j "${tmpZip}" ${filesToZip.map((f) => `"${f}"`).join(' ')}`, {
+      stdio: 'pipe',
+    });
   } catch {
     // Fallback: try with tar if zip not available
     try {
@@ -354,7 +380,11 @@ const publish = async () => {
 
   const zipBuffer = readFileSync(tmpZip);
   const checksum = createHash('sha256').update(zipBuffer).digest('hex');
-  try { unlinkSync(tmpZip); } catch { /* ignore */ }
+  try {
+    unlinkSync(tmpZip);
+  } catch {
+    /* ignore */
+  }
 
   // Upload
   print('  Uploading to xplorer.space...');
@@ -369,7 +399,7 @@ const publish = async () => {
   formData.append('icon', icon);
   formData.append('checksum', checksum);
   if (selectedCategories.length > 0) {
-    const categorySlugs = selectedCategories.map(c => c.toLowerCase().replace(/\s+/g, '-'));
+    const categorySlugs = selectedCategories.map((c) => c.toLowerCase().replace(/\s+/g, '-'));
     formData.append('categories', JSON.stringify(categorySlugs));
   }
   if (manifest.permissions) formData.append('permissions', JSON.stringify(manifest.permissions));

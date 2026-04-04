@@ -108,9 +108,7 @@ pub fn validate_file_path(path: &str) -> Result<(), String> {
 
     // Fast path: skip expensive canonicalize when path has no traversal components.
     // Only call canonicalize when the path contains `..`, `./`, or similar.
-    let needs_canonicalize = path.contains("..")
-        || path.contains("./")
-        || path.contains(".\\");
+    let needs_canonicalize = path.contains("..") || path.contains("./") || path.contains(".\\");
     let canonical = if needs_canonicalize {
         std::fs::canonicalize(path).unwrap_or_else(|_| normalize_path_for_validation(path))
     } else {

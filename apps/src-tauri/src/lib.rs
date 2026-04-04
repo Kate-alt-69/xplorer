@@ -27,9 +27,9 @@ pub mod windows_recycle_bin;
 
 #[cfg(test)]
 mod tests {
-    use crate::operations::{FileEntry, validate_file_path};
-    use crate::error::{AppError, AppResult};
     use crate::agent::memory::MemoryStore;
+    use crate::error::{AppError, AppResult};
+    use crate::operations::{validate_file_path, FileEntry};
 
     #[test]
     fn file_entry_can_be_constructed() {

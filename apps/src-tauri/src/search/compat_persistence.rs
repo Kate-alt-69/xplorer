@@ -124,10 +124,12 @@ pub(crate) fn read_file_content(path: &Path) -> Option<String> {
         let read_limit = file_size.min(32 * 1024) as usize;
         let mut buf = String::with_capacity(read_limit);
         use std::io::Read;
-        file.take(read_limit as u64)
-            .read_to_string(&mut buf)
-            .ok()?;
-        if buf.is_empty() { None } else { Some(buf) }
+        file.take(read_limit as u64).read_to_string(&mut buf).ok()?;
+        if buf.is_empty() {
+            None
+        } else {
+            Some(buf)
+        }
     }
 }
 

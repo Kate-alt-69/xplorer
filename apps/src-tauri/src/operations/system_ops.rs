@@ -1,9 +1,9 @@
 use tauri::command;
 use tauri::Emitter;
 
-use crate::operations::validate_file_path;
 #[cfg(windows)]
 use crate::operations::get_disk_space;
+use crate::operations::validate_file_path;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -525,7 +525,13 @@ pub async fn open_in_terminal(path: String) -> Result<(), String> {
         // Use Command::new with proper args array to prevent injection via directory names
         let dir_str = dir_path.to_string_lossy().to_string();
         std::process::Command::new("cmd")
-            .args(&["/C", "start", "cmd", "/K", &format!("cd /D \"{}\"", dir_str.replace('"', ""))])
+            .args(&[
+                "/C",
+                "start",
+                "cmd",
+                "/K",
+                &format!("cd /D \"{}\"", dir_str.replace('"', "")),
+            ])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
             .spawn()
             .map_err(|e| format!("Failed to open terminal: {}", e))?;
@@ -901,7 +907,11 @@ const GREP_SKIP_DIRS: &[&str] = &[
 ];
 
 /// Walk files recursively, skipping directories in GREP_SKIP_DIRS and hidden dirs.
-fn walk_files_filtered(root: &PathBuf, out: &mut Vec<PathBuf>, max_files: usize) -> Result<(), String> {
+fn walk_files_filtered(
+    root: &PathBuf,
+    out: &mut Vec<PathBuf>,
+    max_files: usize,
+) -> Result<(), String> {
     if out.len() >= max_files {
         return Ok(());
     }
@@ -914,7 +924,8 @@ fn walk_files_filtered(root: &PathBuf, out: &mut Vec<PathBuf>, max_files: usize)
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
         if path.is_dir() {
-            let dir_name = path.file_name()
+            let dir_name = path
+                .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
             // Skip hidden directories and known noisy directories

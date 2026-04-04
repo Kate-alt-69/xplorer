@@ -183,7 +183,9 @@ fn load_accounts() -> Result<(), String> {
     // Try loading full format (migration from old plaintext)
     let accounts: Vec<GoogleDriveAccount> = match serde_json::from_str(&json) {
         Ok(accts) => {
-            warn!("[GDrive] Loaded accounts from legacy full format — migrating tokens to keychain");
+            warn!(
+                "[GDrive] Loaded accounts from legacy full format — migrating tokens to keychain"
+            );
             accts
         }
         Err(_) => {

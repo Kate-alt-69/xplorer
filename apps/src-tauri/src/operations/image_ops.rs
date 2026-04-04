@@ -175,8 +175,8 @@ pub async fn resize_image(
     }
 
     tokio::task::spawn_blocking(move || {
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let (orig_w, orig_h) = img.dimensions();
         let (new_w, new_h) =
@@ -212,8 +212,8 @@ pub async fn convert_image(
     let format = parse_image_format(&output_format)?;
 
     tokio::task::spawn_blocking(move || {
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         save_image_with_quality(&img, &output_path, format, Some(quality))?;
 
@@ -235,8 +235,8 @@ pub async fn get_image_info(path: String) -> Result<ImageInfo, String> {
         let format = image::ImageFormat::from_path(&path)
             .map_err(|e| format!("Failed to detect image format: {}", e))?;
 
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let (width, height) = img.dimensions();
 
@@ -314,8 +314,7 @@ pub async fn batch_process_images(
 
                 match result {
                     Ok(output_path) => {
-                        let new_size =
-                            fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
+                        let new_size = fs::metadata(&output_path).map(|m| m.len()).unwrap_or(0);
                         BatchImageResult {
                             path: file_path.clone(),
                             output_path,
@@ -365,8 +364,8 @@ pub async fn rotate_image(
     validate_file_path(&output_path)?;
 
     tokio::task::spawn_blocking(move || {
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let rotated = match degrees {
             90 => img.rotate90(),
@@ -403,8 +402,8 @@ pub async fn flip_image(
     validate_file_path(&output_path)?;
 
     tokio::task::spawn_blocking(move || {
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let flipped = match direction.to_lowercase().as_str() {
             "horizontal" => img.fliph(),
@@ -447,8 +446,8 @@ pub async fn crop_image(
     }
 
     tokio::task::spawn_blocking(move || {
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let (img_w, img_h) = img.dimensions();
         if x + width > img_w || y + height > img_h {
@@ -485,8 +484,8 @@ pub async fn adjust_brightness(
     tokio::task::spawn_blocking(move || {
         let clamped = value.clamp(-100, 100);
 
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let adjusted = img.brighten(clamped);
 
@@ -519,8 +518,8 @@ pub async fn adjust_contrast(
         // with 1.0 meaning no change.
         let contrast_value = (clamped - 1.0) * 50.0;
 
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let adjusted = img.adjust_contrast(contrast_value);
 
@@ -543,8 +542,8 @@ pub async fn grayscale_image(path: String, output_path: String) -> Result<String
     validate_file_path(&output_path)?;
 
     tokio::task::spawn_blocking(move || {
-        let img = image::open(&path)
-            .map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
+        let img =
+            image::open(&path).map_err(|e| format!("Failed to open image '{}': {}", path, e))?;
 
         let gray = img.grayscale();
 

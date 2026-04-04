@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::{
-    atomic::Ordering,
-    Arc,
-};
+use std::sync::{atomic::Ordering, Arc};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sha2::{Digest, Sha256};

@@ -188,23 +188,36 @@ fn main() {
                 let cli_target = std::path::Path::new("/usr/local/bin/xplorer");
                 if !cli_target.exists() {
                     if let Ok(exe) = std::env::current_exe() {
-                        let cli_src = exe.parent()
-                            .map(|p| {
-                                // In .app bundle: Contents/MacOS/xplorer → Contents/Resources/xplorer.mjs
-                                let resources = p.parent().unwrap_or(p).join("Resources").join("xplorer.mjs");
-                                if resources.exists() { resources } else { p.join("xplorer.mjs") }
-                            });
+                        let cli_src = exe.parent().map(|p| {
+                            // In .app bundle: Contents/MacOS/xplorer → Contents/Resources/xplorer.mjs
+                            let resources = p
+                                .parent()
+                                .unwrap_or(p)
+                                .join("Resources")
+                                .join("xplorer.mjs");
+                            if resources.exists() {
+                                resources
+                            } else {
+                                p.join("xplorer.mjs")
+                            }
+                        });
                         if let Some(src) = cli_src {
                             if src.exists() {
                                 let src_str = src.to_string_lossy().to_string();
-                                let script = format!("#!/bin/bash\nexec node '{}' \"$@\"\n", src_str);
+                                let script =
+                                    format!("#!/bin/bash\nexec node '{}' \"$@\"\n", src_str);
                                 let tmp = std::env::temp_dir().join("xplorer-cli-auto.sh");
                                 if std::fs::write(&tmp, &script).is_ok() {
                                     let _ = std::process::Command::new("sh")
-                                        .args(["-c", &format!(
-                                            "cp '{}' '{}' && chmod +x '{}' 2>/dev/null",
-                                            tmp.display(), cli_target.display(), cli_target.display()
-                                        )])
+                                        .args([
+                                            "-c",
+                                            &format!(
+                                                "cp '{}' '{}' && chmod +x '{}' 2>/dev/null",
+                                                tmp.display(),
+                                                cli_target.display(),
+                                                cli_target.display()
+                                            ),
+                                        ])
                                         .status();
                                     let _ = std::fs::remove_file(&tmp);
                                 }

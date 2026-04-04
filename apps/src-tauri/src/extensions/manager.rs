@@ -296,7 +296,11 @@ impl ExtensionManager {
 
         let active = self.active_extensions.clone();
 
-        info!("[ExtensionManager] Scanning extensions dir: {:?} (exists={})", self.extensions_dir, self.extensions_dir.exists());
+        info!(
+            "[ExtensionManager] Scanning extensions dir: {:?} (exists={})",
+            self.extensions_dir,
+            self.extensions_dir.exists()
+        );
 
         // Scan the user data extensions dir (marketplace installs)
         if self.extensions_dir.exists() {

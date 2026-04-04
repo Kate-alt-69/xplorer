@@ -116,7 +116,8 @@ impl SearchEngine {
                     idx.index_document(path_str, content, source, *size, *modified);
                     indexed_count += 1;
 
-                    if memory_limit_bytes > 0 && idx.estimated_memory_bytes() >= memory_limit_bytes {
+                    if memory_limit_bytes > 0 && idx.estimated_memory_bytes() >= memory_limit_bytes
+                    {
                         warn!(
                             "[SearchEngine] Memory limit reached ({} MB). Stopping indexing after {} files.",
                             settings.memory_limit_mb,
@@ -291,7 +292,8 @@ impl SearchEngine {
                     idx.index_document(path_str, content, source, *size, *modified);
                     indexed_count += 1;
 
-                    if memory_limit_bytes > 0 && idx.estimated_memory_bytes() >= memory_limit_bytes {
+                    if memory_limit_bytes > 0 && idx.estimated_memory_bytes() >= memory_limit_bytes
+                    {
                         warn!(
                             "[SearchEngine] Memory limit reached during incremental update after {} files.",
                             indexed_count
@@ -407,10 +409,7 @@ impl SearchEngine {
                     continue;
                 }
             }
-            let dir_name = dir_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let dir_name = dir_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let (size, modified) = file_meta(dir_path);
             {
                 let mut idx = match index.write() {
@@ -434,10 +433,7 @@ impl SearchEngine {
                     continue;
                 }
             }
-            let file_name = file_path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .unwrap_or("");
+            let file_name = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("");
             let (size, modified) = file_meta(file_path);
             {
                 let mut idx = match index.write() {

@@ -369,8 +369,6 @@ mod tests {
         assert!(!is_read_only_query(
             "WITH cte AS (SELECT 1) UPDATE t SET x = 1"
         ));
-        assert!(!is_read_only_query(
-            "WITH cte AS (SELECT 1) DROP TABLE t"
-        ));
+        assert!(!is_read_only_query("WITH cte AS (SELECT 1) DROP TABLE t"));
     }
 }

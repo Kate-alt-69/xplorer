@@ -120,11 +120,12 @@ pub(crate) fn validate_extension_id(id: &str) -> Result<(), String> {
 /// (e.g., local marketplace server). All remote URLs must use HTTPS.
 pub(crate) fn validate_url_security(url: &str) -> Result<(), String> {
     // Auto-upgrade http to https for remote URLs
-    let url = if url.starts_with("http://") && !url.contains("localhost") && !url.contains("127.0.0.1") {
-        url.replacen("http://", "https://", 1)
-    } else {
-        url.to_string()
-    };
+    let url =
+        if url.starts_with("http://") && !url.contains("localhost") && !url.contains("127.0.0.1") {
+            url.replacen("http://", "https://", 1)
+        } else {
+            url.to_string()
+        };
     let parsed = reqwest::Url::parse(&url).map_err(|e| format!("Invalid URL '{}': {}", url, e))?;
 
     let host_str = parsed
@@ -158,10 +159,7 @@ pub(crate) fn validate_url_security(url: &str) -> Result<(), String> {
 
     // Reject localhost in production (allow in dev)
     #[cfg(not(debug_assertions))]
-    if is_local
-        || host_lower == "::1"
-        || host_lower == "[::1]"
-    {
+    if is_local || host_lower == "::1" || host_lower == "[::1]" {
         return Err(format!("URL must not target localhost, got '{}'", host_str));
     }
 

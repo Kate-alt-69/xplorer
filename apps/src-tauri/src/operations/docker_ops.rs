@@ -27,9 +27,7 @@ fn validate_docker_name(name: &str) -> Result<(), String> {
         return Err(format!("Invalid Docker name: {}", name));
     }
     if name.contains("--")
-        && (name.contains("privileged")
-            || name.contains("volume")
-            || name.contains("-v "))
+        && (name.contains("privileged") || name.contains("volume") || name.contains("-v "))
     {
         return Err("Docker name contains suspicious flag-like content".into());
     }
@@ -122,12 +120,12 @@ fn parse_image_json(line: &str) -> Option<ImageInfo> {
 
 #[command]
 pub async fn docker_is_available() -> Result<bool, String> {
-    tokio::task::spawn_blocking(move || {
-        match StdCommand::new("docker").arg("version").output() {
+    tokio::task::spawn_blocking(
+        move || match StdCommand::new("docker").arg("version").output() {
             Ok(output) => Ok(output.status.success()),
             Err(_) => Ok(false),
-        }
-    })
+        },
+    )
     .await
     .map_err(|e| e.to_string())?
 }

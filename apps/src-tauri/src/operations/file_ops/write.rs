@@ -151,11 +151,9 @@ pub async fn create_from_template(
             return Err(format!("File already exists: {}", file_path.display()));
         }
         if let Some(parent) = file_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create directory: {}", e))?;
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
         }
-        fs::write(&file_path, content)
-            .map_err(|e| format!("Failed to create file: {}", e))?;
+        fs::write(&file_path, content).map_err(|e| format!("Failed to create file: {}", e))?;
         Ok(file_path.to_string_lossy().to_string())
     })
     .await
@@ -225,12 +223,7 @@ pub async fn create_symlink(target: String, link_path: String) -> Result<(), Str
             }
         }
 
-        crate::audit_log::log_operation(
-            "create_symlink",
-            vec![link_path, target],
-            None,
-            true,
-        );
+        crate::audit_log::log_operation("create_symlink", vec![link_path, target], None, true);
 
         Ok(())
     })

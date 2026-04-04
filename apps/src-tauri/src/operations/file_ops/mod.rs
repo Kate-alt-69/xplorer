@@ -5,8 +5,8 @@ pub mod read;
 pub mod write;
 
 pub use batch::*;
-pub use copy_move::*;
 pub(crate) use copy_move::copy_dir_recursive;
+pub use copy_move::*;
 pub use delete::*;
 pub use read::*;
 pub use write::*;

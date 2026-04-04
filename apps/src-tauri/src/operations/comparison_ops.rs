@@ -97,11 +97,9 @@ fn compute_file_hash_sync(path: &str, algorithm: Option<&str>) -> Result<String,
 pub async fn compute_file_hash(path: String, algorithm: Option<String>) -> Result<String, String> {
     validate_file_path(&path)?;
 
-    tokio::task::spawn_blocking(move || {
-        compute_file_hash_sync(&path, algorithm.as_deref())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tokio::task::spawn_blocking(move || compute_file_hash_sync(&path, algorithm.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[command]

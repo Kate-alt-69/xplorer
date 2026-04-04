@@ -118,8 +118,7 @@ pub(crate) async fn get_rar_info(archive_path: &Path) -> Result<ArchiveInfo, Str
             let mut is_encrypted = false;
 
             for entry_result in archive {
-                let entry =
-                    entry_result.map_err(|e| format!("Failed to read RAR entry: {}", e))?;
+                let entry = entry_result.map_err(|e| format!("Failed to read RAR entry: {}", e))?;
 
                 let is_dir = entry.is_directory();
                 let size = entry.unpacked_size;

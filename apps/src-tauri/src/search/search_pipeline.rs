@@ -13,8 +13,8 @@ use super::query_parser::ParsedQuery;
 use super::reranker::{path_depth, RankingSignals, Reranker};
 use super::{SearchMatch, SearchResult};
 
-use dashmap::DashMap;
 use super::index::PostingEntry;
+use dashmap::DashMap;
 
 /// Intermediate search state threaded through the pipeline stages.
 pub(crate) struct SearchState {

@@ -581,10 +581,9 @@ pub async fn search_rerank_with_ai(
 pub async fn detect_best_provider() -> Option<(String, Option<String>, String)> {
     // 1. Try Ollama (local, free)
     let client = crate::search::ollama_client::get_client();
-    let available =
-        tokio::task::spawn_blocking(move || client.is_available())
-            .await
-            .unwrap_or(false);
+    let available = tokio::task::spawn_blocking(move || client.is_available())
+        .await
+        .unwrap_or(false);
     if available {
         let client = crate::search::ollama_client::get_client();
         if let Some(model) = client.detect_chat_model().await {
@@ -598,7 +597,11 @@ pub async fn detect_best_provider() -> Option<(String, Option<String>, String)> 
         .flatten()
         .or_else(|| env::var("CLAUDE_API_KEY").ok());
     if let Some(key) = claude_key {
-        return Some(("claude".into(), Some(key), "claude-haiku-4-5-20251001".into()));
+        return Some((
+            "claude".into(),
+            Some(key),
+            "claude-haiku-4-5-20251001".into(),
+        ));
     }
 
     // 3. Try OpenAI (keychain or env)

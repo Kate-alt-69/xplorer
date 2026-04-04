@@ -2,9 +2,7 @@ use std::path::Path;
 use tauri::command;
 
 use super::service::GitService;
-use super::types::{
-    GitFileStatus, GitIntegrationFileStatus, GitRepoInfo, GitRepositoryInfo,
-};
+use super::types::{GitFileStatus, GitIntegrationFileStatus, GitRepoInfo, GitRepositoryInfo};
 
 /// Map git2::Status bitflags to a simplified human-readable string.
 fn status_to_string(status: git2::Status) -> &'static str {

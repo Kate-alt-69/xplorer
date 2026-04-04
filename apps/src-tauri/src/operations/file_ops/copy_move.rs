@@ -570,8 +570,7 @@ pub async fn move_file(source: String, destination: String) -> Result<(), String
             // If rename fails (different filesystems), fall back to copy + delete
             if src.is_file() {
                 fs::copy(src, dst).map_err(|e| format!("Failed to copy file: {}", e))?;
-                fs::remove_file(src)
-                    .map_err(|e| format!("Failed to remove source file: {}", e))?;
+                fs::remove_file(src).map_err(|e| format!("Failed to remove source file: {}", e))?;
             } else if src.is_dir() {
                 copy_dir_recursive(src, dst)?;
                 fs::remove_dir_all(src)

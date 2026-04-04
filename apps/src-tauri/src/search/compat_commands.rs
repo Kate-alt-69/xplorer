@@ -260,9 +260,14 @@ pub async fn ai_search(
     );
 
     // Step 3: Call AI provider.
-    let ai_response =
-        crate::ai::search_rerank_with_ai(&prompt, &provider, api_key.as_deref(), model.as_deref(), None)
-            .await?;
+    let ai_response = crate::ai::search_rerank_with_ai(
+        &prompt,
+        &provider,
+        api_key.as_deref(),
+        model.as_deref(),
+        None,
+    )
+    .await?;
 
     // Step 4: Parse AI response and re-rank.
     if let Ok(rankings) = serde_json::from_str::<Vec<serde_json::Value>>(&ai_response) {
@@ -528,11 +533,18 @@ fn sanitize_search_term(term: &str) -> Option<String> {
 /// Map file_type string from LLM to a set of extensions for filtering.
 fn file_type_extensions(file_type: &str) -> Option<HashSet<&'static str>> {
     let exts: &[&str] = match file_type {
-        "image" => &["jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "tiff", "heic", "ico"],
+        "image" => &[
+            "jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "tiff", "heic", "ico",
+        ],
         "video" => &["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm"],
-        "document" => &["pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "csv", "odt"],
+        "document" => &[
+            "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "rtf", "csv", "odt",
+        ],
         "audio" => &["mp3", "wav", "flac", "aac", "ogg", "m4a", "wma"],
-        "code" => &["rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h", "css", "html", "json", "toml", "yaml", "yml"],
+        "code" => &[
+            "rs", "ts", "tsx", "js", "jsx", "py", "go", "java", "c", "cpp", "h", "css", "html",
+            "json", "toml", "yaml", "yml",
+        ],
         "archive" => &["zip", "tar", "gz", "bz2", "xz", "7z", "rar"],
         _ => return None,
     };
@@ -602,14 +614,16 @@ pub async fn smart_search(
         if p == "auto" || p.is_empty() {
             crate::ai::detect_best_provider().await
         } else {
-            Some((p.clone(), api_key.clone(), model.clone().unwrap_or_else(|| {
-                match p.as_str() {
+            Some((
+                p.clone(),
+                api_key.clone(),
+                model.clone().unwrap_or_else(|| match p.as_str() {
                     "claude" => "claude-haiku-4-5-20251001".to_string(),
                     "openai" => "gpt-4o-mini".to_string(),
                     "ollama" => "llama3".to_string(),
                     _ => "llama3".to_string(),
-                }
-            })))
+                }),
+            ))
         }
     } else {
         crate::ai::detect_best_provider().await
@@ -644,7 +658,10 @@ pub async fn smart_search(
         .join("\n");
 
     let truncation_note = if dir_items.len() >= SMART_SEARCH_MAX_DIR_ITEMS {
-        format!("\n(Showing {} most recent items; directory may contain more)", SMART_SEARCH_MAX_DIR_ITEMS)
+        format!(
+            "\n(Showing {} most recent items; directory may contain more)",
+            SMART_SEARCH_MAX_DIR_ITEMS
+        )
     } else {
         String::new()
     };

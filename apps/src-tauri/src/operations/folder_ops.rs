@@ -1,3 +1,4 @@
+use crate::operations::validate_file_path;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
@@ -6,7 +7,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::command;
 use tauri::Emitter;
 use tracing::warn;
-use crate::operations::validate_file_path;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FolderSizeInfo {
@@ -79,9 +79,7 @@ pub async fn calculate_folder_size(
 
     // Check cache first
     {
-        let cache = FOLDER_SIZE_CACHE
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let cache = FOLDER_SIZE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(cached_info) = cache.get(&folder_path) {
             let now = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -115,9 +113,7 @@ pub async fn calculate_folder_size(
 
     // Update cache with eviction
     {
-        let mut cache = FOLDER_SIZE_CACHE
-            .lock()
-            .unwrap_or_else(|e| e.into_inner());
+        let mut cache = FOLDER_SIZE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
         evict_cache(&mut cache);
         cache.insert(folder_path.clone(), folder_size_info.clone());
     }
@@ -136,9 +132,7 @@ pub async fn calculate_folder_size(
 pub async fn get_cached_folder_sizes(
     folder_paths: Vec<String>,
 ) -> Result<HashMap<String, FolderSizeInfo>, String> {
-    let cache = FOLDER_SIZE_CACHE
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
+    let cache = FOLDER_SIZE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -159,9 +153,7 @@ pub async fn get_cached_folder_sizes(
 
 #[command]
 pub async fn clear_folder_size_cache(app_handle: tauri::AppHandle) -> Result<(), String> {
-    let mut cache = FOLDER_SIZE_CACHE
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
+    let mut cache = FOLDER_SIZE_CACHE.lock().unwrap_or_else(|e| e.into_inner());
     cache.clear();
     send_terminal_output(&app_handle, "Folder size cache cleared");
     Ok(())
@@ -188,8 +180,7 @@ async fn calculate_directory_size_recursive(
         .map_err(|e| format!("Failed to read directory {}: {}", dir_path.display(), e))?;
 
     for entry in entries {
-        let entry =
-            entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
 
         let path = entry.path();
         let metadata = entry
@@ -203,8 +194,7 @@ async fn calculate_directory_size_recursive(
             dir_count += 1;
 
             // Recursively calculate subdirectory size using Box::pin to avoid infinite size
-            let recursive_future =
-                Box::pin(calculate_directory_size_recursive(&path, app_handle));
+            let recursive_future = Box::pin(calculate_directory_size_recursive(&path, app_handle));
             match recursive_future.await {
                 Ok(subdir_result) => {
                     total_size += subdir_result.total_size;

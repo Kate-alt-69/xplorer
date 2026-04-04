@@ -352,15 +352,11 @@ impl SearchIndex {
         let path_lookup_bytes: usize = self.path_to_id.keys().map(|k| k.len() + 4).sum();
 
         // doc_terms: per-doc Vec<u32> term IDs
-        let doc_terms_bytes: usize = self
-            .doc_terms
-            .values()
-            .map(|ids| ids.len() * 4)
-            .sum();
+        let doc_terms_bytes: usize = self.doc_terms.values().map(|ids| ids.len() * 4).sum();
 
         // Term interning table
-        let term_intern_bytes: usize = self.id_to_term.iter().map(|s| s.len() + 4).sum::<usize>()
-            + self.term_to_id.len() * 40; // key string + u32 + HashMap overhead
+        let term_intern_bytes: usize =
+            self.id_to_term.iter().map(|s| s.len() + 4).sum::<usize>() + self.term_to_id.len() * 40; // key string + u32 + HashMap overhead
 
         docs_bytes
             + postings_bytes
@@ -564,8 +560,7 @@ impl SearchIndex {
         // Subtract this document's token count from total_tokens before removing
         // field lengths so BM25F corpus stats remain accurate.
         if let Some(field_lengths) = self.doc_field_lengths.remove(&doc_id) {
-            let doc_token_count: usize =
-                field_lengths.values().map(|&len| len as usize).sum();
+            let doc_token_count: usize = field_lengths.values().map(|&len| len as usize).sum();
             self.total_tokens = self.total_tokens.saturating_sub(doc_token_count);
         }
 

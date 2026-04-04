@@ -27,13 +27,17 @@ try {
       if (!process.env[key]) process.env[key] = val;
     }
   }
-} catch { /* no .env file */ }
+} catch {
+  /* no .env file */
+}
 
 const SIGNING_KEY_HEX = process.env.EXTENSION_SIGNING_KEY;
 if (!SIGNING_KEY_HEX) {
   console.error('ERROR: EXTENSION_SIGNING_KEY env var not set.');
   console.error('Add it to .env: EXTENSION_SIGNING_KEY=<64-char-hex-string>');
-  console.error('Generate with: cd apps/src-tauri && cargo test generate_signing_keypair -- --nocapture');
+  console.error(
+    'Generate with: cd apps/src-tauri && cargo test generate_signing_keypair -- --nocapture',
+  );
   process.exit(1);
 }
 
@@ -94,9 +98,7 @@ const signHash = (hashHex, privateKeyHex) => {
 
 // Find all extension directories with dist/index.js
 const extensionsDir = join(process.cwd(), 'packages', 'extensions');
-const dataDirs = [
-  join(process.cwd(), 'apps', 'src-tauri', 'data', 'extensions'),
-];
+const dataDirs = [join(process.cwd(), 'apps', 'src-tauri', 'data', 'extensions')];
 
 const allExtDirs = [];
 

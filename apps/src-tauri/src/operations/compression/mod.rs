@@ -611,9 +611,7 @@ fn count_directory_contents(dir: &Path) -> Result<(u64, u64, u64), String> {
         dirs: &mut u64,
         size: &mut u64,
     ) -> Result<(), String> {
-        for entry in
-            fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))?
-        {
+        for entry in fs::read_dir(dir).map_err(|e| format!("Failed to read directory: {}", e))? {
             let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
             let path = entry.path();
 

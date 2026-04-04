@@ -4,10 +4,8 @@ use std::path::Path;
 
 use tauri::AppHandle;
 
-use super::{
-    ArchiveEntry, ArchiveInfo, CompressionFormat, CompressionOptions, ExtractionOptions,
-};
 use super::safety::{extract_tar_safely, extract_tar_selected_safely};
+use super::{ArchiveEntry, ArchiveInfo, CompressionFormat, CompressionOptions, ExtractionOptions};
 
 // ─── Tar format variants ────────────────────────────────────────────────────
 

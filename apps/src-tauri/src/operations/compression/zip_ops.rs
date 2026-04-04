@@ -5,9 +5,7 @@ use std::path::Path;
 use tauri::{AppHandle, Emitter};
 use zip::write::ZipWriter;
 
-use super::{
-    ArchiveEntry, ArchiveInfo, CompressionFormat, CompressionOptions, ExtractionOptions,
-};
+use super::{ArchiveEntry, ArchiveInfo, CompressionFormat, CompressionOptions, ExtractionOptions};
 use crate::operations::is_hidden_file;
 use crate::operations::types::{FileOperationProgress, OperationStatus};
 
@@ -133,8 +131,8 @@ pub(crate) async fn extract_zip_selected(
 
         let selected: HashSet<&str> = entries.iter().map(|s| s.as_str()).collect();
 
-        let file = File::open(&archive_path)
-            .map_err(|e| format!("Failed to open ZIP file: {}", e))?;
+        let file =
+            File::open(&archive_path).map_err(|e| format!("Failed to open ZIP file: {}", e))?;
         let reader = BufReader::new(file);
         let mut archive =
             ZipArchive::new(reader).map_err(|e| format!("Failed to read ZIP archive: {}", e))?;

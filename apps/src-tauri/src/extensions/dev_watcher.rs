@@ -116,9 +116,7 @@ fn watch_extension(app_handle: &AppHandle, info: &DevExtensionInfo) -> Result<()
         main_path.clone()
     } else {
         // Watch the dist directory (or extension root) so we catch the file being created
-        let dist_dir = main_path
-            .parent()
-            .unwrap_or(&ext_path);
+        let dist_dir = main_path.parent().unwrap_or(&ext_path);
         if dist_dir.exists() {
             dist_dir.to_path_buf()
         } else {
