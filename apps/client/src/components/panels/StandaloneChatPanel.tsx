@@ -1,7 +1,159 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Send, FileText, FolderOpen, Code2, X } from 'lucide-react';
+import { Send, FileText, FolderOpen, Code2, X, Loader2 } from 'lucide-react';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { AgentService } from '@/lib/agent-service';
+
+/** Max bytes of file content to include in AI context (~10 KB). */
+const MAX_FILE_CONTENT_LENGTH = 10_000;
+
+const TEXT_EXTENSIONS = new Set([
+  'txt',
+  'log',
+  'ini',
+  'cfg',
+  'conf',
+  'md',
+  'markdown',
+  'json',
+  'csv',
+  'xml',
+  'yaml',
+  'yml',
+  'toml',
+  'js',
+  'ts',
+  'jsx',
+  'tsx',
+  'mjs',
+  'cjs',
+  'py',
+  'java',
+  'cpp',
+  'c',
+  'h',
+  'hpp',
+  'cs',
+  'php',
+  'rb',
+  'go',
+  'rs',
+  'swift',
+  'kt',
+  'html',
+  'css',
+  'scss',
+  'less',
+  'vue',
+  'svelte',
+  'sql',
+  'sh',
+  'bash',
+  'zsh',
+  'ps1',
+  'bat',
+  'cmd',
+  'dockerfile',
+  'makefile',
+  'gitignore',
+  'env',
+  'lock',
+  'prisma',
+  'graphql',
+  'proto',
+  'r',
+  'lua',
+  'dart',
+  'ex',
+  'exs',
+]);
+
+const IMAGE_EXTENSIONS = new Set([
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'webp',
+  'svg',
+  'ico',
+  'tiff',
+]);
+
+const PDF_EXTENSIONS = new Set(['pdf']);
+
+/** Get the lowercase extension from a file path (without the dot). */
+const getExt = (filePath: string): string => {
+  const name = basename(filePath);
+  const dotIdx = name.lastIndexOf('.');
+  return dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : name.toLowerCase();
+};
+
+/** Determine file category for AI context purposes. */
+const getFileCategory = (filePath: string): 'text' | 'image' | 'pdf' | 'binary' => {
+  const ext = getExt(filePath);
+  if (TEXT_EXTENSIONS.has(ext)) return 'text';
+  if (IMAGE_EXTENSIONS.has(ext)) return 'image';
+  if (PDF_EXTENSIONS.has(ext)) return 'pdf';
+  return 'binary';
+};
+
+/** Read file content for AI context. Returns content string or metadata fallback. */
+const readFileForAIContext = async (file: {
+  name: string;
+  path: string;
+  is_dir: boolean;
+}): Promise<{ name: string; path: string; file_type: string; content?: string }> => {
+  const ext = getExt(file.path);
+  const category = getFileCategory(file.path);
+
+  if (file.is_dir) {
+    return { name: file.name, path: file.path, file_type: 'directory' };
+  }
+
+  if (category === 'text') {
+    try {
+      let content = await TauriAPI.readTextFile(file.path);
+      if (content.length > MAX_FILE_CONTENT_LENGTH) {
+        content = `${content.slice(0, MAX_FILE_CONTENT_LENGTH)}\n\n[... truncated at 10KB ...]`;
+      }
+      return { name: file.name, path: file.path, file_type: ext, content };
+    } catch {
+      return {
+        name: file.name,
+        path: file.path,
+        file_type: ext,
+        content: '[Could not read file contents]',
+      };
+    }
+  }
+
+  if (category === 'image') {
+    return {
+      name: file.name,
+      path: file.path,
+      file_type: ext,
+      content: `[Image file: ${file.name} (${ext})]`,
+    };
+  }
+
+  if (category === 'pdf') {
+    return {
+      name: file.name,
+      path: file.path,
+      file_type: 'pdf',
+      content: `[PDF document: ${file.name}]`,
+    };
+  }
+
+  // Binary / unknown
+  return {
+    name: file.name,
+    path: file.path,
+    file_type: ext || 'unknown',
+    content: `[Binary file: ${file.name}]`,
+  };
+};
 
 interface XplorerState {
   currentPath?: string;
@@ -27,6 +179,7 @@ const StandaloneChatPanel = () => {
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isReadingFile, setIsReadingFile] = useState(false);
   const [model, setModel] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -39,15 +192,23 @@ const StandaloneChatPanel = () => {
   const [includeSelection, setIncludeSelection] = useState(true);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-      if (raw) {
-        const s = JSON.parse(raw);
-        setModel(s.aiModel || 'claude-sonnet-4-20250514');
-      }
-    } catch {
-      /* ignore */
-    }
+    // Read model from agent settings (configured in Settings > AI)
+    AgentService.getSettings()
+      .then((s) => {
+        if (s.model) setModel(s.model);
+      })
+      .catch(() => {
+        // Fallback: read from localStorage
+        try {
+          const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+          if (raw) {
+            const s = JSON.parse(raw);
+            if (s.aiModel) setModel(s.aiModel);
+          }
+        } catch {
+          /* ignore */
+        }
+      });
   }, []);
 
   // Sync file context from __xplorer_state__
@@ -94,10 +255,29 @@ const StandaloneChatPanel = () => {
     setIsLoading(true);
     scrollToBottom();
 
+    // Read file contents for selected files (first file only to keep context manageable)
+    let fileContext: { name: string; path: string; file_type: string; content?: string } | null =
+      null;
+    const selectedFileList = xState?.selectedFiles ?? [];
+
+    if (selectedFileList.length > 0 && !selectedFileList[0].is_dir) {
+      setIsReadingFile(true);
+      try {
+        fileContext = await readFileForAIContext(selectedFileList[0]);
+      } catch {
+        // Silently fall back to no file content
+      } finally {
+        setIsReadingFile(false);
+      }
+    }
+
     let systemContent =
       'You are an AI assistant inside the Xplorer file manager. Help with file operations, code understanding, and general questions.';
-    systemContent +=
-      '\n\nIf you need to see the contents of a file to answer a question, ask the user to share the file contents with you. You can reference files by their path.';
+
+    if (fileContext?.content) {
+      systemContent +=
+        '\n\nThe user has a file selected and its contents have been loaded automatically. You can answer questions about the file directly.';
+    }
 
     if (includeSelection && xState?.editorSelection) {
       const sel = xState.editorSelection;
@@ -106,8 +286,8 @@ const StandaloneChatPanel = () => {
     if (xState?.currentPath) {
       systemContent += `\n\n[Current directory: ${xState.currentPath}]`;
     }
-    if (xState?.selectedFiles && xState.selectedFiles.length > 0) {
-      const fileList = xState.selectedFiles
+    if (selectedFileList.length > 0) {
+      const fileList = selectedFileList
         .map((f) => `  - ${f.name} (${f.path})${f.is_dir ? ' [directory]' : ''}`)
         .join('\n');
       systemContent += `\n\n[Currently selected files]\n${fileList}`;
@@ -116,7 +296,11 @@ const StandaloneChatPanel = () => {
     const allMsgs = [{ role: 'system', content: systemContent }, ...messages, userMsg];
 
     try {
-      const response = await TauriAPI.chatWithAI(model || 'claude-sonnet-4-20250514', allMsgs);
+      const response = await TauriAPI.chatWithAI(
+        model || 'claude-sonnet-4-20250514',
+        allMsgs,
+        fileContext,
+      );
       setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err}` }]);
@@ -295,8 +479,24 @@ const StandaloneChatPanel = () => {
           </div>
         ))}
         {isLoading && (
-          <div style={{ padding: '8px', color: 'var(--xp-text-muted)', fontSize: '12px' }}>
-            Thinking...
+          <div
+            style={{
+              padding: '8px',
+              color: 'var(--xp-text-muted)',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <Loader2
+              size={12}
+              style={{
+                animation: 'spin 1s linear infinite',
+                flexShrink: 0,
+              }}
+            />
+            {isReadingFile ? 'Reading file...' : 'Thinking...'}
           </div>
         )}
       </div>
