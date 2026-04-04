@@ -600,10 +600,12 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_url_rejects_http() {
+    fn test_validate_url_auto_upgrades_http_to_https() {
+        // Remote HTTP URLs are auto-upgraded to HTTPS (not rejected)
         let result = validate_url_security("http://marketplace.example.com/ext.zip");
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("HTTPS"));
+        assert!(result.is_ok());
+        // Non-HTTP/HTTPS schemes are still rejected
+        assert!(validate_url_security("ftp://marketplace.example.com/ext.zip").is_err());
     }
 
     #[test]
@@ -624,8 +626,12 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_url_rejects_localhost() {
-        assert!(validate_url_security("https://localhost/ext.zip").is_err());
+    fn test_validate_url_allows_localhost_rejects_internal() {
+        // Localhost is allowed for local development
+        assert!(validate_url_security("https://localhost/ext.zip").is_ok());
+        assert!(validate_url_security("http://localhost/ext.zip").is_ok());
+        assert!(validate_url_security("http://localhost:3000/ext.zip").is_ok());
+        // Internal/private domains are still rejected
         assert!(validate_url_security("https://something.local/ext.zip").is_err());
         assert!(validate_url_security("https://service.internal/ext.zip").is_err());
     }
