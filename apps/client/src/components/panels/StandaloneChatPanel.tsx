@@ -4,6 +4,17 @@ import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { AgentService } from '@/lib/agent-service';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
+import {
+  FileActionCard,
+  parseFileActions,
+  executeFileAction,
+  generateActionId,
+  isAlwaysAllowed,
+  setAlwaysAllowed,
+  basename,
+  FILE_OPS_SYSTEM_PROMPT,
+  type PendingFileAction,
+} from './chat-file-actions';
 
 /** Max bytes of file content to include in AI context (~10 KB). */
 const MAX_FILE_CONTENT_LENGTH = 10_000;
@@ -62,6 +73,10 @@ const readFileForAIContext = async (file: {
   };
 };
 
+// ---------------------------------------------------------------------------
+// Xplorer state helpers
+// ---------------------------------------------------------------------------
+
 interface XplorerState {
   currentPath?: string;
   selectedFiles?: Array<{ name: string; path: string; is_dir: boolean }>;
@@ -76,14 +91,23 @@ interface XplorerState {
 const getXplorerState = (): XplorerState | undefined =>
   (window as unknown as { __xplorer_state__?: XplorerState }).__xplorer_state__;
 
-/** Extract just the file name from a full path */
-const basename = (filePath: string): string => {
-  const parts = filePath.split(/[/\\]/);
-  return parts[parts.length - 1] || filePath;
-};
+// ---------------------------------------------------------------------------
+// Chat message type
+// ---------------------------------------------------------------------------
+
+interface ChatMessage {
+  role: string;
+  content: string;
+  /** Pending file actions attached to this message (assistant only) */
+  fileActions?: PendingFileAction[];
+}
+
+// ---------------------------------------------------------------------------
+// Main component
+// ---------------------------------------------------------------------------
 
 const StandaloneChatPanel = () => {
-  const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isReadingFile, setIsReadingFile] = useState(false);
@@ -150,13 +174,98 @@ const StandaloneChatPanel = () => {
     });
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // File action handlers
+  // ---------------------------------------------------------------------------
+
+  const updateActionStatus = useCallback(
+    (
+      messageIndex: number,
+      actionId: string,
+      status: PendingFileAction['status'],
+      error?: string,
+    ) => {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const msg = updated[messageIndex];
+        if (msg?.fileActions) {
+          msg.fileActions = msg.fileActions.map((a) =>
+            a.id === actionId ? { ...a, status, ...(error ? { error } : {}) } : a,
+          );
+        }
+        return updated;
+      });
+    },
+    [],
+  );
+
+  const handleExecuteAction = useCallback(
+    async (messageIndex: number, actionId: string) => {
+      updateActionStatus(messageIndex, actionId, 'approved');
+
+      const action = messages[messageIndex]?.fileActions?.find((a) => a.id === actionId);
+      if (!action) return;
+
+      try {
+        await executeFileAction(action.action);
+        updateActionStatus(messageIndex, actionId, 'success');
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        updateActionStatus(messageIndex, actionId, 'error', errorMsg);
+      }
+      scrollToBottom();
+    },
+    [messages, scrollToBottom, updateActionStatus],
+  );
+
+  const handleRejectAction = useCallback(
+    (messageIndex: number, actionId: string) => {
+      updateActionStatus(messageIndex, actionId, 'rejected');
+      scrollToBottom();
+    },
+    [scrollToBottom, updateActionStatus],
+  );
+
+  const handleAlwaysAllow = useCallback(
+    async (messageIndex: number, actionId: string) => {
+      setAlwaysAllowed(true);
+      await handleExecuteAction(messageIndex, actionId);
+    },
+    [handleExecuteAction],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Auto-execute actions when "always allow" is enabled
+  // ---------------------------------------------------------------------------
+
+  const autoExecuteActions = useCallback(
+    async (msgIndex: number, pendingActions: PendingFileAction[]) => {
+      for (const pa of pendingActions) {
+        updateActionStatus(msgIndex, pa.id, 'approved');
+        try {
+          await executeFileAction(pa.action);
+          updateActionStatus(msgIndex, pa.id, 'success');
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          updateActionStatus(msgIndex, pa.id, 'error', errorMsg);
+        }
+      }
+      scrollToBottom();
+    },
+    [scrollToBottom, updateActionStatus],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Send message
+  // ---------------------------------------------------------------------------
+
   const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || isLoading) return;
 
     const xState = getXplorerState();
 
-    const userMsg = { role: 'user', content: text };
+    const userMsg: ChatMessage = { role: 'user', content: text };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
@@ -181,6 +290,9 @@ const StandaloneChatPanel = () => {
     let systemContent =
       'You are an AI assistant inside the Xplorer file manager. Help with file operations, code understanding, and general questions.';
 
+    // Add file operations capability
+    systemContent += `\n\n${FILE_OPS_SYSTEM_PROMPT}`;
+
     if (fileContext?.content) {
       systemContent +=
         '\n\nThe user has a file selected and its contents have been loaded automatically. You can answer questions about the file directly.';
@@ -200,7 +312,12 @@ const StandaloneChatPanel = () => {
       systemContent += `\n\n[Currently selected files]\n${fileList}`;
     }
 
-    const allMsgs = [{ role: 'system', content: systemContent }, ...messages, userMsg];
+    // Build message history for API (strip fileActions, keep role+content only)
+    const allMsgs = [
+      { role: 'system', content: systemContent },
+      ...messages.map((m) => ({ role: m.role, content: m.content })),
+      { role: userMsg.role, content: userMsg.content },
+    ];
 
     try {
       const response = await TauriAPI.chatWithAI(
@@ -208,14 +325,39 @@ const StandaloneChatPanel = () => {
         allMsgs,
         fileContext,
       );
-      setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
+
+      // Parse file actions from the response
+      const { cleanText, actions } = parseFileActions(response);
+
+      const pendingActions: PendingFileAction[] = actions.map((a) => ({
+        id: generateActionId(),
+        action: a,
+        status: 'pending' as const,
+      }));
+
+      const assistantMsg: ChatMessage = {
+        role: 'assistant',
+        content: cleanText || (actions.length > 0 ? '' : response),
+        fileActions: pendingActions.length > 0 ? pendingActions : undefined,
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+
+      // If "always allow" is enabled, auto-execute all actions
+      if (isAlwaysAllowed() && pendingActions.length > 0) {
+        // The assistant message is appended after the user message, so its index
+        // is messages.length + 1 (messages is the state before this send).
+        const msgIndex = messages.length + 1;
+        // Use setTimeout(0) to let React commit the state update first
+        setTimeout(() => autoExecuteActions(msgIndex, pendingActions), 0);
+      }
     } catch (err) {
       setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${err}` }]);
     } finally {
       setIsLoading(false);
       scrollToBottom();
     }
-  }, [input, isLoading, messages, model, scrollToBottom, includeSelection]);
+  }, [input, isLoading, messages, model, scrollToBottom, includeSelection, autoExecuteActions]);
 
   const hasContext = currentPath || selectedFiles.length > 0 || editorSelection;
 
@@ -366,23 +508,41 @@ const StandaloneChatPanel = () => {
           </div>
         )}
         {messages.map((msg, i) => (
-          <div
-            key={i}
-            style={{
-              marginBottom: '12px',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              lineHeight: '1.5',
-              background: msg.role === 'user' ? 'var(--xp-blue)' : 'var(--xp-surface-light)',
-              color: msg.role === 'user' ? 'white' : 'var(--xp-text)',
-              marginLeft: msg.role === 'user' ? '20%' : '0',
-              marginRight: msg.role === 'assistant' ? '20%' : '0',
-              whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
-              wordBreak: 'break-word',
-            }}
-          >
-            {msg.role === 'assistant' ? <MarkdownRenderer content={msg.content} /> : msg.content}
+          <div key={i} style={{ marginBottom: '12px' }}>
+            {/* Message bubble */}
+            {msg.content && (
+              <div
+                style={{
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  lineHeight: '1.5',
+                  background: msg.role === 'user' ? 'var(--xp-blue)' : 'var(--xp-surface-light)',
+                  color: msg.role === 'user' ? 'white' : 'var(--xp-text)',
+                  marginLeft: msg.role === 'user' ? '20%' : '0',
+                  marginRight: msg.role === 'assistant' ? '20%' : '0',
+                  whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
+                  wordBreak: 'break-word',
+                }}
+              >
+                {msg.role === 'assistant' ? (
+                  <MarkdownRenderer content={msg.content} />
+                ) : (
+                  msg.content
+                )}
+              </div>
+            )}
+
+            {/* Inline file action cards */}
+            {msg.fileActions?.map((pa) => (
+              <FileActionCard
+                key={pa.id}
+                pendingAction={pa}
+                onAllow={() => handleExecuteAction(i, pa.id)}
+                onReject={() => handleRejectAction(i, pa.id)}
+                onAlwaysAllow={() => handleAlwaysAllow(i, pa.id)}
+              />
+            ))}
           </div>
         ))}
         {isLoading && (

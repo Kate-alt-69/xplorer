@@ -69,6 +69,9 @@ export const STORAGE_KEYS = {
   // File open preferences (Open With)
   FILE_OPEN_PREFS: 'xplorer:file-open-prefs',
 
+  // AI Chat file access
+  AI_FILE_ACCESS_GRANTED: 'xplorer:ai-file-access-granted',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;
