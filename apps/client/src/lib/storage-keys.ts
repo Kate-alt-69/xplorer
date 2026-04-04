@@ -75,6 +75,9 @@ export const STORAGE_KEYS = {
   // AI Chat history
   AI_CHAT_HISTORY: 'xplorer:ai-chat-history',
 
+  // AI Chat action templates
+  AI_ACTION_TEMPLATES: 'xplorer:ai-action-templates',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

@@ -6,7 +6,7 @@
  * and read-only agent actions (list_directory, search_files, open_file) that feed
  * results back into the agent loop.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   FileText,
   FolderOpen,
@@ -25,6 +25,7 @@ import {
   ExternalLink,
   Undo2,
 } from 'lucide-react';
+import ChatDiffPreview from './ChatDiffPreview';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 
@@ -483,6 +484,37 @@ export const FileActionCard = ({
   const [undoing, setUndoing] = useState(false);
   const showUndo = canUndoAction(pendingAction) && onUndo;
 
+  // Load current file content for diff preview on edit_file actions
+  const [existingContent, setExistingContent] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
+
+  useEffect(() => {
+    if (action.action !== 'edit_file' || status !== 'pending' || !action.content) return;
+    let cancelled = false;
+    setDiffLoading(true);
+    TauriAPI.readTextFile(action.path)
+      .then((content) => {
+        if (!cancelled) setExistingContent(content);
+      })
+      .catch(() => {
+        // File doesn't exist yet -- no diff to show
+        if (!cancelled) setExistingContent(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDiffLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [action.action, action.path, action.content, status]);
+
+  const showDiff =
+    action.action === 'edit_file' &&
+    status === 'pending' &&
+    existingContent !== null &&
+    action.content !== undefined &&
+    existingContent !== action.content;
+
   const handleUndo = async () => {
     if (!onUndo) return;
     setUndoing(true);
@@ -618,11 +650,35 @@ export const FileActionCard = ({
           </div>
         )}
 
-        {/* Content preview (for create/edit) */}
-        {action.content && action.action !== 'delete_file' && (
+        {/* Diff preview for edit_file with existing file */}
+        {showDiff && existingContent !== null && action.content !== undefined && (
+          <ChatDiffPreview previousContent={existingContent} newContent={action.content} />
+        )}
+
+        {/* Diff loading indicator */}
+        {action.action === 'edit_file' && diffLoading && status === 'pending' && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              marginTop: '4px',
+              fontSize: '11px',
+              color: 'var(--xp-text-muted)',
+            }}
+          >
+            <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
+            Loading diff...
+          </div>
+        )}
+
+        {/* Content preview (for create_file or edit_file with no existing file) */}
+        {action.content && action.action !== 'delete_file' && !showDiff && !diffLoading && (
           <div style={{ marginTop: '4px' }}>
             <div style={{ fontSize: '11px', color: 'var(--xp-text-muted)', marginBottom: '4px' }}>
-              Content:
+              {action.action === 'edit_file' && existingContent === null
+                ? 'New file content:'
+                : 'Content:'}
             </div>
             <pre
               style={{

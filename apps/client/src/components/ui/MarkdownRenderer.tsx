@@ -7,6 +7,8 @@ interface MarkdownRendererProps {
   onApplyCode?: (code: string) => void;
   /** Called when the user clicks "Save as file" on a fenced code block. */
   onSaveCodeAsFile?: (code: string, language: string) => void;
+  /** Render a file path as an interactive card. Return null to render as plain text. */
+  renderFilePath?: (filePath: string) => React.ReactNode | null;
 }
 
 /**
@@ -28,8 +30,9 @@ const MarkdownRenderer = ({
   className = '',
   onApplyCode,
   onSaveCodeAsFile,
+  renderFilePath,
 }: MarkdownRendererProps) => {
-  const elements = parseMarkdown(content, onApplyCode, onSaveCodeAsFile);
+  const elements = parseMarkdown(content, onApplyCode, onSaveCodeAsFile, renderFilePath);
   return (
     <div
       className={`markdown-content ${className}`}
@@ -119,6 +122,7 @@ const parseMarkdown = (
   text: string,
   onApplyCode?: (code: string) => void,
   onSaveCodeAsFile?: (code: string, language: string) => void,
+  renderFilePath?: (filePath: string) => React.ReactNode | null,
 ): React.ReactNode[] => {
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
@@ -266,7 +270,7 @@ const parseMarkdown = (
           {items.map((item, idx) => (
             // eslint-disable-next-line react/no-array-index-key
             <li key={`ul-${idx}`} className="text-sm">
-              {renderInline(item)}
+              {renderInlineWithFilePaths(item, renderFilePath)}
             </li>
           ))}
         </ul>,
@@ -286,7 +290,7 @@ const parseMarkdown = (
           {items.map((item, idx) => (
             // eslint-disable-next-line react/no-array-index-key
             <li key={`ol-${idx}`} className="text-sm">
-              {renderInline(item)}
+              {renderInlineWithFilePaths(item, renderFilePath)}
             </li>
           ))}
         </ol>,
@@ -303,7 +307,7 @@ const parseMarkdown = (
     // Regular paragraph
     elements.push(
       <p key={key++} className="my-0.5 text-sm leading-relaxed">
-        {renderInline(line)}
+        {renderInlineWithFilePaths(line, renderFilePath)}
       </p>,
     );
     i++;
@@ -399,6 +403,85 @@ const renderInline = (text: string): React.ReactNode => {
   }
 
   return parts.length === 1 ? parts[0] : <>{parts}</>;
+};
+
+/**
+ * File path detection regex for inline rendering.
+ * Matches absolute paths: /path/to/file.ext or C:\path\to\file.ext
+ * Avoids matching inside backticks (handled by inline code rendering).
+ */
+const FILE_PATH_INLINE_REGEX =
+  /(?:\/(?:[a-zA-Z0-9._-]+\/){1,}[a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9]+)?)|(?:[A-Z]:[/\\](?:[^\s:*?"<>|]+[/\\])*[^\s:*?"<>|]+)/g;
+
+/**
+ * Render inline markdown with file path detection.
+ * File paths in regular text (not inside code blocks) get replaced with
+ * interactive cards via the renderFilePath callback.
+ */
+const renderInlineWithFilePaths = (
+  text: string,
+  renderFilePath?: (filePath: string) => React.ReactNode | null,
+): React.ReactNode => {
+  if (!renderFilePath) return renderInline(text);
+
+  // First render normal inline markdown
+  const inlineResult = renderInline(text);
+
+  // If the text doesn't contain file-path-like patterns, skip the expensive regex
+  if (!text.includes('/') && !text.match(/[A-Z]:[/\\]/)) return inlineResult;
+
+  // Find file paths in the raw text
+  const matches: Array<{ path: string; start: number; end: number }> = [];
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(FILE_PATH_INLINE_REGEX.source, 'g');
+  match = regex.exec(text);
+  while (match !== null) {
+    // Skip if the path looks like it's inside inline code (backticks)
+    const beforeMatch = text.slice(0, match.index);
+    const backtickCount = (beforeMatch.match(/`/g) ?? []).length;
+    if (backtickCount % 2 === 0) {
+      // Only match paths with at least 2 segments
+      const segments = match[0].split(/[/\\]/).filter(Boolean);
+      if (segments.length >= 2) {
+        matches.push({ path: match[0], start: match.index, end: match.index + match[0].length });
+      }
+    }
+    match = regex.exec(text);
+  }
+
+  if (matches.length === 0) return inlineResult;
+
+  // Rebuild the text with file path cards
+  const parts: React.ReactNode[] = [];
+  let lastEnd = 0;
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    // Text before this match
+    if (m.start > lastEnd) {
+      parts.push(
+        <React.Fragment key={`pre-${i}`}>
+          {renderInline(text.slice(lastEnd, m.start))}
+        </React.Fragment>,
+      );
+    }
+    // Render the file path card
+    const card = renderFilePath(m.path);
+    if (card !== null) {
+      parts.push(<React.Fragment key={`fp-${i}`}>{card}</React.Fragment>);
+    } else {
+      // Fallback to inline render if callback returns null
+      parts.push(<React.Fragment key={`fp-${i}`}>{renderInline(m.path)}</React.Fragment>);
+    }
+    lastEnd = m.end;
+  }
+
+  // Text after the last match
+  if (lastEnd < text.length) {
+    parts.push(<React.Fragment key="post">{renderInline(text.slice(lastEnd))}</React.Fragment>);
+  }
+
+  return <>{parts}</>;
 };
 
 const renderBoldItalic = (text: string, keyBase: number): React.ReactNode[] => {

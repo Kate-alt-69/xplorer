@@ -53,6 +53,29 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
+    name: '/templates',
+    description: 'List saved action templates',
+    toPrompt: (_args) => '__LIST_TEMPLATES__',
+  },
+  {
+    name: '/save-template',
+    description: 'Save last action sequence as template',
+    hasArgs: true,
+    toPrompt: (args) => `__SAVE_TEMPLATE__${args}`,
+  },
+  {
+    name: '/run-template',
+    description: 'Run a saved action template',
+    hasArgs: true,
+    toPrompt: (args) => `__RUN_TEMPLATE__${args}`,
+  },
+  {
+    name: '/delete-template',
+    description: 'Delete a saved template',
+    hasArgs: true,
+    toPrompt: (args) => `__DELETE_TEMPLATE__${args}`,
+  },
+  {
     name: '/export',
     description: 'Export this chat as markdown',
     toPrompt: (_args) => '__EXPORT_CHAT__',

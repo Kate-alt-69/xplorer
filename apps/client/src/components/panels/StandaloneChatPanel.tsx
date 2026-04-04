@@ -44,9 +44,11 @@ import {
   readMultipleFilesForAIContext,
   buildDirectoryContext,
 } from './chat-context-helpers';
+import { handleTemplateSlashCommand } from './chat-action-templates';
 import ChatHistoryView from './ChatHistoryView';
 import ChatContextHeader from './ChatContextHeader';
 import ChatWelcome from './ChatWelcome';
+import ChatFilePathCard from './ChatFilePathCard';
 import { DragOverlay, AttachedFilesBar } from './ChatDropZone';
 import { useStreamingText, type StreamingEntry } from './use-streaming-text';
 import {
@@ -265,10 +267,15 @@ const StandaloneChatPanel = () => {
     [],
   );
 
+  // Use a ref to always access the latest messages without stale closures
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
   const handleExecuteAction = useCallback(
     async (messageIndex: number, actionId: string) => {
       updateActionStatus(messageIndex, actionId, 'approved');
-      const action = messages[messageIndex]?.fileActions?.find((a) => a.id === actionId);
+      // Read from ref to avoid stale closure over messages
+      const action = messagesRef.current[messageIndex]?.fileActions?.find((a) => a.id === actionId);
       if (!action) return;
       try {
         // Capture previous content before editing for undo support
@@ -294,12 +301,13 @@ const StandaloneChatPanel = () => {
       }
       scrollToBottom();
     },
-    [messages, scrollToBottom, updateActionStatus],
+    [scrollToBottom, updateActionStatus],
   );
 
   const handleUndoAction = useCallback(
     async (messageIndex: number, actionId: string) => {
-      const msg = messages[messageIndex];
+      // Read from ref to avoid stale closure over messages
+      const msg = messagesRef.current[messageIndex];
       const pa = msg?.fileActions?.find((a) => a.id === actionId);
       if (!pa) return;
       try {
@@ -319,7 +327,7 @@ const StandaloneChatPanel = () => {
       }
       scrollToBottom();
     },
-    [messages, scrollToBottom],
+    [scrollToBottom],
   );
 
   const handleRejectAction = useCallback(
@@ -340,7 +348,8 @@ const StandaloneChatPanel = () => {
 
   const handleBatchAllowAll = useCallback(
     async (messageIndex: number) => {
-      const msg = messages[messageIndex];
+      // Read from ref to avoid stale closure over messages
+      const msg = messagesRef.current[messageIndex];
       if (!msg?.fileActions) return;
       for (const pa of msg.fileActions) {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
@@ -369,12 +378,13 @@ const StandaloneChatPanel = () => {
       }
       scrollToBottom();
     },
-    [messages, scrollToBottom, updateActionStatus],
+    [scrollToBottom, updateActionStatus],
   );
 
   const handleBatchRejectAll = useCallback(
     (messageIndex: number) => {
-      const msg = messages[messageIndex];
+      // Read from ref to avoid stale closure over messages
+      const msg = messagesRef.current[messageIndex];
       if (!msg?.fileActions) return;
       for (const pa of msg.fileActions) {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
@@ -383,7 +393,7 @@ const StandaloneChatPanel = () => {
       }
       scrollToBottom();
     },
-    [messages, scrollToBottom, updateActionStatus],
+    [scrollToBottom, updateActionStatus],
   );
 
   const handleBatchAlwaysAllow = useCallback(
@@ -675,6 +685,44 @@ const StandaloneChatPanel = () => {
           setInput('');
           return;
         }
+        // Handle template slash commands
+        {
+          const lastActionMsg = [...messagesRef.current]
+            .reverse()
+            .find(
+              (m) => m.role === 'assistant' && m.fileActions?.some((a) => a.status === 'success'),
+            );
+          const lastSuccessActions =
+            lastActionMsg?.fileActions
+              ?.filter((a) => a.status === 'success')
+              .map((a) => a.action) ?? [];
+          const triggerIdx = lastActionMsg ? messagesRef.current.indexOf(lastActionMsg) : -1;
+          const triggerPrompt =
+            triggerIdx > 0
+              ? (messagesRef.current
+                  .slice(0, triggerIdx)
+                  .reverse()
+                  .find((m) => m.role === 'user' && !m.isContextInjection)?.content ?? '')
+              : '';
+          const tmplResult = handleTemplateSlashCommand(
+            slashMatch.prompt,
+            lastSuccessActions,
+            triggerPrompt,
+          );
+          if (tmplResult) {
+            if (tmplResult.type === 'redirect' && tmplResult.redirectPrompt) {
+              setInput('');
+              return sendMessage(tmplResult.redirectPrompt);
+            }
+            setMessages((prev) => [
+              ...prev,
+              { role: 'user', content: text },
+              { role: 'assistant', content: tmplResult.responseText ?? '' },
+            ]);
+            setInput('');
+            return;
+          }
+        }
         // For other slash commands, use the generated prompt
         return sendMessage(slashMatch.prompt);
       }
@@ -766,6 +814,27 @@ const StandaloneChatPanel = () => {
       if (currentConversationId === convId) clearChat();
     },
     [currentConversationId, clearChat],
+  );
+
+  // ---------------------------------------------------------------------------
+  // File path click handler — navigate to file in Xplorer
+  // ---------------------------------------------------------------------------
+
+  const navigateToFile = useCallback((filePath: string) => {
+    const xState = (
+      window as unknown as { __xplorer_state__?: { navigateTo: (p: string) => void } }
+    ).__xplorer_state__;
+    if (!xState?.navigateTo) return;
+    // Navigate to the parent directory so the file is visible
+    const parts = filePath.split(/[/\\]/);
+    parts.pop();
+    const parentDir = parts.join('/') || '/';
+    xState.navigateTo(parentDir);
+  }, []);
+
+  const renderFilePath = useCallback(
+    (filePath: string) => <ChatFilePathCard filePath={filePath} onClick={navigateToFile} />,
+    [navigateToFile],
   );
 
   // ---------------------------------------------------------------------------
@@ -1025,6 +1094,7 @@ const StandaloneChatPanel = () => {
                         <MarkdownRenderer
                           content={displayText}
                           onSaveCodeAsFile={handleSaveCodeAsFile}
+                          renderFilePath={renderFilePath}
                         />
                       ) : (
                         displayText
