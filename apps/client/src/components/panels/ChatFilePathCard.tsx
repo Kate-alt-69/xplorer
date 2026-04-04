@@ -159,6 +159,7 @@ const ChatFilePathCard = ({ filePath, onClick }: FilePathCardProps) => {
     <button
       onClick={handleClick}
       title={filePath}
+      aria-label={`Navigate to file: ${name}`}
       style={{
         display: 'inline-flex',
         alignItems: 'center',

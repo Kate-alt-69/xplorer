@@ -9,6 +9,8 @@ import { FileText, X, FileDown } from 'lucide-react';
 
 export const DragOverlay = () => (
   <div
+    role="presentation"
+    aria-label="Drop files here to add context"
     style={{
       position: 'absolute',
       inset: 0,
@@ -109,6 +111,7 @@ export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesB
           </span>
           <button
             onClick={() => onRemove(file.path)}
+            aria-label={`Remove ${file.name} from context`}
             style={{
               background: 'none',
               border: 'none',
@@ -125,6 +128,7 @@ export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesB
       ))}
       <button
         onClick={onClearAll}
+        aria-label="Remove all attached files"
         style={{
           background: 'none',
           border: 'none',

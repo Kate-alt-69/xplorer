@@ -34,6 +34,7 @@ const ChatHistoryView = ({
     >
       <button
         onClick={onBack}
+        aria-label="Back to chat"
         style={{
           background: 'none',
           border: 'none',
@@ -55,7 +56,11 @@ const ChatHistoryView = ({
     </div>
 
     {/* History list */}
-    <div style={{ flex: 1, overflowY: 'auto', padding: '4px' }}>
+    <div
+      role="list"
+      aria-label="Saved conversations"
+      style={{ flex: 1, overflowY: 'auto', padding: '4px' }}
+    >
       {chatHistory.length === 0 && (
         <div
           style={{
@@ -120,6 +125,7 @@ const ChatHistoryView = ({
               onDelete(conv.id);
             }}
             title="Delete conversation"
+            aria-label={`Delete conversation: ${conv.title}`}
             style={{
               background: 'none',
               border: 'none',

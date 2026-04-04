@@ -1,40 +1,26 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { Send, FileText, Loader2, RotateCcw, History } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { AgentService } from '@/lib/agent-service';
-import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 import {
-  FileActionCard,
-  BatchActionCard,
   parseFileActions,
-  executeFileAction,
-  captureFileForUndo,
-  undoFileAction,
   generateActionId,
-  isAlwaysAllowed,
-  setAlwaysAllowed,
-  isReadOnlyAction,
   basename,
   FILE_OPS_SYSTEM_PROMPT,
   type PendingFileAction,
   type FileAction,
 } from './chat-file-actions';
+import { useChatActions } from './use-chat-actions';
 import {
   type SavedConversation,
-  type ChatMessage as SavedChatMessage,
   generateConversationId,
   deriveConversationTitle,
   loadChatHistory,
   saveChatHistory,
 } from './chat-history';
 import { QUICK_ACTIONS, QuickActionsBar, type QuickAction } from './chat-quick-actions';
-import {
-  SLASH_COMMANDS,
-  matchSlashCommand,
-  LANG_EXTENSIONS,
-  type SlashCommand,
-} from './chat-slash-commands';
+import { SLASH_COMMANDS, matchSlashCommand, LANG_EXTENSIONS } from './chat-slash-commands';
 import {
   MAX_AGENT_ITERATIONS,
   type XplorerState,
@@ -49,6 +35,8 @@ import ChatHistoryView from './ChatHistoryView';
 import ChatContextHeader from './ChatContextHeader';
 import ChatWelcome from './ChatWelcome';
 import ChatFilePathCard from './ChatFilePathCard';
+import ChatMessageBubble, { type RuntimeChatMessage } from './ChatMessageBubble';
+import ChatSlashInput from './ChatSlashInput';
 import { DragOverlay, AttachedFilesBar } from './ChatDropZone';
 import { useStreamingText, type StreamingEntry } from './use-streaming-text';
 import {
@@ -58,13 +46,10 @@ import {
 } from './chat-workspace-awareness';
 
 // ---------------------------------------------------------------------------
-// Chat message type (extends the saved version with runtime-only fields)
+// Chat message type alias
 // ---------------------------------------------------------------------------
 
-interface ChatMessage extends SavedChatMessage {
-  /** Pending file actions attached to this message (assistant only) */
-  fileActions?: PendingFileAction[];
-}
+type ChatMessage = RuntimeChatMessage;
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -77,12 +62,8 @@ const StandaloneChatPanel = () => {
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [agentStep, setAgentStep] = useState('');
   const [model, setModel] = useState('');
-  const [slashSuggestions, setSlashSuggestions] = useState<SlashCommand[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
-  const inputHistoryRef = useRef<string[]>([]);
-  const inputHistoryIndexRef = useRef(-1);
 
   // Chat history state
   const [chatHistory, setChatHistory] = useState<SavedConversation[]>([]);
@@ -243,209 +224,23 @@ const StandaloneChatPanel = () => {
   }, [isTextStreaming, scrollToBottom]);
 
   // ---------------------------------------------------------------------------
-  // File action handlers
+  // File action handlers (extracted to use-chat-actions.ts)
   // ---------------------------------------------------------------------------
-
-  const updateActionStatus = useCallback(
-    (
-      messageIndex: number,
-      actionId: string,
-      status: PendingFileAction['status'],
-      extra?: { error?: string; result?: string },
-    ) => {
-      setMessages((prev) => {
-        const updated = [...prev];
-        const msg = updated[messageIndex];
-        if (msg?.fileActions) {
-          msg.fileActions = msg.fileActions.map((a) =>
-            a.id === actionId ? { ...a, status, ...extra } : a,
-          );
-        }
-        return updated;
-      });
-    },
-    [],
-  );
 
   // Use a ref to always access the latest messages without stale closures
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
 
-  const handleExecuteAction = useCallback(
-    async (messageIndex: number, actionId: string) => {
-      updateActionStatus(messageIndex, actionId, 'approved');
-      // Read from ref to avoid stale closure over messages
-      const action = messagesRef.current[messageIndex]?.fileActions?.find((a) => a.id === actionId);
-      if (!action) return;
-      try {
-        // Capture previous content before editing for undo support
-        const previousContent = await captureFileForUndo(action.action);
-        if (previousContent !== undefined) {
-          // Store the previous content on the action for undo
-          setMessages((prev) => {
-            const updated = [...prev];
-            const msg = updated[messageIndex];
-            if (msg?.fileActions) {
-              msg.fileActions = msg.fileActions.map((a) =>
-                a.id === actionId ? { ...a, previousContent } : a,
-              );
-            }
-            return updated;
-          });
-        }
-        const result = await executeFileAction(action.action);
-        updateActionStatus(messageIndex, actionId, 'success', { result });
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        updateActionStatus(messageIndex, actionId, 'error', { error: errorMsg });
-      }
-      scrollToBottom();
-    },
-    [scrollToBottom, updateActionStatus],
-  );
-
-  const handleUndoAction = useCallback(
-    async (messageIndex: number, actionId: string) => {
-      // Read from ref to avoid stale closure over messages
-      const msg = messagesRef.current[messageIndex];
-      const pa = msg?.fileActions?.find((a) => a.id === actionId);
-      if (!pa) return;
-      try {
-        await undoFileAction(pa);
-        setMessages((prev) => {
-          const updated = [...prev];
-          const m = updated[messageIndex];
-          if (m?.fileActions) {
-            m.fileActions = m.fileActions.map((a) =>
-              a.id === actionId ? { ...a, undone: true } : a,
-            );
-          }
-          return updated;
-        });
-      } catch (err) {
-        console.error('Undo failed:', err);
-      }
-      scrollToBottom();
-    },
-    [scrollToBottom],
-  );
-
-  const handleRejectAction = useCallback(
-    (messageIndex: number, actionId: string) => {
-      updateActionStatus(messageIndex, actionId, 'rejected');
-      scrollToBottom();
-    },
-    [scrollToBottom, updateActionStatus],
-  );
-
-  const handleAlwaysAllow = useCallback(
-    async (messageIndex: number, actionId: string) => {
-      setAlwaysAllowed(true);
-      await handleExecuteAction(messageIndex, actionId);
-    },
-    [handleExecuteAction],
-  );
-
-  const handleBatchAllowAll = useCallback(
-    async (messageIndex: number) => {
-      // Read from ref to avoid stale closure over messages
-      const msg = messagesRef.current[messageIndex];
-      if (!msg?.fileActions) return;
-      for (const pa of msg.fileActions) {
-        if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
-          updateActionStatus(messageIndex, pa.id, 'approved');
-          try {
-            const previousContent = await captureFileForUndo(pa.action);
-            if (previousContent !== undefined) {
-              setMessages((prev) => {
-                const updated = [...prev];
-                const m = updated[messageIndex];
-                if (m?.fileActions) {
-                  m.fileActions = m.fileActions.map((a) =>
-                    a.id === pa.id ? { ...a, previousContent } : a,
-                  );
-                }
-                return updated;
-              });
-            }
-            const result = await executeFileAction(pa.action);
-            updateActionStatus(messageIndex, pa.id, 'success', { result });
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            updateActionStatus(messageIndex, pa.id, 'error', { error: errorMsg });
-          }
-        }
-      }
-      scrollToBottom();
-    },
-    [scrollToBottom, updateActionStatus],
-  );
-
-  const handleBatchRejectAll = useCallback(
-    (messageIndex: number) => {
-      // Read from ref to avoid stale closure over messages
-      const msg = messagesRef.current[messageIndex];
-      if (!msg?.fileActions) return;
-      for (const pa of msg.fileActions) {
-        if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
-          updateActionStatus(messageIndex, pa.id, 'rejected');
-        }
-      }
-      scrollToBottom();
-    },
-    [scrollToBottom, updateActionStatus],
-  );
-
-  const handleBatchAlwaysAllow = useCallback(
-    async (messageIndex: number) => {
-      setAlwaysAllowed(true);
-      await handleBatchAllowAll(messageIndex);
-    },
-    [handleBatchAllowAll],
-  );
-
-  // ---------------------------------------------------------------------------
-  // Auto-execute read-only actions + "always allow" mutating actions
-  // ---------------------------------------------------------------------------
-
-  const autoExecuteActions = useCallback(
-    async (
-      msgIndex: number,
-      pendingActions: PendingFileAction[],
-    ): Promise<{ readOnlyResults: string[]; hasRemainingPending: boolean }> => {
-      const readOnlyResults: string[] = [];
-      let hasRemainingPending = false;
-
-      for (const pa of pendingActions) {
-        if (isReadOnlyAction(pa.action.action)) {
-          updateActionStatus(msgIndex, pa.id, 'approved');
-          try {
-            const result = await executeFileAction(pa.action);
-            updateActionStatus(msgIndex, pa.id, 'success', { result });
-            if (result) readOnlyResults.push(result);
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            updateActionStatus(msgIndex, pa.id, 'error', { error: errorMsg });
-            readOnlyResults.push(`Error executing ${pa.action.action}: ${errorMsg}`);
-          }
-        } else if (isAlwaysAllowed()) {
-          updateActionStatus(msgIndex, pa.id, 'approved');
-          try {
-            const result = await executeFileAction(pa.action);
-            updateActionStatus(msgIndex, pa.id, 'success', { result });
-          } catch (err) {
-            const errorMsg = err instanceof Error ? err.message : String(err);
-            updateActionStatus(msgIndex, pa.id, 'error', { error: errorMsg });
-          }
-        } else {
-          hasRemainingPending = true;
-        }
-      }
-      scrollToBottom();
-      return { readOnlyResults, hasRemainingPending };
-    },
-    [scrollToBottom, updateActionStatus],
-  );
+  const {
+    handleExecuteAction,
+    handleUndoAction,
+    handleRejectAction,
+    handleAlwaysAllow,
+    handleBatchAllowAll,
+    handleBatchRejectAll,
+    handleBatchAlwaysAllow,
+    autoExecuteActions,
+  } = useChatActions(messagesRef, setMessages, scrollToBottom);
 
   // ---------------------------------------------------------------------------
   // Build system prompt with full context
@@ -661,11 +456,6 @@ const StandaloneChatPanel = () => {
       const text = (overrideText ?? input).trim();
       if (!text || isLoading) return;
 
-      // Push to input history
-      inputHistoryRef.current = [text, ...inputHistoryRef.current.slice(0, 49)];
-      inputHistoryIndexRef.current = -1;
-      setSlashSuggestions([]);
-
       // Handle special slash commands
       const slashMatch = matchSlashCommand(text);
       if (slashMatch) {
@@ -863,19 +653,6 @@ const StandaloneChatPanel = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [clearChat, isLoading, stopAgent]);
 
-  // Slash command suggestions
-  useEffect(() => {
-    if (input.startsWith('/') && input.length > 0) {
-      const trimmed = input.trim().toLowerCase();
-      const matches = SLASH_COMMANDS.filter(
-        (cmd) => cmd.name.startsWith(trimmed) || cmd.name.startsWith(trimmed.split(' ')[0]),
-      );
-      setSlashSuggestions(matches.length > 0 && trimmed !== matches[0]?.name ? matches : []);
-    } else {
-      setSlashSuggestions([]);
-    }
-  }, [input]);
-
   // ---------------------------------------------------------------------------
   // Drag & drop handlers
   // ---------------------------------------------------------------------------
@@ -974,10 +751,6 @@ const StandaloneChatPanel = () => {
     [selectedFiles.length, currentPath],
   );
 
-  const getPendingMutatingCount = (msg: ChatMessage): number =>
-    msg.fileActions?.filter((a) => a.status === 'pending' && !isReadOnlyAction(a.action.action))
-      .length ?? 0;
-
   // ---------------------------------------------------------------------------
   // Render: History view
   // ---------------------------------------------------------------------------
@@ -1016,7 +789,13 @@ const StandaloneChatPanel = () => {
       />
 
       {/* Messages area */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+      <div
+        ref={scrollRef}
+        role="log"
+        aria-label="Chat messages"
+        aria-live="polite"
+        style={{ flex: 1, overflowY: 'auto', padding: '8px' }}
+      >
         {messages.length === 0 && !isLoading && (
           <ChatWelcome
             currentPath={currentPath}
@@ -1027,102 +806,27 @@ const StandaloneChatPanel = () => {
         )}
 
         {messages.map((msg, i) => {
-          if (msg.isContextInjection) return null;
-          const pendingMutatingCount = getPendingMutatingCount(msg);
-          const showBatchCard = pendingMutatingCount > 1;
+          const displayText =
+            msg.role === 'assistant' && !msg.isContextInjection
+              ? getVisibleText(`msg-${i}`) || msg.content
+              : msg.content;
 
           return (
-            <div key={i} style={{ marginBottom: '12px' }}>
-              {/* Dropped files indicator on user messages */}
-              {msg.droppedFiles && msg.droppedFiles.length > 0 && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '4px',
-                    marginBottom: '4px',
-                    marginLeft: '20%',
-                    justifyContent: 'flex-end',
-                  }}
-                >
-                  {msg.droppedFiles.map((f) => (
-                    <span
-                      key={f.path}
-                      title={f.path}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '3px',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        background: 'rgba(122, 162, 247, 0.15)',
-                        color: 'var(--xp-blue)',
-                        fontSize: '10px',
-                      }}
-                    >
-                      <FileText size={9} style={{ flexShrink: 0 }} />
-                      {f.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              {msg.content &&
-                (() => {
-                  const displayText =
-                    msg.role === 'assistant' && !msg.isContextInjection
-                      ? getVisibleText(`msg-${i}`) || msg.content
-                      : msg.content;
-
-                  return (
-                    <div
-                      style={{
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        lineHeight: '1.5',
-                        background:
-                          msg.role === 'user' ? 'var(--xp-blue)' : 'var(--xp-surface-light)',
-                        color: msg.role === 'user' ? 'white' : 'var(--xp-text)',
-                        marginLeft: msg.role === 'user' ? '20%' : '0',
-                        marginRight: msg.role === 'assistant' ? '20%' : '0',
-                        whiteSpace: msg.role === 'user' ? 'pre-wrap' : undefined,
-                        wordBreak: 'break-word',
-                      }}
-                    >
-                      {msg.role === 'assistant' ? (
-                        <MarkdownRenderer
-                          content={displayText}
-                          onSaveCodeAsFile={handleSaveCodeAsFile}
-                          renderFilePath={renderFilePath}
-                        />
-                      ) : (
-                        displayText
-                      )}
-                    </div>
-                  );
-                })()}
-
-              {showBatchCard && msg.fileActions && (
-                <BatchActionCard
-                  actions={msg.fileActions}
-                  onAllowAll={() => handleBatchAllowAll(i)}
-                  onRejectAll={() => handleBatchRejectAll(i)}
-                  onAlwaysAllow={() => handleBatchAlwaysAllow(i)}
-                />
-              )}
-
-              {msg.fileActions?.map((pa) => (
-                <FileActionCard
-                  key={pa.id}
-                  pendingAction={pa}
-                  onAllow={() => handleExecuteAction(i, pa.id)}
-                  onReject={() => handleRejectAction(i, pa.id)}
-                  onAlwaysAllow={() => handleAlwaysAllow(i, pa.id)}
-                  onUndo={() => handleUndoAction(i, pa.id)}
-                />
-              ))}
-            </div>
+            <ChatMessageBubble
+              key={`msg-${i}`}
+              message={msg}
+              index={i}
+              displayText={displayText}
+              onExecuteAction={handleExecuteAction}
+              onRejectAction={handleRejectAction}
+              onAlwaysAllowAction={handleAlwaysAllow}
+              onUndoAction={handleUndoAction}
+              onBatchAllowAll={handleBatchAllowAll}
+              onBatchRejectAll={handleBatchRejectAll}
+              onBatchAlwaysAllow={handleBatchAlwaysAllow}
+              onSaveCodeAsFile={handleSaveCodeAsFile}
+              renderFilePath={renderFilePath}
+            />
           );
         })}
 
@@ -1142,6 +846,7 @@ const StandaloneChatPanel = () => {
             <button
               onClick={stopAgent}
               title="Stop agent"
+              aria-label="Stop AI agent"
               style={{
                 marginLeft: 'auto',
                 background: 'none',
@@ -1169,6 +874,7 @@ const StandaloneChatPanel = () => {
           >
             <button
               onClick={skipStreaming}
+              aria-label="Skip text animation and show all"
               style={{
                 background: 'none',
                 border: '1px solid var(--xp-border)',
@@ -1200,185 +906,16 @@ const StandaloneChatPanel = () => {
         />
       )}
 
-      {/* Input bar */}
-      <div
-        style={{
-          borderTop: '1px solid var(--xp-border)',
-          padding: '8px',
-          display: 'flex',
-          gap: '6px',
-        }}
-      >
-        <button
-          onClick={() => setShowHistory(true)}
-          title="Chat history"
-          style={{
-            padding: '8px',
-            borderRadius: '6px',
-            border: '1px solid var(--xp-border)',
-            background: 'transparent',
-            color: 'var(--xp-text-muted)',
-            cursor: 'pointer',
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <History size={14} />
-        </button>
-        {messages.length > 0 && (
-          <button
-            onClick={clearChat}
-            title="New chat"
-            style={{
-              padding: '8px',
-              borderRadius: '6px',
-              border: '1px solid var(--xp-border)',
-              background: 'transparent',
-              color: 'var(--xp-text-muted)',
-              cursor: 'pointer',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-            }}
-          >
-            <RotateCcw size={14} />
-          </button>
-        )}
-        <div style={{ flex: 1, position: 'relative' }}>
-          {/* Slash command suggestions */}
-          {slashSuggestions.length > 0 && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '100%',
-                left: 0,
-                right: 0,
-                marginBottom: '4px',
-                background: 'var(--xp-surface)',
-                border: '1px solid var(--xp-border)',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                zIndex: 10,
-              }}
-            >
-              {slashSuggestions.map((cmd) => (
-                <button
-                  key={cmd.name}
-                  onClick={() => {
-                    setInput(cmd.hasArgs ? `${cmd.name} ` : cmd.name);
-                    setSlashSuggestions([]);
-                    inputRef.current?.focus();
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    width: '100%',
-                    padding: '6px 10px',
-                    border: 'none',
-                    background: 'transparent',
-                    color: 'var(--xp-text)',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    textAlign: 'left',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'var(--xp-surface-light)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'transparent';
-                  }}
-                >
-                  <code
-                    style={{
-                      color: 'var(--xp-blue)',
-                      fontFamily: 'monospace',
-                      fontSize: '12px',
-                    }}
-                  >
-                    {cmd.name}
-                  </code>
-                  <span style={{ color: 'var(--xp-text-muted)', fontSize: '11px' }}>
-                    {cmd.description}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-                return;
-              }
-              // Up arrow — recall previous input from history
-              if (e.key === 'ArrowUp' && !input) {
-                e.preventDefault();
-                const history = inputHistoryRef.current;
-                if (history.length > 0) {
-                  const nextIdx = Math.min(inputHistoryIndexRef.current + 1, history.length - 1);
-                  inputHistoryIndexRef.current = nextIdx;
-                  setInput(history[nextIdx]);
-                }
-                return;
-              }
-              // Down arrow — navigate forward in history
-              if (e.key === 'ArrowDown' && inputHistoryIndexRef.current >= 0) {
-                e.preventDefault();
-                const nextIdx = inputHistoryIndexRef.current - 1;
-                inputHistoryIndexRef.current = nextIdx;
-                setInput(nextIdx >= 0 ? inputHistoryRef.current[nextIdx] : '');
-                return;
-              }
-              // Tab — autocomplete slash command
-              if (e.key === 'Tab' && slashSuggestions.length > 0) {
-                e.preventDefault();
-                const cmd = slashSuggestions[0];
-                setInput(cmd.hasArgs ? `${cmd.name} ` : cmd.name);
-                setSlashSuggestions([]);
-              }
-            }}
-            placeholder={
-              droppedFiles.length > 0
-                ? `Ask about ${droppedFiles.length} attached file${droppedFiles.length !== 1 ? 's' : ''}...`
-                : 'Ask about your files... (type / for commands)'
-            }
-            disabled={isLoading}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              border: '1px solid var(--xp-border)',
-              background: 'var(--xp-bg)',
-              color: 'var(--xp-text)',
-              fontSize: '13px',
-              outline: 'none',
-            }}
-          />
-        </div>
-        <button
-          onClick={() => sendMessage()}
-          disabled={isLoading || !input.trim()}
-          style={{
-            padding: '8px',
-            borderRadius: '6px',
-            border: 'none',
-            background: 'var(--xp-blue)',
-            color: 'white',
-            cursor: 'pointer',
-            opacity: isLoading || !input.trim() ? 0.5 : 1,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <Send size={16} />
-        </button>
-      </div>
+      <ChatSlashInput
+        input={input}
+        onInputChange={setInput}
+        onSend={() => sendMessage()}
+        onShowHistory={() => setShowHistory(true)}
+        onClearChat={clearChat}
+        isLoading={isLoading}
+        hasMessages={messages.length > 0}
+        droppedFileCount={droppedFiles.length}
+      />
     </div>
   );
 };

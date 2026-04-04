@@ -163,6 +163,8 @@ const ChatDiffPreview = ({ previousContent, newContent }: DiffPreviewProps) => {
         {removals > 0 && <span style={{ color: 'var(--xp-red, #f7768e)' }}>-{removals}</span>}
         <button
           onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Collapse diff' : 'Expand full diff'}
           style={{
             marginLeft: 'auto',
             background: 'none',
