@@ -236,6 +236,8 @@
       "auditDesc": "File operation history",
       "versioning": "Versioning",
       "versioningDesc": "File version history",
+      "about": "About",
+      "aboutDesc": "Version, links, and support",
       "fileAssociations": "File Associations",
       "fileAssociationsDesc": "Open-with defaults"
     },
@@ -620,6 +622,14 @@
       "noDirsTracked": "No directories tracked",
       "noDirsTrackedHint": "Add a directory path above to start tracking file versions",
       "stopTracking": "Stop tracking this directory"
+    },
+    "about": {
+      "description": "A modern, AI-powered file explorer. Use at your own risk.",
+      "links": "Links",
+      "sponsorTitle": "Support Xplorer",
+      "sponsorDescription": "Xplorer is free and open source. If you find it useful, please consider sponsoring the project to help keep development going. Every contribution, no matter how small, makes a difference.",
+      "sponsorButton": "Sponsor on GitHub",
+      "license": "Licensed under AGPL-3.0. Made with love."
     }
   },
   "tour": {

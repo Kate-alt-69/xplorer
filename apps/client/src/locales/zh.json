@@ -236,6 +236,8 @@
       "auditDesc": "文件操作历史",
       "versioning": "版本管理",
       "versioningDesc": "文件版本历史",
+      "about": "关于",
+      "aboutDesc": "版本、链接和支持",
       "fileAssociations": "文件关联",
       "fileAssociationsDesc": "打开方式默认设置"
     },
@@ -620,6 +622,14 @@
       "noDirsTracked": "No directories tracked",
       "noDirsTrackedHint": "Add a directory path above to start tracking file versions",
       "stopTracking": "Stop tracking this directory"
+    },
+    "about": {
+      "description": "一款现代化的 AI 驱动文件管理器。使用风险自负。",
+      "links": "链接",
+      "sponsorTitle": "支持 Xplorer",
+      "sponsorDescription": "Xplorer 是免费开源的。如果您觉得有用，请考虑赞助该项目以帮助持续开发。每一份贡献，无论大小，都意义非凡。",
+      "sponsorButton": "在 GitHub 上赞助",
+      "license": "基于 AGPL-3.0 许可证。用心制作。"
     }
   },
   "tour": {

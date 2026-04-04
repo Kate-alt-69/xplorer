@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { useLocation } from 'wouter';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +20,10 @@ import {
   ChevronRight,
   FileCode,
   RefreshCw,
+  Heart,
+  Github,
+  ExternalLink,
+  Info,
 } from 'lucide-react';
 import {
   AgentService,
@@ -60,7 +65,8 @@ type SettingsTab =
   | 'marketplace'
   | 'backup'
   | 'audit'
-  | 'versioning';
+  | 'versioning'
+  | 'about';
 
 type TabDef = { id: SettingsTab; label: string; icon: React.ElementType; description: string };
 
@@ -142,6 +148,12 @@ const buildTabs = (t: (key: string) => string): TabDef[] => [
     label: t('settings.tabs.versioning'),
     icon: History,
     description: t('settings.tabs.versioningDesc'),
+  },
+  {
+    id: 'about',
+    label: t('settings.tabs.about'),
+    icon: Info,
+    description: t('settings.tabs.aboutDesc'),
   },
 ];
 
@@ -381,6 +393,65 @@ const Settings = () => {
         return <AuditLogSettings />;
       case 'versioning':
         return <VersioningSettings />;
+      case 'about':
+        return (
+          <div className="space-y-6 px-4 py-2">
+            <div className="border-xp-border rounded-lg border p-6 text-center">
+              <h2 className="text-xp-text mb-1 text-2xl font-bold">Xplorer</h2>
+              <p className="text-xp-text-muted text-sm">v1.0.0-alpha.1</p>
+              <p className="text-xp-text-secondary mt-3 text-sm">
+                {t('settings.about.description')}
+              </p>
+            </div>
+
+            <div className="border-xp-border rounded-lg border p-4">
+              <h3 className="text-xp-text mb-3 text-sm font-semibold">
+                {t('settings.about.links')}
+              </h3>
+              <div className="space-y-2">
+                <button
+                  onClick={() => TauriAPI.openUrl('https://github.com/kimlimjustin/xplorer')}
+                  className="text-xp-text hover:bg-xp-surface-light flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors"
+                >
+                  <Github size={18} className="text-xp-text-muted" />
+                  <span className="text-sm">GitHub Repository</span>
+                  <ExternalLink size={14} className="text-xp-text-muted ml-auto" />
+                </button>
+                <button
+                  onClick={() => TauriAPI.openUrl('https://xplorer.space')}
+                  className="text-xp-text hover:bg-xp-surface-light flex w-full items-center gap-3 rounded-md p-2 text-left transition-colors"
+                >
+                  <ExternalLink size={18} className="text-xp-text-muted" />
+                  <span className="text-sm">xplorer.space</span>
+                  <ExternalLink size={14} className="text-xp-text-muted ml-auto" />
+                </button>
+              </div>
+            </div>
+
+            <div className="border-xp-blue/30 bg-xp-blue/5 rounded-lg border p-5">
+              <div className="flex items-start gap-3">
+                <Heart size={20} className="text-xp-blue mt-0.5 flex-shrink-0" />
+                <div>
+                  <h3 className="text-xp-text text-sm font-semibold">
+                    {t('settings.about.sponsorTitle')}
+                  </h3>
+                  <p className="text-xp-text-secondary mt-1 text-sm leading-relaxed">
+                    {t('settings.about.sponsorDescription')}
+                  </p>
+                  <button
+                    onClick={() => TauriAPI.openUrl('https://github.com/sponsors/kimlimjustin')}
+                    className="bg-xp-blue hover:bg-xp-blue/80 mt-3 inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium text-white transition-colors"
+                  >
+                    <Heart size={14} />
+                    {t('settings.about.sponsorButton')}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xp-text-muted text-center text-xs">{t('settings.about.license')}</p>
+          </div>
+        );
     }
   };
 

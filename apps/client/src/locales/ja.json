@@ -236,6 +236,8 @@
       "auditDesc": "ファイル操作履歴",
       "versioning": "バージョニング",
       "versioningDesc": "ファイルバージョン履歴",
+      "about": "バージョン情報",
+      "aboutDesc": "バージョン、リンク、サポート",
       "fileAssociations": "ファイルの関連付け",
       "fileAssociationsDesc": "既定のプログラム設定"
     },
@@ -620,6 +622,14 @@
       "noDirsTracked": "No directories tracked",
       "noDirsTrackedHint": "Add a directory path above to start tracking file versions",
       "stopTracking": "Stop tracking this directory"
+    },
+    "about": {
+      "description": "モダンなAI搭載ファイルエクスプローラー。ご利用は自己責任で。",
+      "links": "リンク",
+      "sponsorTitle": "Xplorer を応援する",
+      "sponsorDescription": "Xplorer は無料のオープンソースです。便利だと感じたら、開発を継続するためにプロジェクトのスポンサーになることをご検討ください。",
+      "sponsorButton": "GitHub でスポンサーになる",
+      "license": "AGPL-3.0 ライセンス。愛を込めて制作。"
     }
   },
   "tour": {

@@ -236,6 +236,8 @@
       "auditDesc": "Riwayat operasi file",
       "versioning": "Versi",
       "versioningDesc": "Riwayat versi file",
+      "about": "Tentang",
+      "aboutDesc": "Versi, tautan, dan dukungan",
       "fileAssociations": "Asosiasi File",
       "fileAssociationsDesc": "Pengaturan buka-dengan default"
     },
@@ -620,6 +622,14 @@
       "noDirsTracked": "No directories tracked",
       "noDirsTrackedHint": "Add a directory path above to start tracking file versions",
       "stopTracking": "Stop tracking this directory"
+    },
+    "about": {
+      "description": "Penjelajah file modern bertenaga AI. Gunakan dengan risiko sendiri.",
+      "links": "Tautan",
+      "sponsorTitle": "Dukung Xplorer",
+      "sponsorDescription": "Xplorer gratis dan open source. Jika Anda merasa berguna, pertimbangkan untuk mensponsori proyek ini agar pengembangan tetap berjalan. Setiap kontribusi, sekecil apa pun, sangat berarti.",
+      "sponsorButton": "Sponsor di GitHub",
+      "license": "Berlisensi AGPL-3.0. Dibuat dengan cinta."
     }
   },
   "tour": {
