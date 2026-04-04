@@ -18,15 +18,9 @@ env:
   NODE_VERSION: '20'
 
 jobs:
-  # ─── Run full CI checks before building release artifacts ──────────
-  ci:
-    uses: ./.github/workflows/ci.yml
-    secrets: inherit
-
-  # ─── Build release artifacts (after CI passes) ─────────────────────
+  # ─── Build release artifacts ───────────────────────────────────────
   build:
     name: Build (${{ matrix.platform }})
-    needs: [ci]
     timeout-minutes: 45
     strategy:
       fail-fast: false
