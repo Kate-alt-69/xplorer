@@ -3,6 +3,7 @@
   "version": "0.99.1",
   "identifier": "com.xplorer.app",
   "build": {
+    "beforeBuildCommand": "pnpm -w frontend:build",
     "frontendDist": "../client/dist",
     "devUrl": "http://localhost:5174"
   },

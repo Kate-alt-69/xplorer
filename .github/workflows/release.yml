@@ -71,9 +71,6 @@ jobs:
       - name: Cargo test
         run: cargo test --manifest-path apps/src-tauri/Cargo.toml
 
-      - name: Build frontend
-        run: pnpm --filter ./apps/client build
-
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0.5
         env:
