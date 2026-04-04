@@ -9,6 +9,8 @@ import {
   BatchActionCard,
   parseFileActions,
   executeFileAction,
+  captureFileForUndo,
+  undoFileAction,
   generateActionId,
   isAlwaysAllowed,
   setAlwaysAllowed,
@@ -27,135 +29,24 @@ import {
   saveChatHistory,
 } from './chat-history';
 import { QUICK_ACTIONS, QuickActionsBar, type QuickAction } from './chat-quick-actions';
+import {
+  SLASH_COMMANDS,
+  matchSlashCommand,
+  LANG_EXTENSIONS,
+  type SlashCommand,
+} from './chat-slash-commands';
+import {
+  MAX_AGENT_ITERATIONS,
+  type XplorerState,
+  type FileContext,
+  getXplorerState,
+  readFileForAIContext,
+  readMultipleFilesForAIContext,
+  buildDirectoryContext,
+} from './chat-context-helpers';
 import ChatHistoryView from './ChatHistoryView';
 import ChatContextHeader from './ChatContextHeader';
 import { DragOverlay, AttachedFilesBar } from './ChatDropZone';
-
-/** Max bytes of file content to include in AI context (~10 KB). */
-const MAX_FILE_CONTENT_LENGTH = 10_000;
-
-/** Max total context for multi-file reads (~30 KB split across files). */
-const MAX_MULTI_FILE_TOTAL = 30_000;
-
-/** Max number of files to read content for at once. */
-const MAX_MULTI_FILE_COUNT = 5;
-
-/** Max directory entries to include in context injection */
-const MAX_DIR_CONTEXT_ENTRIES = 50;
-
-/** Max agent loop iterations (to prevent runaway loops) */
-const MAX_AGENT_ITERATIONS = 5;
-
-/** Get the lowercase extension from a file path (without the dot). */
-const getExt = (filePath: string): string => {
-  const name = basename(filePath);
-  const dotIdx = name.lastIndexOf('.');
-  return dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : name.toLowerCase();
-};
-
-/** Read file content for AI context. Tries text first, then document extraction. */
-const readFileForAIContext = async (
-  file: { name: string; path: string; is_dir: boolean },
-  maxLength = MAX_FILE_CONTENT_LENGTH,
-): Promise<{ name: string; path: string; file_type: string; content?: string }> => {
-  const ext = getExt(file.path);
-
-  if (file.is_dir) {
-    return { name: file.name, path: file.path, file_type: 'directory' };
-  }
-
-  // Try reading as plain text first
-  try {
-    let content = await TauriAPI.readTextFile(file.path);
-    if (content.length > maxLength) {
-      content = `${content.slice(0, maxLength)}\n\n[... truncated at ${Math.round(maxLength / 1000)}KB ...]`;
-    }
-    if (content.trim().length > 0) {
-      return { name: file.name, path: file.path, file_type: ext, content };
-    }
-  } catch {
-    // Not a text file -- try document extraction
-  }
-
-  // Try document extraction (PDF, DOCX, XLSX, PPTX, etc.)
-  try {
-    let content = await TauriAPI.extractDocumentText(file.path);
-    if (content.length > maxLength) {
-      content = `${content.slice(0, maxLength)}\n\n[... truncated at ${Math.round(maxLength / 1000)}KB ...]`;
-    }
-    if (content.trim().length > 0) {
-      return { name: file.name, path: file.path, file_type: ext, content };
-    }
-  } catch {
-    // Document extraction not available for this format
-  }
-
-  return {
-    name: file.name,
-    path: file.path,
-    file_type: ext || 'unknown',
-    content: `[File: ${file.name} (${ext || 'unknown'} format)]`,
-  };
-};
-
-/**
- * Read multiple files for AI context. Distributes the byte budget across files
- * so that the total context stays manageable.
- */
-const readMultipleFilesForAIContext = async (
-  files: Array<{ name: string; path: string; is_dir: boolean }>,
-): Promise<Array<{ name: string; path: string; file_type: string; content?: string }>> => {
-  const nonDirFiles = files.filter((f) => !f.is_dir);
-  const filesToRead = nonDirFiles.slice(0, MAX_MULTI_FILE_COUNT);
-  if (filesToRead.length === 0) return [];
-
-  const perFileLimit = Math.floor(MAX_MULTI_FILE_TOTAL / filesToRead.length);
-  const results = await Promise.allSettled(
-    filesToRead.map((f) => readFileForAIContext(f, perFileLimit)),
-  );
-
-  return results
-    .filter(
-      (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof readFileForAIContext>>> =>
-        r.status === 'fulfilled',
-    )
-    .map((r) => r.value);
-};
-
-// ---------------------------------------------------------------------------
-// Xplorer state helpers
-// ---------------------------------------------------------------------------
-
-interface XplorerState {
-  currentPath?: string;
-  selectedFiles?: Array<{ name: string; path: string; is_dir: boolean }>;
-  editorSelection?: {
-    text: string;
-    filePath: string;
-    startLine: number;
-    endLine: number;
-  } | null;
-}
-
-const getXplorerState = (): XplorerState | undefined =>
-  (window as unknown as { __xplorer_state__?: XplorerState }).__xplorer_state__;
-
-/** Build directory listing context string */
-const buildDirectoryContext = async (dirPath: string): Promise<string> => {
-  try {
-    const entries = await TauriAPI.readDirectory(dirPath);
-    const total = entries.length;
-    const shown = entries.slice(0, MAX_DIR_CONTEXT_ENTRIES);
-    const lines = shown.map((e) => `  ${e.is_dir ? '[dir]' : `[${getExt(e.path)}]`} ${e.name}`);
-    let result = `Directory listing of ${dirPath} (${total} items):\n${lines.join('\n')}`;
-    if (total > MAX_DIR_CONTEXT_ENTRIES) {
-      result += `\n  ... and ${total - MAX_DIR_CONTEXT_ENTRIES} more items`;
-    }
-    return result;
-  } catch {
-    return `Directory: ${dirPath} (could not read listing)`;
-  }
-};
 
 // ---------------------------------------------------------------------------
 // Chat message type (extends the saved version with runtime-only fields)
@@ -177,8 +68,12 @@ const StandaloneChatPanel = () => {
   const [isReadingFile, setIsReadingFile] = useState(false);
   const [agentStep, setAgentStep] = useState('');
   const [model, setModel] = useState('');
+  const [slashSuggestions, setSlashSuggestions] = useState<SlashCommand[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef(false);
+  const inputHistoryRef = useRef<string[]>([]);
+  const inputHistoryIndexRef = useRef(-1);
 
   // Chat history state
   const [chatHistory, setChatHistory] = useState<SavedConversation[]>([]);
@@ -323,6 +218,21 @@ const StandaloneChatPanel = () => {
       const action = messages[messageIndex]?.fileActions?.find((a) => a.id === actionId);
       if (!action) return;
       try {
+        // Capture previous content before editing for undo support
+        const previousContent = await captureFileForUndo(action.action);
+        if (previousContent !== undefined) {
+          // Store the previous content on the action for undo
+          setMessages((prev) => {
+            const updated = [...prev];
+            const msg = updated[messageIndex];
+            if (msg?.fileActions) {
+              msg.fileActions = msg.fileActions.map((a) =>
+                a.id === actionId ? { ...a, previousContent } : a,
+              );
+            }
+            return updated;
+          });
+        }
         const result = await executeFileAction(action.action);
         updateActionStatus(messageIndex, actionId, 'success', { result });
       } catch (err) {
@@ -332,6 +242,31 @@ const StandaloneChatPanel = () => {
       scrollToBottom();
     },
     [messages, scrollToBottom, updateActionStatus],
+  );
+
+  const handleUndoAction = useCallback(
+    async (messageIndex: number, actionId: string) => {
+      const msg = messages[messageIndex];
+      const pa = msg?.fileActions?.find((a) => a.id === actionId);
+      if (!pa) return;
+      try {
+        await undoFileAction(pa);
+        setMessages((prev) => {
+          const updated = [...prev];
+          const m = updated[messageIndex];
+          if (m?.fileActions) {
+            m.fileActions = m.fileActions.map((a) =>
+              a.id === actionId ? { ...a, undone: true } : a,
+            );
+          }
+          return updated;
+        });
+      } catch (err) {
+        console.error('Undo failed:', err);
+      }
+      scrollToBottom();
+    },
+    [messages, scrollToBottom],
   );
 
   const handleRejectAction = useCallback(
@@ -358,6 +293,19 @@ const StandaloneChatPanel = () => {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
           updateActionStatus(messageIndex, pa.id, 'approved');
           try {
+            const previousContent = await captureFileForUndo(pa.action);
+            if (previousContent !== undefined) {
+              setMessages((prev) => {
+                const updated = [...prev];
+                const m = updated[messageIndex];
+                if (m?.fileActions) {
+                  m.fileActions = m.fileActions.map((a) =>
+                    a.id === pa.id ? { ...a, previousContent } : a,
+                  );
+                }
+                return updated;
+              });
+            }
             const result = await executeFileAction(pa.action);
             updateActionStatus(messageIndex, pa.id, 'success', { result });
           } catch (err) {
@@ -443,7 +391,7 @@ const StandaloneChatPanel = () => {
   const buildSystemPrompt = useCallback(
     async (
       xState: XplorerState | undefined,
-      fileContexts: Array<{ name: string; path: string; file_type: string; content?: string }>,
+      fileContexts: FileContext[],
       agentLoopContext?: string,
     ): Promise<string> => {
       let systemContent =
@@ -501,7 +449,7 @@ const StandaloneChatPanel = () => {
     async (
       initialMessages: Array<{ role: string; content: string }>,
       xState: XplorerState | undefined,
-      fileContexts: Array<{ name: string; path: string; file_type: string; content?: string }>,
+      fileContexts: FileContext[],
       currentMsgs: ChatMessage[],
     ) => {
       let loopMessages = [...initialMessages];
@@ -585,10 +533,90 @@ const StandaloneChatPanel = () => {
   // Send message
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Chat export handler
+  // ---------------------------------------------------------------------------
+
+  const exportChatAsMarkdown = useCallback(() => {
+    if (messages.length === 0) return;
+    const lines: string[] = ['# Chat Export\n'];
+    for (const msg of messages) {
+      if (msg.isContextInjection) continue;
+      const role = msg.role === 'user' ? 'You' : 'AI';
+      lines.push(`## ${role}\n`);
+      lines.push(msg.content);
+      lines.push('');
+    }
+    const markdown = lines.join('\n');
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-export-${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [messages]);
+
+  // ---------------------------------------------------------------------------
+  // Save code as file handler
+  // ---------------------------------------------------------------------------
+
+  const handleSaveCodeAsFile = useCallback(async (code: string, language: string) => {
+    const ext = (LANG_EXTENSIONS[language.toLowerCase()] ?? language) || 'txt';
+    const xState = getXplorerState();
+    const dir = xState?.currentPath ?? '';
+    if (!dir) {
+      console.warn('No current directory to save file in');
+      return;
+    }
+    const fileName = `untitled.${ext}`;
+    const filePath = `${dir}/${fileName}`;
+    try {
+      await TauriAPI.createFileWithContent(filePath, code);
+      // Add a system message to confirm
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Saved code to \`${filePath}\`` },
+      ]);
+    } catch (err) {
+      console.error('Failed to save code as file:', err);
+    }
+  }, []);
+
   const sendMessage = useCallback(
     async (overrideText?: string) => {
       const text = (overrideText ?? input).trim();
       if (!text || isLoading) return;
+
+      // Push to input history
+      inputHistoryRef.current = [text, ...inputHistoryRef.current.slice(0, 49)];
+      inputHistoryIndexRef.current = -1;
+      setSlashSuggestions([]);
+
+      // Handle special slash commands
+      const slashMatch = matchSlashCommand(text);
+      if (slashMatch) {
+        if (slashMatch.prompt === '__EXPORT_CHAT__') {
+          exportChatAsMarkdown();
+          setInput('');
+          return;
+        }
+        if (slashMatch.prompt === '__SHOW_HELP__') {
+          const helpLines = SLASH_COMMANDS.map((cmd) => `\`${cmd.name}\` -- ${cmd.description}`);
+          const helpText = `Available commands:\n${helpLines.join('\n')}\n\nKeyboard shortcuts:\n\`Ctrl+L\` -- Clear chat\n\`Up Arrow\` -- Recall last message\n\`Escape\` -- Cancel agent / close`;
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content: text },
+            { role: 'assistant', content: helpText },
+          ]);
+          setInput('');
+          return;
+        }
+        // For other slash commands, use the generated prompt
+        return sendMessage(slashMatch.prompt);
+      }
 
       const xState = getXplorerState();
       const userMsg: ChatMessage = {
@@ -640,7 +668,8 @@ const StandaloneChatPanel = () => {
       setIsLoading(false);
       scrollToBottom();
     },
-    [input, isLoading, messages, droppedFiles, scrollToBottom, runAgentLoop],
+
+    [input, isLoading, messages, droppedFiles, scrollToBottom, runAgentLoop, exportChatAsMarkdown],
   );
 
   const stopAgent = useCallback(() => {
@@ -677,6 +706,45 @@ const StandaloneChatPanel = () => {
     },
     [currentConversationId, clearChat],
   );
+
+  // ---------------------------------------------------------------------------
+  // Keyboard shortcuts (Ctrl+L clear, Escape cancel/close)
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+L or Cmd+L — clear chat
+      if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
+        e.preventDefault();
+        clearChat();
+        return;
+      }
+      // Escape — stop agent loop if loading, otherwise blur input
+      if (e.key === 'Escape') {
+        if (isLoading) {
+          e.preventDefault();
+          stopAgent();
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [clearChat, isLoading, stopAgent]);
+
+  // Slash command suggestions
+  useEffect(() => {
+    if (input.startsWith('/') && input.length > 0) {
+      const trimmed = input.trim().toLowerCase();
+      const matches = SLASH_COMMANDS.filter(
+        (cmd) => cmd.name.startsWith(trimmed) || cmd.name.startsWith(trimmed.split(' ')[0]),
+      );
+      setSlashSuggestions(matches.length > 0 && trimmed !== matches[0]?.name ? matches : []);
+    } else {
+      setSlashSuggestions([]);
+    }
+  }, [input]);
 
   // ---------------------------------------------------------------------------
   // Drag & drop handlers
@@ -858,7 +926,7 @@ const StandaloneChatPanel = () => {
                 opacity: 0.7,
               }}
             >
-              Drag files here to add them as context
+              Drag files here or type / for commands
             </span>
           </div>
         )}
@@ -920,7 +988,10 @@ const StandaloneChatPanel = () => {
                   }}
                 >
                   {msg.role === 'assistant' ? (
-                    <MarkdownRenderer content={msg.content} />
+                    <MarkdownRenderer
+                      content={msg.content}
+                      onSaveCodeAsFile={handleSaveCodeAsFile}
+                    />
                   ) : (
                     msg.content
                   )}
@@ -943,6 +1014,7 @@ const StandaloneChatPanel = () => {
                   onAllow={() => handleExecuteAction(i, pa.id)}
                   onReject={() => handleRejectAction(i, pa.id)}
                   onAlwaysAllow={() => handleAlwaysAllow(i, pa.id)}
+                  onUndo={() => handleUndoAction(i, pa.id)}
                 />
               ))}
             </div>
@@ -1042,32 +1114,122 @@ const StandaloneChatPanel = () => {
             <RotateCcw size={14} />
           </button>
         )}
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              sendMessage();
+        <div style={{ flex: 1, position: 'relative' }}>
+          {/* Slash command suggestions */}
+          {slashSuggestions.length > 0 && (
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: 0,
+                right: 0,
+                marginBottom: '4px',
+                background: 'var(--xp-surface)',
+                border: '1px solid var(--xp-border)',
+                borderRadius: '6px',
+                overflow: 'hidden',
+                zIndex: 10,
+              }}
+            >
+              {slashSuggestions.map((cmd) => (
+                <button
+                  key={cmd.name}
+                  onClick={() => {
+                    setInput(cmd.hasArgs ? `${cmd.name} ` : cmd.name);
+                    setSlashSuggestions([]);
+                    inputRef.current?.focus();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    width: '100%',
+                    padding: '6px 10px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'var(--xp-text)',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = 'var(--xp-surface-light)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = 'transparent';
+                  }}
+                >
+                  <code
+                    style={{
+                      color: 'var(--xp-blue)',
+                      fontFamily: 'monospace',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {cmd.name}
+                  </code>
+                  <span style={{ color: 'var(--xp-text-muted)', fontSize: '11px' }}>
+                    {cmd.description}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+                return;
+              }
+              // Up arrow — recall previous input from history
+              if (e.key === 'ArrowUp' && !input) {
+                e.preventDefault();
+                const history = inputHistoryRef.current;
+                if (history.length > 0) {
+                  const nextIdx = Math.min(inputHistoryIndexRef.current + 1, history.length - 1);
+                  inputHistoryIndexRef.current = nextIdx;
+                  setInput(history[nextIdx]);
+                }
+                return;
+              }
+              // Down arrow — navigate forward in history
+              if (e.key === 'ArrowDown' && inputHistoryIndexRef.current >= 0) {
+                e.preventDefault();
+                const nextIdx = inputHistoryIndexRef.current - 1;
+                inputHistoryIndexRef.current = nextIdx;
+                setInput(nextIdx >= 0 ? inputHistoryRef.current[nextIdx] : '');
+                return;
+              }
+              // Tab — autocomplete slash command
+              if (e.key === 'Tab' && slashSuggestions.length > 0) {
+                e.preventDefault();
+                const cmd = slashSuggestions[0];
+                setInput(cmd.hasArgs ? `${cmd.name} ` : cmd.name);
+                setSlashSuggestions([]);
+              }
+            }}
+            placeholder={
+              droppedFiles.length > 0
+                ? `Ask about ${droppedFiles.length} attached file${droppedFiles.length !== 1 ? 's' : ''}...`
+                : 'Ask about your files... (type / for commands)'
             }
-          }}
-          placeholder={
-            droppedFiles.length > 0
-              ? `Ask about ${droppedFiles.length} attached file${droppedFiles.length !== 1 ? 's' : ''}...`
-              : 'Ask about your files...'
-          }
-          disabled={isLoading}
-          style={{
-            flex: 1,
-            padding: '8px 12px',
-            borderRadius: '6px',
-            border: '1px solid var(--xp-border)',
-            background: 'var(--xp-bg)',
-            color: 'var(--xp-text)',
-            fontSize: '13px',
-            outline: 'none',
-          }}
-        />
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              border: '1px solid var(--xp-border)',
+              background: 'var(--xp-bg)',
+              color: 'var(--xp-text)',
+              fontSize: '13px',
+              outline: 'none',
+            }}
+          />
+        </div>
         <button
           onClick={() => sendMessage()}
           disabled={isLoading || !input.trim()}

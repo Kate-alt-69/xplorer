@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
   /** Called when the user clicks "Apply to editor" on a fenced code block. */
   onApplyCode?: (code: string) => void;
+  /** Called when the user clicks "Save as file" on a fenced code block. */
+  onSaveCodeAsFile?: (code: string, language: string) => void;
 }
 
 /**
@@ -21,8 +23,13 @@ interface MarkdownRendererProps {
  * - Blockquotes (> text)
  * - Tables (| col | col |)
  */
-const MarkdownRenderer = ({ content, className = '', onApplyCode }: MarkdownRendererProps) => {
-  const elements = parseMarkdown(content, onApplyCode);
+const MarkdownRenderer = ({
+  content,
+  className = '',
+  onApplyCode,
+  onSaveCodeAsFile,
+}: MarkdownRendererProps) => {
+  const elements = parseMarkdown(content, onApplyCode, onSaveCodeAsFile);
   return (
     <div
       className={`markdown-content ${className}`}
@@ -33,7 +40,86 @@ const MarkdownRenderer = ({ content, className = '', onApplyCode }: MarkdownRend
   );
 };
 
-const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): React.ReactNode[] => {
+// ---------------------------------------------------------------------------
+// Code block with Copy / Save as file buttons
+// ---------------------------------------------------------------------------
+
+interface CodeBlockWithActionsProps {
+  code: string;
+  language: string;
+  onApplyCode?: (code: string) => void;
+  onSaveAsFile?: (code: string, language: string) => void;
+}
+
+const CodeBlockWithActions = ({
+  code,
+  language,
+  onApplyCode,
+  onSaveAsFile,
+}: CodeBlockWithActionsProps) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API might not be available
+    }
+  };
+
+  return (
+    <div className="group relative my-2">
+      {language && (
+        <div
+          className="text-xp-text-muted bg-xp-bg border-xp-border rounded-t-md border border-b-0 px-3 py-1 text-[10px]"
+          style={{ fontFamily: 'monospace' }}
+        >
+          {language}
+        </div>
+      )}
+      <pre
+        className={`bg-xp-bg border-xp-border overflow-x-auto border p-3 text-xs ${language ? 'rounded-b-md' : 'rounded-md'}`}
+      >
+        <code className="text-xp-text">{code}</code>
+      </pre>
+      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          onClick={handleCopy}
+          className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text rounded border px-2 py-0.5 text-[10px]"
+          title="Copy to clipboard"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+        {onSaveAsFile && (
+          <button
+            onClick={() => onSaveAsFile(code, language)}
+            className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text rounded border px-2 py-0.5 text-[10px]"
+            title="Save as file"
+          >
+            Save as file
+          </button>
+        )}
+        {onApplyCode && (
+          <button
+            onClick={() => onApplyCode(code)}
+            className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text rounded border px-2 py-0.5 text-[10px]"
+            title="Replace selected code in editor"
+          >
+            Apply
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const parseMarkdown = (
+  text: string,
+  onApplyCode?: (code: string) => void,
+  onSaveCodeAsFile?: (code: string, language: string) => void,
+): React.ReactNode[] => {
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
   let i = 0;
@@ -44,6 +130,8 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
 
     // Code block
     if (line.trimStart().startsWith('```')) {
+      const langMatch = line.trimStart().match(/^```(\w+)?/);
+      const language = langMatch?.[1] ?? '';
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !lines[i].trimStart().startsWith('```')) {
@@ -53,20 +141,13 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
       i++; // skip closing ```
       const codeText = codeLines.join('\n');
       elements.push(
-        <div key={key++} className="group relative my-2">
-          <pre className="bg-xp-bg border-xp-border overflow-x-auto rounded-md border p-3 text-xs">
-            <code className="text-xp-text">{codeText}</code>
-          </pre>
-          {onApplyCode && (
-            <button
-              onClick={() => onApplyCode(codeText)}
-              className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text absolute right-2 top-2 rounded border px-2 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
-              title="Replace selected code in editor"
-            >
-              Apply to editor
-            </button>
-          )}
-        </div>,
+        <CodeBlockWithActions
+          key={key++}
+          code={codeText}
+          language={language}
+          onApplyCode={onApplyCode}
+          onSaveAsFile={onSaveCodeAsFile}
+        />,
       );
       continue;
     }

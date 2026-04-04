@@ -1,0 +1,118 @@
+/**
+ * Slash command definitions for the AI chat panel.
+ * Type /command in the chat input for quick actions.
+ */
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface SlashCommand {
+  name: string;
+  description: string;
+  /** If true, everything after the command name is an argument */
+  hasArgs?: boolean;
+  /** Transform the slash command into a natural language prompt for the AI */
+  toPrompt: (args: string) => string;
+}
+
+// ---------------------------------------------------------------------------
+// Command definitions
+// ---------------------------------------------------------------------------
+
+export const SLASH_COMMANDS: SlashCommand[] = [
+  {
+    name: '/organize',
+    description: 'Organize the current folder',
+    toPrompt: (_args) =>
+      'Analyze this folder and organize it. Group related files into subfolders by type or purpose. Show me your plan before executing.',
+  },
+  {
+    name: '/summarize',
+    description: 'Summarize selected files',
+    toPrompt: (_args) =>
+      "Read and summarize the selected file(s). Give a concise overview of each file's purpose and contents.",
+  },
+  {
+    name: '/search',
+    description: 'Search files by query',
+    hasArgs: true,
+    toPrompt: (args) =>
+      `Search for files matching "${args}" in the current directory and its subdirectories. Show me the results.`,
+  },
+  {
+    name: '/diff',
+    description: 'Compare two files',
+    hasArgs: true,
+    toPrompt: (args) => {
+      const parts = args.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return `Compare these two files and show me the differences:\n1. ${parts[0]}\n2. ${parts[1]}`;
+      }
+      return `Compare the selected files and show me the differences.`;
+    },
+  },
+  {
+    name: '/export',
+    description: 'Export this chat as markdown',
+    toPrompt: (_args) => '__EXPORT_CHAT__',
+  },
+  {
+    name: '/help',
+    description: 'Show available commands',
+    toPrompt: (_args) => '__SHOW_HELP__',
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Matching
+// ---------------------------------------------------------------------------
+
+/** Try to match a slash command from input text. Returns the prompt or null. */
+export const matchSlashCommand = (
+  text: string,
+): { prompt: string; command: SlashCommand } | null => {
+  const trimmed = text.trim();
+  for (const cmd of SLASH_COMMANDS) {
+    if (trimmed === cmd.name || trimmed.startsWith(`${cmd.name} `)) {
+      const args = trimmed.slice(cmd.name.length).trim();
+      return { prompt: cmd.toPrompt(args), command: cmd };
+    }
+  }
+  return null;
+};
+
+// ---------------------------------------------------------------------------
+// Language extension map for "Save as file" feature
+// ---------------------------------------------------------------------------
+
+export const LANG_EXTENSIONS: Record<string, string> = {
+  javascript: 'js',
+  typescript: 'ts',
+  python: 'py',
+  rust: 'rs',
+  go: 'go',
+  java: 'java',
+  c: 'c',
+  cpp: 'cpp',
+  csharp: 'cs',
+  ruby: 'rb',
+  php: 'php',
+  swift: 'swift',
+  kotlin: 'kt',
+  html: 'html',
+  css: 'css',
+  json: 'json',
+  yaml: 'yaml',
+  yml: 'yml',
+  xml: 'xml',
+  sql: 'sql',
+  shell: 'sh',
+  bash: 'sh',
+  zsh: 'sh',
+  markdown: 'md',
+  md: 'md',
+  toml: 'toml',
+  tsx: 'tsx',
+  jsx: 'jsx',
+};

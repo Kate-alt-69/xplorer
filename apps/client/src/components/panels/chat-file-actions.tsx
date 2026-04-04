@@ -6,6 +6,7 @@
  * and read-only agent actions (list_directory, search_files, open_file) that feed
  * results back into the agent loop.
  */
+import { useState } from 'react';
 import {
   FileText,
   FolderOpen,
@@ -22,6 +23,7 @@ import {
   Search,
   List,
   ExternalLink,
+  Undo2,
 } from 'lucide-react';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
@@ -74,6 +76,10 @@ export interface PendingFileAction {
   error?: string;
   /** Result returned by read-only actions (directory listing, search results) */
   result?: string;
+  /** Whether undo has been performed */
+  undone?: boolean;
+  /** Previous content of the file (for edit_file undo) */
+  previousContent?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -296,6 +302,74 @@ export const executeFileAction = async (action: FileAction): Promise<string | un
   }
 };
 
+/**
+ * Read the current file content before an edit so undo can restore it.
+ * Returns the previous content or undefined if the file doesn't exist.
+ */
+export const captureFileForUndo = async (action: FileAction): Promise<string | undefined> => {
+  if (action.action === 'edit_file') {
+    try {
+      return await TauriAPI.readTextFile(action.path);
+    } catch {
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
+/**
+ * Undo a previously executed file action.
+ * - create_file / create_directory -> delete (trash)
+ * - delete_file -> restore from trash
+ * - rename_file -> rename back
+ * - move_file -> move back
+ * - copy_file -> delete the copy
+ * - edit_file -> restore previous content
+ */
+export const undoFileAction = async (pa: PendingFileAction): Promise<void> => {
+  const { action } = pa;
+  switch (action.action) {
+    case 'create_file':
+    case 'create_directory':
+      await TauriAPI.moveToTrash(action.path);
+      break;
+    case 'delete_file':
+      await TauriAPI.restoreFromTrash(action.path);
+      break;
+    case 'rename_file':
+      if (action.destination) {
+        await TauriAPI.rename(action.destination, action.path);
+      }
+      break;
+    case 'move_file':
+      if (action.destination) {
+        await TauriAPI.moveFile(action.destination, action.path);
+      }
+      break;
+    case 'copy_file':
+      if (action.destination) {
+        await TauriAPI.moveToTrash(action.destination);
+      }
+      break;
+    case 'edit_file':
+      if (pa.previousContent !== undefined) {
+        await TauriAPI.createFileWithContent(action.path, pa.previousContent);
+      }
+      break;
+    default:
+      break;
+  }
+};
+
+/** Whether a completed action can be undone */
+export const canUndoAction = (pa: PendingFileAction): boolean => {
+  if (pa.status !== 'success' || pa.undone) return false;
+  if (isReadOnlyAction(pa.action.action)) return false;
+  // edit_file can only be undone if we captured previous content
+  if (pa.action.action === 'edit_file' && pa.previousContent === undefined) return false;
+  return true;
+};
+
 /** Format bytes into human-readable size */
 const formatSize = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -391,6 +465,7 @@ interface FileActionCardProps {
   onAllow: () => void;
   onReject: () => void;
   onAlwaysAllow: () => void;
+  onUndo?: () => void;
 }
 
 export const FileActionCard = ({
@@ -398,12 +473,21 @@ export const FileActionCard = ({
   onAllow,
   onReject,
   onAlwaysAllow,
+  onUndo,
 }: FileActionCardProps) => {
   const { action, status } = pendingAction;
   const fileName = basename(action.path);
   const dirName = dirname(action.path);
   const isReadOnly = isReadOnlyAction(action.action);
   const hasDestination = action.destination != null;
+  const [undoing, setUndoing] = useState(false);
+  const showUndo = canUndoAction(pendingAction) && onUndo;
+
+  const handleUndo = async () => {
+    if (!onUndo) return;
+    setUndoing(true);
+    onUndo();
+  };
 
   return (
     <div
@@ -685,12 +769,62 @@ export const FileActionCard = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              color: 'var(--xp-green, #9ece6a)',
               fontSize: '12px',
+              width: '100%',
+              justifyContent: 'flex-end',
             }}
           >
-            <CheckCircle2 size={14} />
-            {action.action === 'delete_file' ? 'Moved to Trash' : 'Done'}
+            {pendingAction.undone ? (
+              <span
+                style={{
+                  color: 'var(--xp-text-muted)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <Undo2 size={12} />
+                Undone
+              </span>
+            ) : (
+              <>
+                <span
+                  style={{
+                    color: 'var(--xp-green, #9ece6a)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  <CheckCircle2 size={14} />
+                  {action.action === 'delete_file' ? 'Moved to Trash' : 'Done'}
+                </span>
+                {showUndo && (
+                  <button
+                    onClick={handleUndo}
+                    disabled={undoing}
+                    style={{
+                      marginLeft: '8px',
+                      padding: '3px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid var(--xp-border)',
+                      background: 'transparent',
+                      color: 'var(--xp-text-muted)',
+                      cursor: undoing ? 'not-allowed' : 'pointer',
+                      fontSize: '11px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      opacity: undoing ? 0.5 : 1,
+                    }}
+                    title="Undo this action"
+                  >
+                    <Undo2 size={11} />
+                    {undoing ? 'Undoing...' : 'Undo'}
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
 
