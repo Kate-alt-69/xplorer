@@ -52,6 +52,8 @@ import { handleSpecialSlashCommand } from './chat-special-commands';
 import { compareFiles as performFileComparison, isCompareIntent } from './chat-file-compare';
 import { useChatBranching } from './use-chat-branching';
 import ChatBranchTabs, { BranchForkIndicator } from './ChatBranchTabs';
+import { useTaskPlan, parseTaskPlan } from './use-task-plan';
+import TaskPlanCard from './TaskPlanCard';
 
 // ---------------------------------------------------------------------------
 // Chat message type alias
@@ -94,6 +96,9 @@ const StandaloneChatPanel = () => {
 
   // Workspace awareness state
   const [workspaceCtx, setWorkspaceCtx] = useState<WorkspaceContext | null>(null);
+
+  // Multi-step task plan state
+  const taskPlan = useTaskPlan();
 
   // Proactive agent — watches navigation and offers suggestions
   const {
@@ -424,6 +429,26 @@ const StandaloneChatPanel = () => {
           );
           if (abortRef.current) break;
 
+          // Check for a task_plan block before parsing file actions
+          const planResult = parseTaskPlan(response);
+          if (planResult) {
+            const memoryCleanText = parseAndSaveMemories(
+              planResult.cleanText,
+              xState?.currentPath ?? '',
+            );
+            if (memoryCleanText) {
+              messagesSnapshot = [
+                ...messagesSnapshot,
+                { role: 'assistant', content: memoryCleanText },
+              ];
+              setMessages(messagesSnapshot);
+            }
+            taskPlan.setPlan(planResult.plan);
+            scrollToBottom();
+            // Break out of the loop -- plan execution handled separately
+            break;
+          }
+
           const { cleanText, actions } = parseFileActions(response);
           // Parse and save memory tags from the response
           const memoryCleanText = parseAndSaveMemories(
@@ -471,8 +496,116 @@ const StandaloneChatPanel = () => {
       }
       setAgentStep('');
     },
-    [model, scrollToBottom, autoExecuteActions, buildSystemPrompt],
+    [model, scrollToBottom, autoExecuteActions, buildSystemPrompt, taskPlan],
   );
+
+  // ---------------------------------------------------------------------------
+  // Plan step execution
+  // ---------------------------------------------------------------------------
+
+  const executePlanSteps = useCallback(async () => {
+    const plan = taskPlan.activePlan;
+    if (!plan) return;
+
+    taskPlan.approvePlan();
+    setIsLoading(true);
+    abortRef.current = false;
+
+    const xState = getXplorerState();
+
+    for (let i = 0; i < plan.steps.length; i++) {
+      // Check cancel / abort
+      if (taskPlan.isCancelled.current || abortRef.current) break;
+
+      // Check pause -- wait until resumed
+      while (taskPlan.isPaused.current) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        if (taskPlan.isCancelled.current || abortRef.current) break;
+      }
+      if (taskPlan.isCancelled.current || abortRef.current) break;
+
+      const step = plan.steps[i];
+      taskPlan.startStep(i);
+      setAgentStep(`Plan step ${i + 1}/${plan.steps.length}: ${step.description}`);
+
+      // Build messages for this step -- include previous step results as context
+      const stepPrompt = step.prompt;
+      const stepUserMsg: ChatMessage = {
+        role: 'user',
+        content: stepPrompt,
+        isContextInjection: true,
+      };
+
+      setMessages((prev) => [...prev, stepUserMsg]);
+
+      // Run the agent loop for this single step
+      const historyMsgs = messagesRef.current
+        .filter((m) => !m.isContextInjection || m.isCommandResult)
+        .map((m) => ({ role: m.role, content: m.content }));
+      historyMsgs.push({ role: 'user', content: stepPrompt });
+
+      try {
+        const systemContent = await buildSystemPrompt(xState, []);
+        const apiMsgs = [
+          { role: 'system', content: systemContent },
+          ...historyMsgs.filter((m) => m.role !== 'system'),
+        ];
+
+        const response = await TauriAPI.chatWithAI(
+          model || 'claude-sonnet-4-20250514',
+          apiMsgs,
+          null,
+        );
+
+        if (taskPlan.isCancelled.current || abortRef.current) break;
+
+        const { cleanText, actions } = parseFileActions(response);
+        const memoryCleanText = parseAndSaveMemories(
+          cleanText || (actions.length > 0 ? '' : response),
+          xState?.currentPath ?? '',
+        );
+
+        const pendingActions: PendingFileAction[] = actions.map((a: FileAction) => ({
+          id: generateActionId(),
+          action: a,
+          status: 'pending' as const,
+        }));
+
+        const assistantMsg: ChatMessage = {
+          role: 'assistant',
+          content: memoryCleanText,
+          fileActions: pendingActions.length > 0 ? pendingActions : undefined,
+        };
+
+        setMessages((prev) => [...prev, assistantMsg]);
+        scrollToBottom();
+
+        // Auto-execute read-only actions for context gathering
+        if (pendingActions.length > 0) {
+          const msgIndex = messagesRef.current.length - 1;
+          await autoExecuteActions(msgIndex, pendingActions);
+        }
+
+        const resultSummary =
+          memoryCleanText.length > 100 ? `${memoryCleanText.slice(0, 100)}...` : memoryCleanText;
+        taskPlan.completeStep(i, resultSummary || 'Done');
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        taskPlan.failStep(i, errorMsg);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: `Step ${i + 1} failed: ${errorMsg}` },
+        ]);
+        break;
+      }
+
+      scrollToBottom();
+    }
+
+    setIsLoading(false);
+    setAgentStep('');
+    scrollToBottom();
+  }, [taskPlan, model, scrollToBottom, autoExecuteActions, buildSystemPrompt]);
 
   // ---------------------------------------------------------------------------
   // Send message
@@ -718,7 +851,8 @@ const StandaloneChatPanel = () => {
     abortRef.current = true;
     setIsLoading(false);
     setAgentStep('');
-  }, []);
+    taskPlan.cancelPlan();
+  }, [taskPlan]);
 
   const clearChat = useCallback(() => {
     setMessages([]);
@@ -728,8 +862,9 @@ const StandaloneChatPanel = () => {
     setDroppedFiles([]);
     setCurrentConversationId(null);
     resetBranches();
+    taskPlan.setPlan(null);
     abortRef.current = false;
-  }, [resetBranches]);
+  }, [resetBranches, taskPlan]);
 
   const loadConversation = useCallback((conv: SavedConversation) => {
     setMessages(conv.messages as ChatMessage[]);
@@ -1029,6 +1164,18 @@ const StandaloneChatPanel = () => {
             </div>
           );
         })}
+
+        {/* Task Plan Card */}
+        {taskPlan.activePlan && (
+          <TaskPlanCard
+            plan={taskPlan.activePlan}
+            onApprove={executePlanSteps}
+            onEdit={taskPlan.editPlan}
+            onCancel={taskPlan.cancelPlan}
+            onPause={taskPlan.pausePlan}
+            onResume={taskPlan.resumePlan}
+          />
+        )}
 
         {isLoading && (
           <div

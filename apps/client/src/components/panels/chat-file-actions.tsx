@@ -533,6 +533,30 @@ Include JSON action blocks in your response. The user will be asked for permissi
 - Search for files: \`{"action": "search_files", "path": "/search/root/path", "query": "*.txt"}\`
 - Navigate to / open a file: \`{"action": "open_file", "path": "/absolute/path/to/file_or_dir"}\`
 
+## Task Plans (for complex multi-step requests)
+When the user asks for something complex that involves 3+ distinct steps (e.g., "organize this folder, rename files by date, and generate a README"), generate a task plan INSTEAD of doing everything at once.
+
+Wrap the plan in a \`\`\`task_plan code block with this JSON format:
+
+\`\`\`task_plan
+{
+  "title": "Short plan title",
+  "steps": [
+    { "description": "List directory contents", "prompt": "List all files in the current directory to understand what we're working with" },
+    { "description": "Create subfolders by type", "prompt": "Create folders: images/, documents/, code/ in the current directory" },
+    { "description": "Move files to folders", "prompt": "Move each file to its appropriate subfolder based on extension" }
+  ]
+}
+\`\`\`
+
+Rules for task plans:
+- Only generate a plan for requests with 3+ distinct operations
+- Each step's "prompt" should be a self-contained instruction the AI can execute independently
+- Each step's "description" is a short human-readable label for the progress UI
+- The user will see the plan and can approve, edit, or cancel before execution starts
+- Steps execute one-by-one; the user can pause between steps
+- Do NOT include action blocks in the same response as a task plan -- the plan replaces them
+
 ## Rules
 - Always use absolute paths.
 - You can include multiple action blocks in one response.
@@ -540,7 +564,8 @@ Include JSON action blocks in your response. The user will be asked for permissi
 - For edit_file, provide the complete new file content (not a diff).
 - For rename/move/copy, both "path" (source) and "destination" are required.
 - The action JSON must be on its own line, not mixed with other text on the same line.
-- For multi-step tasks (e.g., organizing files), use list_directory first to see what's there, then plan your actions.
+- For simple multi-step tasks (1-2 actions), just include the action blocks directly.
+- For complex multi-step tasks (3+ distinct operations), generate a task_plan block instead.
 - After completing actions, suggest logical next steps the user might want.
 - When using run_command, explain what the command does and why you're running it.
 `.trim();
