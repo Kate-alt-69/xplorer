@@ -395,9 +395,9 @@ const CodeAIActions: React.FC<CodeAIActionsProps> = ({ filePath, language, conte
             </div>
           </div>
           <div className="max-h-32 overflow-y-auto">
-            {references.slice(0, 20).map((ref, i) => (
+            {references.slice(0, 20).map((ref) => (
               <div
-                key={`${ref.file}-${ref.line}-${i}`}
+                key={`${ref.file}-${ref.line}-${ref.text.slice(0, 40)}`}
                 className="hover:bg-xp-surface-light flex items-baseline gap-2 rounded px-1 py-0.5 text-[10px]"
               >
                 <span className="text-xp-blue shrink-0 font-mono">
