@@ -96,6 +96,12 @@ export const STORAGE_KEYS = {
   // AI Agent security rules
   AI_SECURITY_RULES: 'xplorer:ai-security-rules',
 
+  // AI Workflow templates
+  AI_WORKFLOW_TEMPLATES: 'xplorer:ai-workflow-templates',
+
+  // AI Chat onboarding
+  AI_ONBOARDING_DONE: 'xplorer:ai-onboarding-done',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;
