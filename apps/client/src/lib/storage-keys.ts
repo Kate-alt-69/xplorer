@@ -84,6 +84,9 @@ export const STORAGE_KEYS = {
   // AI Agent memory
   AI_AGENT_MEMORY: 'xplorer:ai-agent-memory',
 
+  // AI Chat pinned messages
+  AI_CHAT_PINNED: 'xplorer:ai-chat-pinned',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

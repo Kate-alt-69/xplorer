@@ -105,8 +105,18 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   },
   {
     name: '/export',
-    description: 'Export this chat as markdown',
-    toPrompt: (_args) => '__EXPORT_CHAT__',
+    description: 'Export chat as HTML report (or /export md for markdown)',
+    toPrompt: (args) => {
+      const fmt = args.trim().toLowerCase();
+      if (fmt === 'md' || fmt === 'markdown') return '__EXPORT_CHAT_MD__';
+      return '__EXPORT_CHAT_HTML__';
+    },
+    hasArgs: true,
+  },
+  {
+    name: '/pin',
+    description: 'Toggle pin on the last AI message',
+    toPrompt: (_args) => '__PIN_LAST__',
   },
   {
     name: '/help',

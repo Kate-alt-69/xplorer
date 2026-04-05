@@ -54,6 +54,16 @@ import { useChatBranching } from './use-chat-branching';
 import ChatBranchTabs, { BranchForkIndicator } from './ChatBranchTabs';
 import { useTaskPlan, parseTaskPlan } from './use-task-plan';
 import TaskPlanCard from './TaskPlanCard';
+import { exportChatAsHtml } from './chat-export-html';
+import {
+  getPinnedMessages,
+  pinMessage,
+  unpinMessage,
+  isMessagePinned,
+  type PinnedMessage,
+} from './chat-pinning';
+import ChatPinnedMessages from './ChatPinnedMessages';
+import ChatMessageContextMenu from './ChatMessageContextMenu';
 
 // ---------------------------------------------------------------------------
 // Chat message type alias
@@ -284,6 +294,82 @@ const StandaloneChatPanel = () => {
     currentConversationId,
     scrollToBottom,
   });
+
+  // ---------------------------------------------------------------------------
+  // Pinned messages
+  // ---------------------------------------------------------------------------
+
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
+
+  // Sync pinned messages whenever conversation changes
+  useEffect(() => {
+    if (currentConversationId) {
+      setPinnedMessages(getPinnedMessages(currentConversationId));
+    } else {
+      setPinnedMessages([]);
+    }
+  }, [currentConversationId]);
+
+  const handlePinMessage = useCallback(
+    (messageIndex: number) => {
+      const convId = currentConversationId || 'unsaved';
+      const msg = messages[messageIndex];
+      if (!msg) return;
+      if (isMessagePinned(convId, messageIndex)) {
+        unpinMessage(convId, messageIndex);
+      } else {
+        pinMessage(convId, messageIndex, msg.content, msg.role);
+      }
+      setPinnedMessages(getPinnedMessages(convId));
+    },
+    [currentConversationId, messages],
+  );
+
+  const handleUnpinMessage = useCallback(
+    (messageIndex: number) => {
+      const convId = currentConversationId || 'unsaved';
+      unpinMessage(convId, messageIndex);
+      setPinnedMessages(getPinnedMessages(convId));
+    },
+    [currentConversationId],
+  );
+
+  const handleJumpToMessage = useCallback((messageIndex: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const msgEl = el.querySelector(`[data-msg-index="${messageIndex}"]`);
+    if (msgEl) {
+      msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Brief highlight effect
+      const htmlEl = msgEl as HTMLElement;
+      htmlEl.style.outline = '2px solid var(--xp-yellow)';
+      htmlEl.style.outlineOffset = '2px';
+      htmlEl.style.borderRadius = '8px';
+      setTimeout(() => {
+        htmlEl.style.outline = '';
+        htmlEl.style.outlineOffset = '';
+      }, 1500);
+    }
+  }, []);
+
+  // Context menu state for pinning
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    messageIndex: number;
+  } | null>(null);
+
+  const handleMessageContextMenu = useCallback(
+    (e: React.MouseEvent, messageIndex: number) => {
+      const msg = messages[messageIndex];
+      if (!msg || msg.isContextInjection) return;
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, messageIndex });
+    },
+    [messages],
+  );
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
 
   // ---------------------------------------------------------------------------
   // Build system prompt with full context
@@ -615,7 +701,7 @@ const StandaloneChatPanel = () => {
   // Chat export handler
   // ---------------------------------------------------------------------------
 
-  const exportChatAsMarkdown = useCallback(() => {
+  const exportChatMarkdown = useCallback(() => {
     if (messages.length === 0) return;
     const lines: string[] = ['# Chat Export\n'];
     for (const msg of messages) {
@@ -636,6 +722,15 @@ const StandaloneChatPanel = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }, [messages]);
+
+  const exportChatHtml = useCallback(() => {
+    if (messages.length === 0) return;
+    exportChatAsHtml({
+      messages,
+      currentPath,
+      model,
+    });
+  }, [messages, currentPath, model]);
 
   // ---------------------------------------------------------------------------
   // Save code as file handler
@@ -671,8 +766,53 @@ const StandaloneChatPanel = () => {
       // Handle special slash commands
       const slashMatch = matchSlashCommand(text);
       if (slashMatch) {
-        if (slashMatch.prompt === '__EXPORT_CHAT__') {
-          exportChatAsMarkdown();
+        if (slashMatch.prompt === '__EXPORT_CHAT_HTML__') {
+          exportChatHtml();
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content: text },
+            { role: 'assistant', content: 'Chat exported as HTML report.' },
+          ]);
+          setInput('');
+          return;
+        }
+        if (slashMatch.prompt === '__EXPORT_CHAT_MD__') {
+          exportChatMarkdown();
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content: text },
+            { role: 'assistant', content: 'Chat exported as markdown.' },
+          ]);
+          setInput('');
+          return;
+        }
+        if (slashMatch.prompt === '__PIN_LAST__') {
+          // Find the last assistant message and toggle pin
+          const lastAssistantIdx = messages.reduce(
+            (acc, m, idx) => (m.role === 'assistant' && !m.isContextInjection ? idx : acc),
+            -1,
+          );
+          if (lastAssistantIdx >= 0) {
+            handlePinMessage(lastAssistantIdx);
+            const convId = currentConversationId || 'unsaved';
+            const wasPinned = isMessagePinned(convId, lastAssistantIdx);
+            setMessages((prev) => [
+              ...prev,
+              { role: 'user', content: text },
+              {
+                role: 'assistant',
+                content: wasPinned
+                  ? 'Unpinned the last AI message.'
+                  : 'Pinned the last AI message.',
+              },
+            ]);
+          } else {
+            setMessages((prev) => [
+              ...prev,
+              { role: 'user', content: text },
+              { role: 'assistant', content: 'No AI message to pin.' },
+            ]);
+          }
           setInput('');
           return;
         }
@@ -844,7 +984,18 @@ const StandaloneChatPanel = () => {
       scrollToBottom();
     },
 
-    [input, isLoading, messages, droppedFiles, scrollToBottom, runAgentLoop, exportChatAsMarkdown],
+    [
+      input,
+      isLoading,
+      messages,
+      droppedFiles,
+      scrollToBottom,
+      runAgentLoop,
+      exportChatHtml,
+      exportChatMarkdown,
+      handlePinMessage,
+      currentConversationId,
+    ],
   );
 
   const stopAgent = useCallback(() => {
@@ -1099,6 +1250,15 @@ const StandaloneChatPanel = () => {
         />
       )}
 
+      {/* Pinned messages section */}
+      {pinnedMessages.length > 0 && (
+        <ChatPinnedMessages
+          pinnedMessages={pinnedMessages}
+          onUnpin={handleUnpinMessage}
+          onJumpToMessage={handleJumpToMessage}
+        />
+      )}
+
       {/* Messages area */}
       <div
         ref={scrollRef}
@@ -1136,7 +1296,11 @@ const StandaloneChatPanel = () => {
           const branchCount = getMessageBranchCount(i);
 
           return (
-            <div key={`msg-${i}`}>
+            <div
+              key={`msg-${i}`}
+              data-msg-index={i}
+              onContextMenu={(e) => handleMessageContextMenu(e, i)}
+            >
               <ChatMessageBubble
                 message={msg}
                 index={i}
@@ -1263,6 +1427,25 @@ const StandaloneChatPanel = () => {
         hasMessages={messages.length > 0}
         droppedFileCount={droppedFiles.length}
       />
+
+      {/* Context menu for message pinning */}
+      {contextMenu && (
+        <ChatMessageContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          isPinned={isMessagePinned(currentConversationId || 'unsaved', contextMenu.messageIndex)}
+          onPin={() => handlePinMessage(contextMenu.messageIndex)}
+          onCopy={() => {
+            const msg = messages[contextMenu.messageIndex];
+            if (msg) {
+              navigator.clipboard.writeText(msg.content).catch(() => {
+                // Clipboard API may not be available
+              });
+            }
+          }}
+          onClose={closeContextMenu}
+        />
+      )}
     </div>
   );
 };

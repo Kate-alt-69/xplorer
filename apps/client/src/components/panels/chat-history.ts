@@ -19,6 +19,10 @@ export interface ChatMessage {
   droppedFiles?: Array<{ name: string; path: string }>;
   /** Image contexts attached to this message (thumbnails + data URLs for display) */
   imageContexts?: Array<{ name: string; path: string; dataUrl: string }>;
+  /** Whether this message has been pinned by the user */
+  pinned?: boolean;
+  /** Timestamp (epoch ms) — optional to avoid breaking existing persisted data */
+  timestamp?: number;
 }
 
 export interface SavedConversation {
