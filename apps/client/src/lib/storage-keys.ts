@@ -78,6 +78,9 @@ export const STORAGE_KEYS = {
   // AI Chat action templates
   AI_ACTION_TEMPLATES: 'xplorer:ai-action-templates',
 
+  // AI Proactive agent
+  PROACTIVE_AGENT_ENABLED: 'xplorer:proactive-agent-enabled',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

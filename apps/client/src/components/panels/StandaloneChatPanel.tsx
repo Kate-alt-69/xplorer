@@ -44,6 +44,8 @@ import {
   detectWorkspaceContext,
   buildWorkspacePrompt,
 } from './chat-workspace-awareness';
+import { useProactiveAgent } from './use-proactive-agent';
+import ProactiveSuggestionCard from './ProactiveSuggestionCard';
 
 // ---------------------------------------------------------------------------
 // Chat message type alias
@@ -86,6 +88,14 @@ const StandaloneChatPanel = () => {
 
   // Workspace awareness state
   const [workspaceCtx, setWorkspaceCtx] = useState<WorkspaceContext | null>(null);
+
+  // Proactive agent — watches navigation and offers suggestions
+  const {
+    suggestion: proactiveSuggestion,
+    enabled: proactiveEnabled,
+    toggleEnabled: toggleProactive,
+    dismiss: dismissProactiveSuggestion,
+  } = useProactiveAgent(currentPath, workspaceCtx, messages.length > 0, isLoading);
 
   // Streaming text entries — built from assistant messages
   const streamingEntries = useMemo<StreamingEntry[]>(
@@ -730,6 +740,18 @@ const StandaloneChatPanel = () => {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Proactive suggestion action
+  // ---------------------------------------------------------------------------
+
+  const handleProactiveSuggestionAction = useCallback(
+    (prompt: string) => {
+      dismissProactiveSuggestion();
+      sendMessage(prompt);
+    },
+    [dismissProactiveSuggestion, sendMessage],
+  );
+
+  // ---------------------------------------------------------------------------
   // Quick actions
   // ---------------------------------------------------------------------------
 
@@ -802,6 +824,17 @@ const StandaloneChatPanel = () => {
             selectedFileCount={selectedFiles.length}
             onSendMessage={sendMessage}
             isLoading={isLoading}
+          />
+        )}
+
+        {/* Proactive suggestion card — shown above messages when available */}
+        {proactiveSuggestion && (
+          <ProactiveSuggestionCard
+            suggestion={proactiveSuggestion}
+            onAction={handleProactiveSuggestionAction}
+            onDismiss={dismissProactiveSuggestion}
+            proactiveEnabled={proactiveEnabled}
+            onToggleProactive={toggleProactive}
           />
         )}
 
