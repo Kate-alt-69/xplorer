@@ -82,6 +82,8 @@ import {
 } from './chat-pinning';
 import ChatPinnedMessages from './ChatPinnedMessages';
 import ChatMessageContextMenu from './ChatMessageContextMenu';
+import { startSession, endSession, formatSessionSummary } from './chat-audit-log';
+import { loadSecurityRules } from './chat-security-rules';
 
 // ---------------------------------------------------------------------------
 // Chat message type alias
@@ -490,6 +492,16 @@ const StandaloneChatPanel = () => {
         }
       }
 
+      // Inject security rules awareness so the AI avoids blocked paths
+      {
+        const secRules = loadSecurityRules();
+        if (secRules.enabled) {
+          const blockedStr = secRules.blockedPaths.slice(0, 10).join(', ');
+          const protectedStr = secRules.protectedExtensions.map((e) => `.${e}`).join(', ');
+          systemContent += `\n\n## Security Rules (enforced)\nBlocked paths: ${blockedStr}\nProtected file types (cannot delete): ${protectedStr}\nRate limit: ${secRules.maxOpsPerMinute} mutating ops/min.\nDo NOT attempt actions on blocked paths — they will be rejected.`;
+        }
+      }
+
       if (xState?.currentPath) {
         systemContent += `\n\n## Current Context\n[Current directory: ${xState.currentPath}]`;
         const dirListing = await buildDirectoryContext(xState.currentPath);
@@ -700,6 +712,9 @@ const StandaloneChatPanel = () => {
     setIsLoading(true);
     abortRef.current = false;
 
+    // Start audit session for plan execution
+    startSession();
+
     const xState = getXplorerState();
 
     for (let i = 0; i < plan.steps.length; i++) {
@@ -789,6 +804,16 @@ const StandaloneChatPanel = () => {
       }
 
       scrollToBottom();
+    }
+
+    // End audit session and show summary if meaningful actions were performed
+    const planSessionSummary = endSession();
+    if (planSessionSummary && planSessionSummary.totalActions > 0) {
+      const summaryText = formatSessionSummary(planSessionSummary);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: summaryText, isContextInjection: true },
+      ]);
     }
 
     setIsLoading(false);
@@ -1103,7 +1128,21 @@ const StandaloneChatPanel = () => {
         }
       }
 
+      // Start audit session for this agent interaction
+      startSession();
+
       await runAgentLoop(historyMsgs, xState, fileContexts, newMessages);
+
+      // End audit session and show summary if meaningful actions were performed
+      const sessionSummary = endSession();
+      if (sessionSummary && sessionSummary.totalActions > 0) {
+        const summaryText = formatSessionSummary(sessionSummary);
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: summaryText, isContextInjection: true },
+        ]);
+      }
+
       setIsLoading(false);
       scrollToBottom();
     },

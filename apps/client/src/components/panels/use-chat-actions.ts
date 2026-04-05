@@ -18,6 +18,8 @@ import {
   type CommandOutput,
 } from './chat-file-actions';
 import { type RuntimeChatMessage } from './ChatMessageBubble';
+import { logAction } from './chat-audit-log';
+import { checkAndLogSecurity } from './chat-security-rules';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,11 +84,25 @@ export const useChatActions = (
 
   const handleExecuteAction = useCallback(
     async (messageIndex: number, actionId: string) => {
-      updateActionStatus(messageIndex, actionId, 'approved');
       const action = messagesRef.current?.[messageIndex]?.fileActions?.find(
         (a) => a.id === actionId,
       );
       if (!action) return;
+
+      // Security check before execution
+      const secCheck = checkAndLogSecurity(action.action.action, action.action.path, {
+        destination: action.action.destination,
+        command: action.action.command,
+      });
+      if (!secCheck.allowed) {
+        updateActionStatus(messageIndex, actionId, 'error', {
+          error: secCheck.reason ?? 'Blocked by security rule',
+        });
+        scrollToBottom();
+        return;
+      }
+
+      updateActionStatus(messageIndex, actionId, 'approved');
       try {
         // run_command has special handling for output capture
         if (action.action.action === 'run_command') {
@@ -101,6 +117,11 @@ export const useChatActions = (
             .filter(Boolean)
             .join('\n');
           updateActionStatus(messageIndex, actionId, 'success', { result: resultSummary });
+
+          // Audit log: command executed
+          logAction(action.action.action, action.action.path, 'success', 'user', {
+            command: action.action.command,
+          });
 
           // Inject a hidden context message so the AI sees command output in future turns.
           // isContextInjection hides it from the UI; isCommandResult keeps it in API history.
@@ -136,9 +157,20 @@ export const useChatActions = (
         }
         const result = await executeFileAction(action.action);
         updateActionStatus(messageIndex, actionId, 'success', { result });
+
+        // Audit log: action succeeded
+        logAction(action.action.action, action.action.path, 'success', 'user', {
+          destination: action.action.destination,
+        });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         updateActionStatus(messageIndex, actionId, 'error', { error: errorMsg });
+
+        // Audit log: action failed
+        logAction(action.action.action, action.action.path, 'failed', 'user', {
+          destination: action.action.destination,
+          errorMessage: errorMsg,
+        });
       }
       scrollToBottom();
     },
@@ -172,10 +204,21 @@ export const useChatActions = (
 
   const handleRejectAction = useCallback(
     (messageIndex: number, actionId: string) => {
+      const action = messagesRef.current?.[messageIndex]?.fileActions?.find(
+        (a) => a.id === actionId,
+      );
       updateActionStatus(messageIndex, actionId, 'rejected');
+
+      // Audit log: action rejected by user
+      if (action) {
+        logAction(action.action.action, action.action.path, 'rejected', 'none', {
+          destination: action.action.destination,
+          command: action.action.command,
+        });
+      }
       scrollToBottom();
     },
-    [scrollToBottom, updateActionStatus],
+    [messagesRef, scrollToBottom, updateActionStatus],
   );
 
   const handleAlwaysAllow = useCallback(
@@ -196,6 +239,18 @@ export const useChatActions = (
       if (!msg?.fileActions) return;
       for (const pa of msg.fileActions) {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
+          // Security check before execution
+          const secCheck = checkAndLogSecurity(pa.action.action, pa.action.path, {
+            destination: pa.action.destination,
+            command: pa.action.command,
+          });
+          if (!secCheck.allowed) {
+            updateActionStatus(messageIndex, pa.id, 'error', {
+              error: secCheck.reason ?? 'Blocked by security rule',
+            });
+            continue;
+          }
+
           updateActionStatus(messageIndex, pa.id, 'approved');
           try {
             const previousContent = await captureFileForUndo(pa.action);
@@ -213,9 +268,20 @@ export const useChatActions = (
             }
             const result = await executeFileAction(pa.action);
             updateActionStatus(messageIndex, pa.id, 'success', { result });
+
+            // Audit log: batch action succeeded
+            logAction(pa.action.action, pa.action.path, 'success', 'user', {
+              destination: pa.action.destination,
+            });
           } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
             updateActionStatus(messageIndex, pa.id, 'error', { error: errorMsg });
+
+            // Audit log: batch action failed
+            logAction(pa.action.action, pa.action.path, 'failed', 'user', {
+              destination: pa.action.destination,
+              errorMessage: errorMsg,
+            });
           }
         }
       }
@@ -231,6 +297,12 @@ export const useChatActions = (
       for (const pa of msg.fileActions) {
         if (pa.status === 'pending' && !isReadOnlyAction(pa.action.action)) {
           updateActionStatus(messageIndex, pa.id, 'rejected');
+
+          // Audit log: batch rejection
+          logAction(pa.action.action, pa.action.path, 'rejected', 'none', {
+            destination: pa.action.destination,
+            command: pa.action.command,
+          });
         }
       }
       scrollToBottom();
@@ -274,13 +346,36 @@ export const useChatActions = (
             readOnlyResults.push(`Error executing ${pa.action.action}: ${errorMsg}`);
           }
         } else if (isAlwaysAllowed()) {
+          // Security check before auto-execution
+          const secCheck = checkAndLogSecurity(pa.action.action, pa.action.path, {
+            destination: pa.action.destination,
+            command: pa.action.command,
+          });
+          if (!secCheck.allowed) {
+            updateActionStatus(msgIndex, pa.id, 'error', {
+              error: secCheck.reason ?? 'Blocked by security rule',
+            });
+            continue;
+          }
+
           updateActionStatus(msgIndex, pa.id, 'approved');
           try {
             const result = await executeFileAction(pa.action);
             updateActionStatus(msgIndex, pa.id, 'success', { result });
+
+            // Audit log: auto-executed action succeeded
+            logAction(pa.action.action, pa.action.path, 'success', 'auto', {
+              destination: pa.action.destination,
+            });
           } catch (err) {
             const errorMsg = err instanceof Error ? err.message : String(err);
             updateActionStatus(msgIndex, pa.id, 'error', { error: errorMsg });
+
+            // Audit log: auto-executed action failed
+            logAction(pa.action.action, pa.action.path, 'failed', 'auto', {
+              destination: pa.action.destination,
+              errorMessage: errorMsg,
+            });
           }
         } else {
           hasRemainingPending = true;

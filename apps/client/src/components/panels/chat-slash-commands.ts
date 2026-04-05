@@ -124,6 +124,16 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (_args) => '__SHOW_PREFERENCES__',
   },
   {
+    name: '/audit',
+    description: 'Show recent agent action audit log',
+    toPrompt: (_args) => '__SHOW_AUDIT__',
+  },
+  {
+    name: '/security',
+    description: 'Show and configure security rules',
+    toPrompt: (_args) => '__SHOW_SECURITY__',
+  },
+  {
     name: '/help',
     description: 'Show available commands',
     toPrompt: (_args) => '__SHOW_HELP__',

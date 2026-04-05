@@ -14,6 +14,8 @@ import {
 } from './chat-agent-memory';
 import { getXplorerState } from './chat-context-helpers';
 import { loadFeedbackEntries } from './chat-feedback-store';
+import { formatAuditLogDisplay } from './chat-audit-log';
+import { formatSecurityRulesDisplay } from './chat-security-rules';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -111,6 +113,16 @@ export const handleSpecialSlashCommand = (
   // /preferences -- show learned preferences and feedback history
   if (prompt === '__SHOW_PREFERENCES__') {
     return { type: 'handled', responseText: buildPreferencesDisplay(currentPath) };
+  }
+
+  // /audit -- show recent agent action audit log
+  if (prompt === '__SHOW_AUDIT__') {
+    return { type: 'handled', responseText: formatAuditLogDisplay() };
+  }
+
+  // /security -- show and configure security rules
+  if (prompt === '__SHOW_SECURITY__') {
+    return { type: 'handled', responseText: formatSecurityRulesDisplay() };
   }
 
   return null;

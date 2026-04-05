@@ -90,6 +90,12 @@ export const STORAGE_KEYS = {
   // AI Chat feedback (thumbs up/down)
   AI_CHAT_FEEDBACK: 'xplorer:ai-chat-feedback',
 
+  // AI Agent audit log
+  AI_AUDIT_LOG: 'xplorer:ai-audit-log',
+
+  // AI Agent security rules
+  AI_SECURITY_RULES: 'xplorer:ai-security-rules',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;
