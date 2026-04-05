@@ -122,12 +122,10 @@ const ChatPanel = ({
     [contextableFiles, state.contextSearchQuery],
   );
 
-  // Re-include current folder when path changes
   useEffect(() => {
     setIncludeCurrentFolder(true);
   }, [currentPath, setIncludeCurrentFolder]);
 
-  // Load models and agent settings on mount
   useEffect(() => {
     const loadModels = async () => {
       try {
@@ -165,14 +163,12 @@ const ChatPanel = ({
     setSelectedModel,
   ]);
 
-  // Auto-scroll to bottom when messages change — use scrollTop instead of
-  // scrollIntoView to avoid scrolling ancestor containers (causes page overflow)
+  // Auto-scroll to bottom when messages change
   useEffect(() => {
     const el = messagesContainerRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [chatMessages, state.toolCalls, state.streamingText]);
 
-  // Auto-sync selected files as context
   useEffect(() => {
     if (!selectedFilePaths || selectedFilePaths.size === 0) {
       setContextFiles([]);
@@ -189,13 +185,9 @@ const ChatPanel = ({
     );
   }, [selectedFilePaths, allFiles, setContextFiles]);
 
-  // When a single file is selected in the explorer, auto-sync it to context
   useEffect(() => {
     if (!selectedFile) return;
-    // Replace existing auto-selected file with the new one
-    // (but preserve any manually-added files from selectedFilePaths)
     if (selectedFilePaths && selectedFilePaths.size > 0) {
-      // Multi-selection is active; just ensure the single file is present
       const alreadyInContext = state.contextFiles.some((f) => f.path === selectedFile.path);
       if (!alreadyInContext) {
         dispatchAddContextFile({
@@ -206,7 +198,6 @@ const ChatPanel = ({
         });
       }
     } else {
-      // No multi-selection — replace context with just this file
       setContextFiles([
         {
           name: selectedFile.name,
@@ -221,15 +212,10 @@ const ChatPanel = ({
   const handleSendMessage = async (overrideText?: string) => {
     const text = overrideText ?? chatInput.trim();
     if (!text || isAiLoading || state.isAgentRunning) return;
-
     if (state.agentEnabled) {
       await handleAgentSend(text);
     } else {
-      // If using overrideText, set it as chatInput so sendChatMessage picks it up
-      if (overrideText) {
-        setChatInput(overrideText);
-      }
-      // Fallback to simple chat mode
+      if (overrideText) setChatInput(overrideText);
       let combinedContext = selectedFile;
       if (state.contextFiles.length > 0) {
         const contextContents = await Promise.all(
@@ -266,7 +252,6 @@ const ChatPanel = ({
 
     const fullMessage = userText;
 
-    // Add user message (show the original text in the UI, not the context prefix)
     const userMsg: ChatMessage = {
       role: 'user',
       content: userText,
@@ -277,7 +262,6 @@ const ChatPanel = ({
 
     agentSendStart();
 
-    // Build conversation history for the API — use full message with context for the latest message
     const conversationMessages = [
       ...chatMessages.map((m) => ({
         role: m.role as string,
@@ -289,7 +273,6 @@ const ChatPanel = ({
     let accumulatedText = '';
     let accumulatedThinking = '';
 
-    // Build filesystem context from current folder and selected files
     const contextParts: string[] = [];
     if (state.includeCurrentFolder) {
       contextParts.push(`Current folder: ${currentPath}`);
@@ -305,7 +288,6 @@ const ChatPanel = ({
       }
     }
 
-    // Include currently selected text from the code editor, if any
     const editorSelection = (
       window as unknown as {
         __xplorer_state__?: {
@@ -323,9 +305,7 @@ const ChatPanel = ({
       contextParts.push(
         `\nCurrently selected code in editor (${editorSelection.filePath}, lines ${editorSelection.startLine}–${editorSelection.endLine}):\n\`\`\`\n${editorSelection.text}\n\`\`\``,
       );
-      contextParts.push(
-        'The user may be asking about this selected code. When suggesting edits, provide the replacement code in a code block and mention it replaces the selection.',
-      );
+      contextParts.push('The user may be asking about this selected code.');
     }
 
     const filesystemContext = contextParts.length > 0 ? contextParts.join('\n\n') : undefined;
@@ -343,7 +323,7 @@ const ChatPanel = ({
               }
               break;
 
-            case 'text':
+            case 'text': // falls through
             case 'text_delta':
               if (event.text) {
                 accumulatedText += event.text;
@@ -388,7 +368,6 @@ const ChatPanel = ({
               break;
 
             case 'complete':
-              // Finalize assistant message
               if (accumulatedText) {
                 addChatMessage({
                   role: 'assistant',
@@ -475,7 +454,6 @@ const ChatPanel = ({
     }
   };
 
-  // Dispatch to the code editor extension to replace the currently selected code
   const handleApplyCode = useCallback((code: string) => {
     window.dispatchEvent(new CustomEvent('xplorer-apply-to-editor', { detail: { code } }));
   }, []);
@@ -821,7 +799,6 @@ const ChatPanel = ({
         </div>
       </div>
 
-      {/* History Panel or Messages Area */}
       {showHistory ? (
         <div
           style={{
@@ -938,7 +915,6 @@ const ChatPanel = ({
             />
           ))}
 
-          {/* Streaming Thinking (collapsible) */}
           {state.streamingThinking && (
             <div className="flex justify-start">
               <details
@@ -956,13 +932,10 @@ const ChatPanel = ({
             </div>
           )}
 
-          {/* Streaming Text */}
           <StreamingMessage text={state.streamingText} />
 
-          {/* Loading indicator (non-agent) */}
           {isAiLoading && !state.isAgentRunning && <LoadingIndicator />}
 
-          {/* Screen reader status announcements */}
           <div className="sr-only" aria-live="assertive">
             {state.isAgentRunning && 'Agent is processing your request'}
             {isAiLoading && !state.isAgentRunning && 'AI is generating a response'}
@@ -970,7 +943,6 @@ const ChatPanel = ({
         </div>
       )}
 
-      {/* Context pills — show which files/folder are being sent as context */}
       {(state.contextFiles.length > 0 || state.includeCurrentFolder) && (
         <div className="border-xp-border flex flex-shrink-0 flex-wrap items-center gap-1 border-t px-3 py-1.5">
           {state.includeCurrentFolder && (
@@ -1010,7 +982,6 @@ const ChatPanel = ({
         </div>
       )}
 
-      {/* Input Area */}
       <ChatInput
         chatInput={chatInput}
         setChatInput={setChatInput}
