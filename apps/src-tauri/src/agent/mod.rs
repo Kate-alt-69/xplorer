@@ -754,6 +754,8 @@ pub async fn agent_chat(
     let mut conversation: Vec<Value> = messages;
     let max_turns = settings.max_turns.clamp(1, 50);
     let mut final_text = String::new();
+    let mut consecutive_error_turns: u32 = 0;
+    const MAX_CONSECUTIVE_ERRORS: u32 = 3;
 
     for _turn in 0..max_turns {
         if is_session_cancelled(&session_id) {
@@ -871,8 +873,31 @@ pub async fn agent_chat(
         .await;
         tool_results.extend(write_results);
 
+        // Track consecutive error turns for recovery hints
+        let all_errored = !tool_results.is_empty()
+            && tool_results
+                .iter()
+                .all(|r| r["is_error"].as_bool().unwrap_or(false));
+        if all_errored {
+            consecutive_error_turns += 1;
+        } else {
+            consecutive_error_turns = 0;
+        }
+
         // Append tool results as user message
         if !tool_results.is_empty() {
+            // If tools have failed multiple times in a row, inject a recovery hint
+            if consecutive_error_turns >= MAX_CONSECUTIVE_ERRORS {
+                tool_results.push(json!({
+                    "type": "text",
+                    "text": "[System] Multiple consecutive tool calls have failed. \
+                        Try a fundamentally different approach: use a different tool, \
+                        simplify the parameters, check if the path exists first with \
+                        list_directory, or explain the issue to the user and ask for guidance."
+                }));
+                // Reset counter so the hint isn't repeated every turn
+                consecutive_error_turns = 0;
+            }
             conversation.push(json!({
                 "role": "user",
                 "content": tool_results,

@@ -96,7 +96,7 @@ const GLOBAL_PREFERENCE_INDICATORS: RegExp[] = [
  * Extract a clean preference statement from a correction message.
  * Strips out the negative/corrective preamble and reformulates as a positive preference.
  */
-const extractPreference = (message: string, _previousResponse: string): string | null => {
+const extractPreference = (message: string): string | null => {
   const trimmed = message.trim();
   if (trimmed.length < 5) return null;
   if (trimmed.length > 200) return null;
@@ -177,7 +177,7 @@ export const detectAndLearnCorrection = (
   }
 
   // Extract the preference
-  const preference = extractPreference(trimmed, previousAiResponse);
+  const preference = extractPreference(trimmed);
   if (!preference) {
     return { isCorrection: true, preference: null, isGlobal: false, savedObservation: null };
   }

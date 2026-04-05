@@ -15,6 +15,7 @@ import {
   FileType,
 } from 'lucide-react';
 import { TauriAPI } from '@/lib/tauri-api';
+import { formatFileSize } from '@/lib/utils';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,14 +82,8 @@ const getFileIcon = (filePath: string, isDir: boolean): React.ReactNode => {
   return FILE_TYPE_ICONS[ext] ?? <FileText size={12} />;
 };
 
-/** Format bytes into human-readable size */
-const formatSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-};
+/** Alias for consistency with existing call sites */
+const formatSize = formatFileSize;
 
 // ---------------------------------------------------------------------------
 // Component

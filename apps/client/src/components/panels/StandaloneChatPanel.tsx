@@ -505,6 +505,9 @@ const StandaloneChatPanel = () => {
           }
         : null;
 
+      /** Max time (ms) for a single agent iteration before we bail out. */
+      const ITERATION_TIMEOUT_MS = 60_000;
+
       while (iteration < MAX_AGENT_ITERATIONS && !abortRef.current) {
         iteration++;
 
@@ -525,11 +528,15 @@ const StandaloneChatPanel = () => {
         if (iteration > 1) setAgentStep(`Agent iteration ${iteration}...`);
 
         try {
-          const response = await TauriAPI.chatWithAI(
-            model || 'claude-sonnet-4-20250514',
-            apiMsgs,
-            primaryFileContext,
-          );
+          const response = await Promise.race([
+            TauriAPI.chatWithAI(model || 'claude-sonnet-4-20250514', apiMsgs, primaryFileContext),
+            new Promise<never>((_resolve, reject) =>
+              setTimeout(
+                () => reject(new Error('Agent iteration timed out (60s)')),
+                ITERATION_TIMEOUT_MS,
+              ),
+            ),
+          ]);
           if (abortRef.current) break;
 
           // Check for a task_plan block before parsing file actions

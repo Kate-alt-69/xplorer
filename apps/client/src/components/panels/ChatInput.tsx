@@ -10,6 +10,12 @@ interface ChatInputProps {
   onCancel: () => void;
 }
 
+/**
+ * Rough token estimate: ~4 characters per token for English text.
+ * This is an approximation — actual tokenisation depends on the model.
+ */
+const estimateTokens = (text: string): number => Math.ceil(text.length / 4);
+
 const ChatInput = ({
   chatInput,
   setChatInput,
@@ -25,6 +31,9 @@ const ChatInput = ({
       onSendMessage();
     }
   };
+
+  const charCount = chatInput.length;
+  const tokenEstimate = estimateTokens(chatInput);
 
   return (
     <div className="border-xp-border flex-shrink-0 border-t px-3 py-2.5">
@@ -62,8 +71,13 @@ const ChatInput = ({
           </button>
         )}
       </div>
-      <div className="text-xp-text-muted mt-1 flex items-center justify-center text-xs">
+      <div className="text-xp-text-muted mt-1 flex items-center justify-between text-xs">
         <span>Enter to send{agentEnabled ? ' \u2022 Agent mode' : ''}</span>
+        {charCount > 0 && (
+          <span>
+            {charCount} char{charCount !== 1 ? 's' : ''} &middot; ~{tokenEstimate} tokens
+          </span>
+        )}
       </div>
     </div>
   );

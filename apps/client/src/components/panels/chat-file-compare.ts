@@ -7,6 +7,7 @@
  * when exactly 2 files are dropped into chat.
  */
 import { TauriAPI } from '@/lib/tauri-api';
+import { formatFileSize } from '@/lib/utils';
 import { getExt, readFileForAIContext, type FileContext } from './chat-context-helpers';
 import { basename } from './chat-file-actions';
 
@@ -212,7 +213,7 @@ export const compareFiles = async (pathA: string, pathB: string): Promise<Compar
   sections.push('|---|---|---|');
   sections.push(`| Extension | .${extA} | .${extB} |`);
   if (metaA?.size !== undefined && metaB?.size !== undefined) {
-    sections.push(`| Size | ${formatBytes(metaA.size)} | ${formatBytes(metaB.size)} |`);
+    sections.push(`| Size | ${formatFileSize(metaA.size)} | ${formatFileSize(metaB.size)} |`);
   }
   if (metaA?.modified && metaB?.modified) {
     sections.push(`| Modified | ${metaA.modified} | ${metaB.modified} |`);
@@ -261,7 +262,7 @@ export const compareFiles = async (pathA: string, pathB: string): Promise<Compar
     if (metaA?.size !== undefined && metaB?.size !== undefined) {
       const sizeDiff = Math.abs(metaA.size - metaB.size);
       const pct = metaA.size > 0 ? ((sizeDiff / metaA.size) * 100).toFixed(1) : '0';
-      sections.push(`Size difference: ${formatBytes(sizeDiff)} (${pct}%)`);
+      sections.push(`Size difference: ${formatFileSize(sizeDiff)} (${pct}%)`);
     }
   } else {
     // Mixed or binary comparison
@@ -475,15 +476,3 @@ export const isCompareIntent = (userText: string, fileCount: number): boolean =>
  */
 export const buildComparePrompt = (pathA: string, pathB: string): string =>
   `Compare these two files in detail and tell me the differences:\n1. ${pathA}\n2. ${pathB}\n\nProvide a structured comparison covering: format, structure, content differences, and which file appears to be newer/better if applicable.`;
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
-
-const formatBytes = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-};

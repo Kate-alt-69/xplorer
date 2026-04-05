@@ -1,9 +1,14 @@
 /**
  * Hook for progressive text rendering (simulated streaming).
  *
- * Since the Rust backend returns the full AI response at once,
- * this hook reveals the text incrementally, giving the feel of
- * a streaming response instead of a sudden wall of text.
+ * Since the non-agent Rust backend returns the full AI response at once,
+ * this hook reveals the text incrementally, giving the feel of a streaming
+ * response instead of a sudden wall of text.
+ *
+ * Chunking strategy:
+ * - Advances to the next word boundary so partial words never appear.
+ * - Accelerates proportionally for long remaining text.
+ * - Short messages (< MIN_STREAM_LENGTH) render instantly.
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 
@@ -11,17 +16,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 // Configuration
 // ---------------------------------------------------------------------------
 
-/** Characters revealed per tick */
-const CHARS_PER_TICK = 8;
+/** Base characters revealed per tick (will snap forward to next word boundary) */
+const BASE_CHARS_PER_TICK = 12;
 
 /** Milliseconds between ticks */
-const TICK_INTERVAL_MS = 12;
+const TICK_INTERVAL_MS = 10;
 
 /**
- * Once remaining chars exceed this threshold we dump the rest instantly
+ * Once remaining chars exceed this threshold we accelerate dramatically
  * so that very long responses don't take forever to finish streaming.
  */
-const FAST_FORWARD_THRESHOLD = 2000;
+const FAST_FORWARD_THRESHOLD = 1500;
 
 /** Below this length, show instantly (no animation needed) */
 const MIN_STREAM_LENGTH = 60;
@@ -43,6 +48,29 @@ interface StreamingState {
   /** Whether any entry is still animating */
   isStreaming: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Given a text and a raw cursor position, snap forward to the next word
+ * boundary (space, newline, or end of string) so we never show partial words.
+ */
+const snapToWordBoundary = (text: string, rawPos: number): number => {
+  if (rawPos >= text.length) return text.length;
+
+  // If we're already at a boundary character, use the position as-is
+  const ch = text[rawPos];
+  if (ch === ' ' || ch === '\n' || ch === '\t') return rawPos;
+
+  // Scan forward to the next whitespace or end
+  let pos = rawPos;
+  while (pos < text.length && text[pos] !== ' ' && text[pos] !== '\n' && text[pos] !== '\t') {
+    pos++;
+  }
+  return pos;
+};
 
 // ---------------------------------------------------------------------------
 // Hook
@@ -148,13 +176,15 @@ export const useStreamingText = (
         anyActive = true;
         const remaining = entry.fullText.length - currentProgress;
 
-        // Accelerate for long remaining text
-        const charsToAdd =
-          remaining > FAST_FORWARD_THRESHOLD
-            ? Math.min(remaining, CHARS_PER_TICK * 8)
-            : CHARS_PER_TICK;
+        // Accelerate proportionally for long remaining text
+        let charsToAdd = BASE_CHARS_PER_TICK;
+        if (remaining > FAST_FORWARD_THRESHOLD) {
+          // Scale up: the more remaining, the faster we go
+          charsToAdd = Math.min(remaining, BASE_CHARS_PER_TICK * Math.ceil(remaining / 500));
+        }
 
-        const newProgress = Math.min(currentProgress + charsToAdd, entry.fullText.length);
+        const rawPos = Math.min(currentProgress + charsToAdd, entry.fullText.length);
+        const newProgress = snapToWordBoundary(entry.fullText, rawPos);
         progressRef.current.set(entry.id, newProgress);
 
         if (newProgress >= entry.fullText.length) {

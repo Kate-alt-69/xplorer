@@ -10,6 +10,7 @@
  * CommandActionCard in ChatCommandCard.tsx.
  */
 import { TauriAPI } from '@/lib/tauri-api';
+import { formatFileSize } from '@/lib/utils';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 // ---------------------------------------------------------------------------
@@ -502,14 +503,8 @@ export const canUndoAction = (pa: PendingFileAction): boolean => {
   return true;
 };
 
-/** Format bytes into human-readable size */
-const formatSize = (bytes: number): string => {
-  if (bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-};
+/** Alias for consistency with existing call sites */
+const formatSize = formatFileSize;
 
 // ---------------------------------------------------------------------------
 // System prompt addition
