@@ -32,10 +32,10 @@ export interface ProactiveSuggestion {
 // ---------------------------------------------------------------------------
 
 /** Wait this long after path change before analyzing (ms) */
-const DEBOUNCE_MS = 2_000;
+const DEBOUNCE_MS = 3_000;
 
 /** Don't re-suggest for the same folder within this period (ms) */
-const COOLDOWN_MS = 5 * 60 * 1_000;
+const COOLDOWN_MS = 10 * 60 * 1_000;
 
 /** Auto-dismiss suggestion after this period (ms) */
 const AUTO_DISMISS_MS = 30_000;

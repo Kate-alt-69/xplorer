@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
@@ -32,7 +32,6 @@ import {
   buildDirectoryContext,
 } from './chat-context-helpers';
 import { handleTemplateSlashCommand } from './chat-action-templates';
-import ChatHistoryView from './ChatHistoryView';
 import ChatContextHeader from './ChatContextHeader';
 import ChatWelcome from './ChatWelcome';
 import ChatFilePathCard from './ChatFilePathCard';
@@ -69,9 +68,8 @@ import {
   buildMarketplaceSuggestionText,
 } from './chat-extension-awareness';
 import { useChatBranching } from './use-chat-branching';
-import ChatBranchTabs, { BranchForkIndicator } from './ChatBranchTabs';
+import { BranchForkIndicator } from './ChatBranchTabs';
 import { useTaskPlan, parseTaskPlan } from './use-task-plan';
-import TaskPlanCard from './TaskPlanCard';
 import { exportChatAsHtml } from './chat-export-html';
 import {
   getPinnedMessages,
@@ -80,10 +78,41 @@ import {
   isMessagePinned,
   type PinnedMessage,
 } from './chat-pinning';
-import ChatPinnedMessages from './ChatPinnedMessages';
 import ChatMessageContextMenu from './ChatMessageContextMenu';
 import { startSession, endSession, formatSessionSummary } from './chat-audit-log';
 import { loadSecurityRules } from './chat-security-rules';
+
+// ---------------------------------------------------------------------------
+// Lazy-loaded heavy components (reduces initial bundle)
+// ---------------------------------------------------------------------------
+
+const ChatHistoryView = lazy(() => import('./ChatHistoryView'));
+const ChatBranchTabs = lazy(() => import('./ChatBranchTabs'));
+const TaskPlanCard = lazy(() => import('./TaskPlanCard'));
+const ChatPinnedMessages = lazy(() => import('./ChatPinnedMessages'));
+
+/** Fallback spinner for lazy-loaded components */
+const LazyFallback = () => (
+  <div
+    style={{
+      padding: '12px',
+      textAlign: 'center',
+      color: 'var(--xp-text-muted)',
+      fontSize: '12px',
+    }}
+  >
+    <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// Virtual scrolling constants
+// ---------------------------------------------------------------------------
+
+/** Messages beyond this count use windowed rendering */
+const VIRTUAL_SCROLL_THRESHOLD = 60;
+/** Overscan: extra messages rendered above/below viewport */
+const OVERSCAN_COUNT = 8;
 
 // ---------------------------------------------------------------------------
 // Chat message type alias
@@ -1370,15 +1399,68 @@ const StandaloneChatPanel = () => {
   // Render: History view
   // ---------------------------------------------------------------------------
 
+  // ---------------------------------------------------------------------------
+  // Virtual scrolling for long chat histories
+  // ---------------------------------------------------------------------------
+
+  const [visibleRange, setVisibleRange] = useState<{ start: number; end: number }>({
+    start: 0,
+    end: VIRTUAL_SCROLL_THRESHOLD,
+  });
+
+  const useVirtualScroll = messages.length > VIRTUAL_SCROLL_THRESHOLD;
+
+  const handleMessagesScroll = useCallback(() => {
+    if (!useVirtualScroll || !scrollRef.current) return;
+    const el = scrollRef.current;
+    const scrollTop = el.scrollTop;
+    const clientHeight = el.clientHeight;
+    const scrollHeight = el.scrollHeight;
+    const totalMessages = messages.length;
+
+    // Estimate which messages are visible based on scroll position
+    const avgMsgHeight = scrollHeight / totalMessages || 80;
+    const startIdx = Math.max(0, Math.floor(scrollTop / avgMsgHeight) - OVERSCAN_COUNT);
+    const endIdx = Math.min(
+      totalMessages,
+      Math.ceil((scrollTop + clientHeight) / avgMsgHeight) + OVERSCAN_COUNT,
+    );
+
+    setVisibleRange((prev) => {
+      if (prev.start === startIdx && prev.end === endIdx) return prev;
+      return { start: startIdx, end: endIdx };
+    });
+  }, [useVirtualScroll, messages.length]);
+
+  // Reset visible range when messages change (always show latest)
+  useEffect(() => {
+    if (useVirtualScroll) {
+      setVisibleRange({
+        start: Math.max(0, messages.length - VIRTUAL_SCROLL_THRESHOLD),
+        end: messages.length,
+      });
+    }
+  }, [messages.length, useVirtualScroll]);
+
+  // Memoize the visible messages slice to avoid re-renders
+  const visibleMessages = useMemo(() => {
+    if (!useVirtualScroll) return messages.map((msg, i) => ({ msg, originalIndex: i }));
+    return messages
+      .map((msg, i) => ({ msg, originalIndex: i }))
+      .slice(visibleRange.start, visibleRange.end);
+  }, [messages, useVirtualScroll, visibleRange.start, visibleRange.end]);
+
   if (showHistory) {
     return (
-      <ChatHistoryView
-        chatHistory={chatHistory}
-        currentConversationId={currentConversationId}
-        onBack={() => setShowHistory(false)}
-        onLoad={loadConversation}
-        onDelete={deleteConversation}
-      />
+      <Suspense fallback={<LazyFallback />}>
+        <ChatHistoryView
+          chatHistory={chatHistory}
+          currentConversationId={currentConversationId}
+          onBack={() => setShowHistory(false)}
+          onLoad={loadConversation}
+          onDelete={deleteConversation}
+        />
+      </Suspense>
     );
   }
 
@@ -1403,23 +1485,27 @@ const StandaloneChatPanel = () => {
         onToggleSelection={() => setIncludeSelection((v) => !v)}
       />
 
-      {/* Branch tabs */}
+      {/* Branch tabs (lazy) */}
       {showBranchTabs && (
-        <ChatBranchTabs
-          branchState={branchState}
-          onSwitchBranch={handleSwitchBranch}
-          onDeleteBranch={handleDeleteBranch}
-          onRenameBranch={handleRenameBranch}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <ChatBranchTabs
+            branchState={branchState}
+            onSwitchBranch={handleSwitchBranch}
+            onDeleteBranch={handleDeleteBranch}
+            onRenameBranch={handleRenameBranch}
+          />
+        </Suspense>
       )}
 
-      {/* Pinned messages section */}
+      {/* Pinned messages section (lazy) */}
       {pinnedMessages.length > 0 && (
-        <ChatPinnedMessages
-          pinnedMessages={pinnedMessages}
-          onUnpin={handleUnpinMessage}
-          onJumpToMessage={handleJumpToMessage}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <ChatPinnedMessages
+            pinnedMessages={pinnedMessages}
+            onUnpin={handleUnpinMessage}
+            onJumpToMessage={handleJumpToMessage}
+          />
+        </Suspense>
       )}
 
       {/* Messages area */}
@@ -1429,6 +1515,7 @@ const StandaloneChatPanel = () => {
         aria-label="Chat messages"
         aria-live="polite"
         style={{ flex: 1, overflowY: 'auto', padding: '8px' }}
+        onScroll={useVirtualScroll ? handleMessagesScroll : undefined}
       >
         {messages.length === 0 && !isLoading && (
           <ChatWelcome
@@ -1450,7 +1537,12 @@ const StandaloneChatPanel = () => {
           />
         )}
 
-        {messages.map((msg, i) => {
+        {/* Spacer for virtual scroll — approximates height of skipped messages */}
+        {useVirtualScroll && visibleRange.start > 0 && (
+          <div style={{ height: `${visibleRange.start * 80}px` }} aria-hidden="true" />
+        )}
+
+        {visibleMessages.map(({ msg, originalIndex: i }) => {
           const displayText =
             msg.role === 'assistant' && !msg.isContextInjection
               ? getVisibleText(`msg-${i}`) || msg.content
@@ -1501,16 +1593,26 @@ const StandaloneChatPanel = () => {
           );
         })}
 
-        {/* Task Plan Card */}
-        {taskPlan.activePlan && (
-          <TaskPlanCard
-            plan={taskPlan.activePlan}
-            onApprove={executePlanSteps}
-            onEdit={taskPlan.editPlan}
-            onCancel={taskPlan.cancelPlan}
-            onPause={taskPlan.pausePlan}
-            onResume={taskPlan.resumePlan}
+        {/* Spacer for virtual scroll — approximates height of messages after viewport */}
+        {useVirtualScroll && visibleRange.end < messages.length && (
+          <div
+            style={{ height: `${(messages.length - visibleRange.end) * 80}px` }}
+            aria-hidden="true"
           />
+        )}
+
+        {/* Task Plan Card (lazy) */}
+        {taskPlan.activePlan && (
+          <Suspense fallback={<LazyFallback />}>
+            <TaskPlanCard
+              plan={taskPlan.activePlan}
+              onApprove={executePlanSteps}
+              onEdit={taskPlan.editPlan}
+              onCancel={taskPlan.cancelPlan}
+              onPause={taskPlan.pausePlan}
+              onResume={taskPlan.resumePlan}
+            />
+          </Suspense>
         )}
 
         {isLoading && (

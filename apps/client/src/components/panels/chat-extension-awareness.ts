@@ -191,11 +191,25 @@ export const getInstalledExtensionCapabilities = (): ExtensionCapability[] => {
   return extensions.filter((ext) => ext.isActive).map(extractCapabilities);
 };
 
+/** Cache for the extension awareness prompt to avoid recomputing on every message */
+
+let _extensionPromptCache: { result: string; timestamp: number } | null = null;
+const EXTENSION_PROMPT_CACHE_TTL_MS = 30_000; // 30 seconds
+
 /**
  * Build a system prompt section describing installed extensions.
  * Returns empty string if no extensions are installed.
+ * Result is cached for 30 seconds to avoid repeated computation.
  */
 export const buildExtensionAwarenessPrompt = (): string => {
+  const now = Date.now();
+  if (
+    _extensionPromptCache &&
+    now - _extensionPromptCache.timestamp < EXTENSION_PROMPT_CACHE_TTL_MS
+  ) {
+    return _extensionPromptCache.result;
+  }
+
   const capabilities = getInstalledExtensionCapabilities();
   if (capabilities.length === 0) return '';
 
@@ -235,7 +249,9 @@ export const buildExtensionAwarenessPrompt = (): string => {
     'This action auto-executes (no permission needed) and opens the extension with the file context.',
   );
 
-  return lines.join('\n');
+  const result = lines.join('\n');
+  _extensionPromptCache = { result, timestamp: Date.now() };
+  return result;
 };
 
 /**
