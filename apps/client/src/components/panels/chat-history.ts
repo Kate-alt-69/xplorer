@@ -13,6 +13,8 @@ export interface ChatMessage {
   content: string;
   /** Whether this is a system/context injection message (hidden from user) */
   isContextInjection?: boolean;
+  /** Whether this is a command result injection (hidden from user but included in AI context) */
+  isCommandResult?: boolean;
   /** Files that were dropped onto chat for this message */
   droppedFiles?: Array<{ name: string; path: string }>;
 }

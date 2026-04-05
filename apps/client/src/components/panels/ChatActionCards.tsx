@@ -23,6 +23,7 @@ import {
   List,
   ExternalLink,
   Undo2,
+  Terminal,
 } from 'lucide-react';
 import ChatDiffPreview from './ChatDiffPreview';
 import ChatErrorBoundary from './ChatErrorBoundary';
@@ -50,6 +51,7 @@ const ACTION_LABELS: Record<FileActionType, string> = {
   list_directory: 'List directory',
   search_files: 'Search files',
   open_file: 'Open / navigate',
+  run_command: 'Run command',
 };
 
 const ActionIcon = ({ action }: { action: FileActionType }) => {
@@ -74,6 +76,8 @@ const ActionIcon = ({ action }: { action: FileActionType }) => {
       return <Search size={14} />;
     case 'open_file':
       return <ExternalLink size={14} />;
+    case 'run_command':
+      return <Terminal size={14} />;
   }
 };
 

@@ -202,6 +202,7 @@ const StandaloneChatPanel = () => {
             role: m.role,
             content: m.content,
             isContextInjection: m.isContextInjection,
+            isCommandResult: m.isCommandResult,
             droppedFiles: m.droppedFiles,
           })),
           createdAt: existingIdx >= 0 ? prev[existingIdx].createdAt : now,
@@ -643,7 +644,7 @@ const StandaloneChatPanel = () => {
       }
 
       const historyMsgs = newMessages
-        .filter((m) => !m.isContextInjection)
+        .filter((m) => !m.isContextInjection || m.isCommandResult)
         .map((m) => ({ role: m.role, content: m.content }));
 
       // Inject file comparison context if detected

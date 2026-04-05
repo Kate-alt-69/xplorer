@@ -6,6 +6,7 @@ import React from 'react';
 import { FileText } from 'lucide-react';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
 import { FileActionCard, BatchActionCard } from './ChatActionCards';
+import { CommandActionCard } from './ChatCommandCard';
 import ChatErrorBoundary from './ChatErrorBoundary';
 import { type PendingFileAction, isReadOnlyAction } from './chat-file-actions';
 import { type ChatMessage } from './chat-history';
@@ -139,16 +140,25 @@ const ChatMessageBubble = ({
         />
       )}
 
-      {msg.fileActions?.map((pa) => (
-        <FileActionCard
-          key={pa.id}
-          pendingAction={pa}
-          onAllow={() => onExecuteAction(i, pa.id)}
-          onReject={() => onRejectAction(i, pa.id)}
-          onAlwaysAllow={() => onAlwaysAllowAction(i, pa.id)}
-          onUndo={() => onUndoAction(i, pa.id)}
-        />
-      ))}
+      {msg.fileActions?.map((pa) =>
+        pa.action.action === 'run_command' ? (
+          <CommandActionCard
+            key={pa.id}
+            pendingAction={pa}
+            onAllow={() => onExecuteAction(i, pa.id)}
+            onReject={() => onRejectAction(i, pa.id)}
+          />
+        ) : (
+          <FileActionCard
+            key={pa.id}
+            pendingAction={pa}
+            onAllow={() => onExecuteAction(i, pa.id)}
+            onReject={() => onRejectAction(i, pa.id)}
+            onAlwaysAllow={() => onAlwaysAllowAction(i, pa.id)}
+            onUndo={() => onUndoAction(i, pa.id)}
+          />
+        ),
+      )}
     </div>
   );
 };

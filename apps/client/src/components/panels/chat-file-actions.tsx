@@ -2,11 +2,12 @@
  * File action types, parsing, execution, and undo logic
  * used by StandaloneChatPanel for AI-driven file operations.
  *
- * Supports both mutating actions (create, edit, delete, rename, move, copy, mkdir)
- * and read-only agent actions (list_directory, search_files, open_file) that feed
- * results back into the agent loop.
+ * Supports mutating actions (create, edit, delete, rename, move, copy, mkdir),
+ * read-only agent actions (list_directory, search_files, open_file) that feed
+ * results back into the agent loop, and terminal command execution (run_command).
  *
- * UI components (FileActionCard, BatchActionCard) are in ChatActionCards.tsx.
+ * UI components: FileActionCard + BatchActionCard in ChatActionCards.tsx,
+ * CommandActionCard in ChatCommandCard.tsx.
  */
 import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
@@ -25,7 +26,8 @@ export type FileActionType =
   | 'create_directory'
   | 'list_directory'
   | 'search_files'
-  | 'open_file';
+  | 'open_file'
+  | 'run_command';
 
 /** Actions that modify the filesystem and need permission */
 export type MutatingActionType = Exclude<
@@ -35,6 +37,11 @@ export type MutatingActionType = Exclude<
 
 /** Actions that are read-only and can auto-execute to feed context back */
 export type ReadOnlyActionType = 'list_directory' | 'search_files' | 'open_file';
+
+/** Actions that always require explicit user permission (never auto-execute) */
+export type AlwaysAskActionType = 'run_command';
+
+export const ALWAYS_ASK_ACTIONS: ReadonlySet<string> = new Set<string>(['run_command']);
 
 export const READONLY_ACTIONS: ReadonlySet<string> = new Set<string>([
   'list_directory',
@@ -50,6 +57,17 @@ export interface FileAction {
   destination?: string;
   /** Search query for search_files */
   query?: string;
+  /** Shell command string for run_command */
+  command?: string;
+  /** Working directory for run_command (defaults to path) */
+  cwd?: string;
+}
+
+export interface CommandOutput {
+  stdout: string;
+  stderr: string;
+  exit_code: number;
+  timed_out?: boolean;
 }
 
 export interface PendingFileAction {
@@ -63,6 +81,8 @@ export interface PendingFileAction {
   undone?: boolean;
   /** Previous content of the file (for edit_file undo) */
   previousContent?: string;
+  /** Output from run_command execution */
+  commandOutput?: CommandOutput;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +122,10 @@ export const setAlwaysAllowed = (value: boolean): void => {
 /** Check whether an action type is read-only (no permission needed) */
 export const isReadOnlyAction = (actionType: string): boolean => READONLY_ACTIONS.has(actionType);
 
+/** Check whether an action type always requires explicit user permission (never auto-execute) */
+export const isAlwaysAskAction = (actionType: string): boolean =>
+  ALWAYS_ASK_ACTIONS.has(actionType);
+
 // ---------------------------------------------------------------------------
 // All valid action strings for regex matching
 // ---------------------------------------------------------------------------
@@ -117,6 +141,7 @@ const ALL_ACTION_NAMES = [
   'list_directory',
   'search_files',
   'open_file',
+  'run_command',
 ].join('|');
 
 /**
@@ -145,19 +170,36 @@ export const parseFileActions = (
   const tryParseAction = (jsonStr: string): FileAction | null => {
     try {
       const parsed: unknown = JSON.parse(jsonStr);
-      if (parsed && typeof parsed === 'object' && 'action' in parsed && 'path' in parsed) {
+      if (parsed && typeof parsed === 'object' && 'action' in parsed) {
         const obj = parsed as Record<string, unknown>;
         const action = obj.action as string;
         const validActions = new Set(ALL_ACTION_NAMES.split('|'));
-        if (validActions.has(action)) {
+        if (!validActions.has(action)) return null;
+
+        // run_command requires "command" instead of "path"
+        if (action === 'run_command') {
+          const cmd = typeof obj.command === 'string' ? obj.command : undefined;
+          if (!cmd) return null;
+          let cwdValue = '';
+          if (typeof obj.cwd === 'string') cwdValue = obj.cwd;
+          else if (typeof obj.path === 'string') cwdValue = obj.path;
           return {
             action: action as FileActionType,
-            path: obj.path as string,
-            content: typeof obj.content === 'string' ? obj.content : undefined,
-            destination: typeof obj.destination === 'string' ? obj.destination : undefined,
-            query: typeof obj.query === 'string' ? obj.query : undefined,
+            path: cwdValue,
+            command: cmd,
+            cwd: cwdValue || undefined,
           };
         }
+
+        // All other actions require "path"
+        if (!('path' in obj)) return null;
+        return {
+          action: action as FileActionType,
+          path: obj.path as string,
+          content: typeof obj.content === 'string' ? obj.content : undefined,
+          destination: typeof obj.destination === 'string' ? obj.destination : undefined,
+          query: typeof obj.query === 'string' ? obj.query : undefined,
+        };
       }
     } catch {
       // Invalid JSON, skip
@@ -190,6 +232,79 @@ export const parseFileActions = (
   }
 
   return { cleanText: cleanText.trim(), actions };
+};
+
+// ---------------------------------------------------------------------------
+// Command safety helpers
+// ---------------------------------------------------------------------------
+
+/** Patterns that indicate a dangerous shell command */
+const DANGEROUS_COMMAND_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
+  { pattern: /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f|--force)\b/i, reason: 'Recursive force deletion' },
+  { pattern: /\brm\s+-[a-zA-Z]*f/i, reason: 'Force deletion' },
+  { pattern: /\bsudo\b/i, reason: 'Privilege escalation' },
+  { pattern: /\bformat\b/i, reason: 'Disk formatting' },
+  { pattern: /\bmkfs\b/i, reason: 'Filesystem creation' },
+  { pattern: /\bdd\b/i, reason: 'Raw disk write' },
+  { pattern: /\bchmod\s+777\b/i, reason: 'Overly permissive file permissions' },
+  { pattern: /\b(shutdown|reboot|halt|poweroff)\b/i, reason: 'System shutdown/reboot' },
+  { pattern: /\b(kill|killall|pkill)\s+-9\b/i, reason: 'Force process termination' },
+  { pattern: />\s*\/dev\//i, reason: 'Writing to device file' },
+  { pattern: /\|\s*(sh|bash|zsh)\b/i, reason: 'Piping to shell' },
+];
+
+/** Check if a command matches dangerous patterns. Returns the reason or undefined. */
+export const isDangerousCommand = (command: string): string | undefined => {
+  for (const { pattern, reason } of DANGEROUS_COMMAND_PATTERNS) {
+    if (pattern.test(command)) return reason;
+  }
+  return undefined;
+};
+
+/** Default timeout for command execution (30 seconds) */
+const COMMAND_TIMEOUT_MS = 30_000;
+
+/** Execute a run_command action. Returns a CommandOutput. */
+export const executeRunCommand = async (action: FileAction): Promise<CommandOutput> => {
+  const cmd = action.command;
+  if (!cmd) throw new Error('run_command requires a "command" field');
+  const cwd = action.cwd || action.path || '/';
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), COMMAND_TIMEOUT_MS);
+
+  try {
+    const resultPromise = TauriAPI.executeCommand(cmd, cwd);
+
+    // Race the command against the timeout
+    const result = await Promise.race([
+      resultPromise,
+      new Promise<never>((_resolve, reject) => {
+        controller.signal.addEventListener('abort', () => {
+          reject(new Error('Command timed out after 30 seconds'));
+        });
+      }),
+    ]);
+
+    return {
+      stdout: result.stdout,
+      stderr: result.stderr,
+      exit_code: result.exit_code,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('timed out')) {
+      return {
+        stdout: '',
+        stderr: `Command timed out after ${COMMAND_TIMEOUT_MS / 1000} seconds`,
+        exit_code: -1,
+        timed_out: true,
+      };
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 /** Execute a file action via TauriAPI. Returns a result string for read-only actions. */
@@ -282,6 +397,17 @@ export const executeFileAction = async (action: FileAction): Promise<string | un
       }
       return `Cannot navigate: Xplorer state not available`;
     }
+    case 'run_command': {
+      // Command execution is handled separately via executeRunCommand
+      // This case exists so TypeScript is exhaustive
+      const output = await executeRunCommand(action);
+      const parts: string[] = [];
+      if (output.stdout) parts.push(`stdout:\n${output.stdout}`);
+      if (output.stderr) parts.push(`stderr:\n${output.stderr}`);
+      parts.push(`exit code: ${output.exit_code}`);
+      if (output.timed_out) parts.push('(timed out)');
+      return parts.join('\n');
+    }
   }
 };
 
@@ -348,6 +474,8 @@ export const undoFileAction = async (pa: PendingFileAction): Promise<void> => {
 export const canUndoAction = (pa: PendingFileAction): boolean => {
   if (pa.status !== 'success' || pa.undone) return false;
   if (isReadOnlyAction(pa.action.action)) return false;
+  // Commands cannot be undone
+  if (pa.action.action === 'run_command') return false;
   // edit_file can only be undone if we captured previous content
   if (pa.action.action === 'edit_file' && pa.previousContent === undefined) return false;
   return true;
@@ -366,8 +494,18 @@ const formatSize = (bytes: number): string => {
 // System prompt addition
 // ---------------------------------------------------------------------------
 
+/** Detect OS for system prompt */
+const getOSName = (): string => {
+  const ua = navigator.userAgent.toLowerCase();
+  if (ua.includes('mac')) return 'macOS';
+  if (ua.includes('win')) return 'Windows';
+  if (ua.includes('linux')) return 'Linux';
+  return 'Unknown';
+};
+
 export const FILE_OPS_SYSTEM_PROMPT = `
 You are an AI agent inside the Xplorer file manager. You can observe the filesystem and take actions on it.
+The user is running ${getOSName()}.
 
 ## Available Actions
 Include JSON action blocks in your response. The user will be asked for permission before mutating actions execute. Read-only actions (list_directory, search_files, open_file) execute automatically to give you more context.
@@ -380,6 +518,15 @@ Include JSON action blocks in your response. The user will be asked for permissi
 - Move a file/folder: \`{"action": "move_file", "path": "/absolute/path/file.txt", "destination": "/absolute/new_path/file.txt"}\`
 - Copy a file/folder: \`{"action": "copy_file", "path": "/absolute/path/file.txt", "destination": "/absolute/path/file_copy.txt"}\`
 - Create a directory: \`{"action": "create_directory", "path": "/absolute/path/to/new_folder"}\`
+
+### Terminal Commands (always require explicit permission)
+- Run a shell command: \`{"action": "run_command", "command": "npm install", "cwd": "/absolute/path/to/project"}\`
+  - The command output (stdout, stderr, exit code) will be returned to you so you can see the results and iterate.
+  - Commands have a 30-second timeout.
+  - Prefer safe, non-destructive commands (ls, cat, git status, npm list, etc.).
+  - Avoid destructive commands (rm -rf, sudo, format, etc.) -- they will be flagged as dangerous.
+  - Always provide "cwd" so the command runs in the right directory.
+  - Use commands appropriate for ${getOSName()}.
 
 ### Read-Only Actions (auto-execute)
 - List a directory: \`{"action": "list_directory", "path": "/absolute/path/to/dir"}\`
@@ -395,4 +542,5 @@ Include JSON action blocks in your response. The user will be asked for permissi
 - The action JSON must be on its own line, not mixed with other text on the same line.
 - For multi-step tasks (e.g., organizing files), use list_directory first to see what's there, then plan your actions.
 - After completing actions, suggest logical next steps the user might want.
+- When using run_command, explain what the command does and why you're running it.
 `.trim();

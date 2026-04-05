@@ -7,12 +7,15 @@
 import { useCallback } from 'react';
 import {
   executeFileAction,
+  executeRunCommand,
   captureFileForUndo,
   undoFileAction,
   isAlwaysAllowed,
   isReadOnlyAction,
+  isAlwaysAskAction,
   setAlwaysAllowed,
   type PendingFileAction,
+  type CommandOutput,
 } from './chat-file-actions';
 import { type RuntimeChatMessage } from './ChatMessageBubble';
 
@@ -60,6 +63,23 @@ export const useChatActions = (
   // Single action handlers
   // -----------------------------------------------------------------------
 
+  /** Update command output on a pending action */
+  const updateCommandOutput = useCallback(
+    (messageIndex: number, actionId: string, commandOutput: CommandOutput) => {
+      setMessages((prev) => {
+        const updated = [...prev];
+        const msg = updated[messageIndex];
+        if (msg?.fileActions) {
+          msg.fileActions = msg.fileActions.map((a) =>
+            a.id === actionId ? { ...a, commandOutput } : a,
+          );
+        }
+        return updated;
+      });
+    },
+    [setMessages],
+  );
+
   const handleExecuteAction = useCallback(
     async (messageIndex: number, actionId: string) => {
       updateActionStatus(messageIndex, actionId, 'approved');
@@ -68,6 +88,39 @@ export const useChatActions = (
       );
       if (!action) return;
       try {
+        // run_command has special handling for output capture
+        if (action.action.action === 'run_command') {
+          const cmdOutput = await executeRunCommand(action.action);
+          updateCommandOutput(messageIndex, actionId, cmdOutput);
+          const resultSummary = [
+            cmdOutput.stdout ? `stdout:\n${cmdOutput.stdout}` : '',
+            cmdOutput.stderr ? `stderr:\n${cmdOutput.stderr}` : '',
+            `exit code: ${cmdOutput.exit_code}`,
+            cmdOutput.timed_out ? '(timed out)' : '',
+          ]
+            .filter(Boolean)
+            .join('\n');
+          updateActionStatus(messageIndex, actionId, 'success', { result: resultSummary });
+
+          // Inject a hidden context message so the AI sees command output in future turns.
+          // isContextInjection hides it from the UI; isCommandResult keeps it in API history.
+          const cmdName = action.action.command ?? 'command';
+          const cwdStr = action.action.cwd || action.action.path || '';
+          const contextContent = `[Command result for \`${cmdName}\` in ${cwdStr}]\nExit code: ${cmdOutput.exit_code}${cmdOutput.stdout ? `\nstdout:\n${cmdOutput.stdout.slice(0, 10000)}` : ''}${cmdOutput.stderr ? `\nstderr:\n${cmdOutput.stderr.slice(0, 5000)}` : ''}${cmdOutput.timed_out ? '\n(command timed out)' : ''}`;
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'user',
+              content: contextContent,
+              isContextInjection: true,
+              isCommandResult: true,
+            },
+          ]);
+
+          scrollToBottom();
+          return;
+        }
+
         const previousContent = await captureFileForUndo(action.action);
         if (previousContent !== undefined) {
           setMessages((prev) => {
@@ -89,7 +142,7 @@ export const useChatActions = (
       }
       scrollToBottom();
     },
-    [messagesRef, setMessages, scrollToBottom, updateActionStatus],
+    [messagesRef, setMessages, scrollToBottom, updateActionStatus, updateCommandOutput],
   );
 
   const handleUndoAction = useCallback(
@@ -206,7 +259,10 @@ export const useChatActions = (
       let hasRemainingPending = false;
 
       for (const pa of pendingActions) {
-        if (isReadOnlyAction(pa.action.action)) {
+        // run_command NEVER auto-executes -- always requires explicit user permission
+        if (isAlwaysAskAction(pa.action.action)) {
+          hasRemainingPending = true;
+        } else if (isReadOnlyAction(pa.action.action)) {
           updateActionStatus(msgIndex, pa.id, 'approved');
           try {
             const result = await executeFileAction(pa.action);
