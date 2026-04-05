@@ -23,6 +23,10 @@ import {
 import { loadSecurityRules, type SecurityRules } from './chat-security-rules';
 import { SMART_FILE_OPS_PROMPT } from './chat-smart-file-ops';
 import { AI_SEARCH_PROMPT } from './chat-search-integration';
+import {
+  DOCUMENT_INTELLIGENCE_PROMPT,
+  checkSummarizationSuggestion,
+} from './chat-document-intelligence';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -142,6 +146,7 @@ export const buildSystemPrompt = async (opts: SystemPromptOptions): Promise<stri
   systemContent += `\n\n${FILE_OPS_SYSTEM_PROMPT}`;
   systemContent += `\n\n${SMART_FILE_OPS_PROMPT}`;
   systemContent += `\n\n${AI_SEARCH_PROMPT}`;
+  systemContent += `\n\n${DOCUMENT_INTELLIGENCE_PROMPT}`;
 
   // Inject workspace awareness (project type, git info, directory overview) — cached 30s
   {
@@ -241,6 +246,29 @@ export const buildSystemPrompt = async (opts: SystemPromptOptions): Promise<stri
   if (imageMetadataOnly.length > 0) {
     for (const fc of imageMetadataOnly) {
       systemContent += `\n\n${fc.content}`;
+    }
+  }
+
+  // Add summarization suggestions for large documents in context
+  {
+    const summarySuggestions: string[] = [];
+    const selectedFiles = xState?.selectedFiles ?? [];
+    for (const file of selectedFiles) {
+      if (file.is_dir) continue;
+      // Estimate size from file context content length (rough proxy)
+      const fc = fileContexts.find((c) => c.path === file.path);
+      const estimatedSize = fc?.content?.length ?? 0;
+      const suggestion = checkSummarizationSuggestion({
+        name: file.name,
+        path: file.path,
+        size: estimatedSize,
+      });
+      if (suggestion) {
+        summarySuggestions.push(suggestion);
+      }
+    }
+    if (summarySuggestions.length > 0) {
+      systemContent += `\n\n[Document intelligence suggestion]\n${summarySuggestions.join('\n')}`;
     }
   }
 

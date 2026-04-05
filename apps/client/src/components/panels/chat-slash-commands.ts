@@ -155,6 +155,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (args) => (args ? `__AI_SEARCH__${args}` : '__AI_SEARCH__'),
   },
   {
+    name: '/summarize-folder',
+    description: 'Summarize all documents in the current folder',
+    toPrompt: (_args) => '__SUMMARIZE_FOLDER__',
+  },
+  {
     name: '/help',
     description: 'Show available commands',
     toPrompt: (_args) => '__SHOW_HELP__',

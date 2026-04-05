@@ -197,6 +197,20 @@ export const handleSpecialSlashCommand = (
     };
   }
 
+  // /summarize-folder -- summarize all documents in current folder
+  if (prompt === '__SUMMARIZE_FOLDER__') {
+    if (!currentPath) {
+      return {
+        type: 'handled',
+        responseText: 'No current folder to analyze for documents.',
+      };
+    }
+    return {
+      type: 'redirect',
+      redirectPrompt: `List the current directory and identify all document files (text, PDF, office docs, markdown, etc.). For each document, read the first portion and provide a concise summary. Then give an overall summary of what this folder's documents contain. Focus on key information, purpose, and any patterns across the documents.`,
+    };
+  }
+
   // /workflows, /run-workflow, /save-workflow, /delete-workflow
   const workflowResult = handleWorkflowSlashCommand(prompt, currentPath);
   if (workflowResult) {
@@ -421,6 +435,35 @@ export const handleAISearchAsync = async (
     return {
       type: 'handled',
       responseText: `Search failed: ${msg}`,
+    };
+  }
+};
+
+/**
+ * Run the /summarize-folder analysis and return a formatted report.
+ * This is the async version that pre-computes results directly.
+ */
+export const handleSummarizeFolderAsync = async (
+  currentPath: string,
+): Promise<SpecialCommandResult> => {
+  if (!currentPath) {
+    return {
+      type: 'handled',
+      responseText: 'No current folder to analyze for documents.',
+    };
+  }
+  try {
+    const { analyzeFolderDocuments } = await import('./chat-document-intelligence');
+    const report = await analyzeFolderDocuments(currentPath);
+    return {
+      type: 'handled',
+      responseText: report.summary,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      type: 'handled',
+      responseText: `Failed to analyze folder documents: ${msg}`,
     };
   }
 };
