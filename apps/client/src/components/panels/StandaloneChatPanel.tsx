@@ -23,6 +23,7 @@ import { QUICK_ACTIONS, QuickActionsBar, type QuickAction } from './chat-quick-a
 import { SLASH_COMMANDS, matchSlashCommand, LANG_EXTENSIONS } from './chat-slash-commands';
 import {
   MAX_AGENT_ITERATIONS,
+  IMAGE_EXTENSIONS,
   type XplorerState,
   type FileContext,
   getXplorerState,
@@ -323,16 +324,34 @@ const StandaloneChatPanel = () => {
         systemContent += `\n\n[Currently selected files]\n${fileList}`;
       }
 
-      if (fileContexts.length === 1 && fileContexts[0].content) {
+      // Count images vs text files in context
+      const imageFiles = fileContexts.filter((fc) => fc.imageBase64);
+      const textFiles = fileContexts.filter((fc) => !fc.imageBase64 && fc.content);
+
+      if (imageFiles.length > 0) {
+        systemContent += `\n\n[Image${imageFiles.length > 1 ? 's' : ''} loaded] ${imageFiles.map((f) => f.name).join(', ')} — image data is included in the user message for vision analysis. Describe what you see in detail when asked.`;
+      }
+
+      if (textFiles.length === 1 && textFiles[0].content) {
         systemContent +=
           '\n\n[File content loaded] The user has a file selected and its contents are available below.';
-        systemContent += `\n\nFile: ${fileContexts[0].name} (${fileContexts[0].file_type})\n\`\`\`\n${fileContexts[0].content}\n\`\`\``;
-      } else if (fileContexts.length > 1) {
-        systemContent += `\n\n[Multiple file contents loaded] ${fileContexts.length} files in context.`;
-        for (const fc of fileContexts) {
+        systemContent += `\n\nFile: ${textFiles[0].name} (${textFiles[0].file_type})\n\`\`\`\n${textFiles[0].content}\n\`\`\``;
+      } else if (textFiles.length > 1) {
+        systemContent += `\n\n[Multiple file contents loaded] ${textFiles.length} files in context.`;
+        for (const fc of textFiles) {
           if (fc.content) {
             systemContent += `\n\n### ${fc.name} (${fc.file_type})\n\`\`\`\n${fc.content}\n\`\`\``;
           }
+        }
+      }
+
+      // For non-image files with image context but no base64 (too large), add metadata
+      const imageMetadataOnly = fileContexts.filter(
+        (fc) => !fc.imageBase64 && fc.content?.startsWith('[Image file:'),
+      );
+      if (imageMetadataOnly.length > 0) {
+        for (const fc of imageMetadataOnly) {
+          systemContent += `\n\n${fc.content}`;
         }
       }
 
@@ -366,7 +385,17 @@ const StandaloneChatPanel = () => {
       let loopMessages = [...initialMessages];
       let iteration = 0;
       let messagesSnapshot = [...currentMsgs];
-      const primaryFileContext = fileContexts.length > 0 ? fileContexts[0] : null;
+      const fc = fileContexts.length > 0 ? fileContexts[0] : null;
+      const primaryFileContext = fc
+        ? {
+            name: fc.name,
+            path: fc.path,
+            file_type: fc.file_type,
+            content: fc.content,
+            image_base64: fc.imageBase64,
+            image_mime_type: fc.imageMimeType,
+          }
+        : null;
 
       while (iteration < MAX_AGENT_ITERATIONS && !abortRef.current) {
         iteration++;
@@ -585,6 +614,14 @@ const StandaloneChatPanel = () => {
       }
 
       const xState = getXplorerState();
+
+      // Dropped files take priority over xplorer selection
+      const filesToRead =
+        droppedFiles.length > 0 ? [...droppedFiles] : [...(xState?.selectedFiles ?? [])];
+
+      // Pre-build image contexts for the user message thumbnail strip
+      const imageContextsForMsg: Array<{ name: string; path: string; dataUrl: string }> = [];
+
       const userMsg: ChatMessage = {
         role: 'user',
         content: text,
@@ -600,17 +637,9 @@ const StandaloneChatPanel = () => {
       abortRef.current = false;
       scrollToBottom();
 
-      // Dropped files take priority over xplorer selection
-      const filesToRead =
-        droppedFiles.length > 0 ? [...droppedFiles] : [...(xState?.selectedFiles ?? [])];
       setDroppedFiles([]);
 
-      let fileContexts: Array<{
-        name: string;
-        path: string;
-        file_type: string;
-        content?: string;
-      }> = [];
+      let fileContexts: FileContext[] = [];
       let compareContext: string | null = null;
 
       if (filesToRead.length > 0) {
@@ -636,6 +665,28 @@ const StandaloneChatPanel = () => {
             filesToRead.length === 1 && !filesToRead[0].is_dir
               ? [await readFileForAIContext(filesToRead[0])]
               : await readMultipleFilesForAIContext(filesToRead);
+
+          // Build image thumbnail data for the user message
+          for (const fc of fileContexts) {
+            if (fc.imageBase64 && fc.imageMimeType) {
+              imageContextsForMsg.push({
+                name: fc.name,
+                path: fc.path,
+                dataUrl: `data:${fc.imageMimeType};base64,${fc.imageBase64}`,
+              });
+            }
+          }
+
+          // Attach image contexts to the user message if any
+          if (imageContextsForMsg.length > 0) {
+            const updatedUserMsg: ChatMessage = {
+              ...userMsg,
+              imageContexts: imageContextsForMsg,
+            };
+            const updatedMessages = [...messages, updatedUserMsg];
+            setMessages(updatedMessages);
+            newMessages[newMessages.length - 1] = updatedUserMsg;
+          }
         } catch {
           // Silently fall back
         } finally {
@@ -846,14 +897,24 @@ const StandaloneChatPanel = () => {
     [isLoading, sendMessage],
   );
 
+  const hasSelectedImages = useMemo(
+    () =>
+      selectedFiles.some((f) => {
+        const ext = f.name.split('.').pop()?.toLowerCase() ?? '';
+        return IMAGE_EXTENSIONS.has(ext);
+      }),
+    [selectedFiles],
+  );
+
   const availableQuickActions = useMemo(
     () =>
       QUICK_ACTIONS.filter((action) => {
         if (action.requiresSelection && selectedFiles.length === 0) return false;
         if (action.requiresDirectory && !currentPath) return false;
+        if (action.requiresImage && !hasSelectedImages) return false;
         return true;
       }),
-    [selectedFiles.length, currentPath],
+    [selectedFiles.length, currentPath, hasSelectedImages],
   );
 
   // ---------------------------------------------------------------------------

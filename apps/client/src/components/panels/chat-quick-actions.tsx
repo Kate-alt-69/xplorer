@@ -2,7 +2,7 @@
  * Quick action chip definitions for the AI chat panel.
  * Rendered as clickable suggestions above the input bar.
  */
-import { FolderTree, Search, Sparkles, Braces, FileDown } from 'lucide-react';
+import { FolderTree, Search, Sparkles, Braces, FileDown, ImageIcon } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -16,6 +16,8 @@ export interface QuickAction {
   requiresSelection?: boolean;
   /** Only show when in a directory */
   requiresDirectory?: boolean;
+  /** Only show when selected files include images */
+  requiresImage?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +58,13 @@ export const QUICK_ACTIONS: QuickAction[] = [
     prompt:
       'Analyze the files in this directory and generate a README.md with a project description, setup instructions, and usage examples.',
     requiresDirectory: true,
+  },
+  {
+    label: 'Describe this image',
+    icon: <ImageIcon size={12} />,
+    prompt:
+      'Describe this image in detail. What is shown, what are the key elements, colors, and composition? Provide any useful observations.',
+    requiresImage: true,
   },
 ];
 

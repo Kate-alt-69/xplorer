@@ -24,6 +24,15 @@ const MAX_DIR_CONTEXT_ENTRIES = 50;
 /** Max agent loop iterations (to prevent runaway loops) */
 export const MAX_AGENT_ITERATIONS = 5;
 
+/** Max image file size to include as base64 (5 MB). */
+const MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024;
+
+/** Max number of images to include in a single context. */
+export const MAX_IMAGE_CONTEXT_COUNT = 3;
+
+/** Image extensions recognised for vision context. */
+export const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp']);
+
 // ---------------------------------------------------------------------------
 // Xplorer state helpers
 // ---------------------------------------------------------------------------
@@ -51,7 +60,14 @@ export interface FileContext {
   path: string;
   file_type: string;
   content?: string;
+  /** Base64-encoded image data (data URL) for vision-capable models. */
+  imageBase64?: string;
+  /** MIME type of the image (e.g. "image/png"). */
+  imageMimeType?: string;
 }
+
+/** Check whether a file extension is a supported image type. */
+export const isImageExtension = (ext: string): boolean => IMAGE_EXTENSIONS.has(ext.toLowerCase());
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -64,6 +80,48 @@ export const getExt = (filePath: string): string => {
   return dotIdx > 0 ? name.slice(dotIdx + 1).toLowerCase() : name.toLowerCase();
 };
 
+/** Map extension to MIME type for images. */
+const imageMimeType = (ext: string): string => {
+  const map: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+  };
+  return map[ext] ?? 'image/png';
+};
+
+/**
+ * Read an image file as base64 for vision context.
+ * Returns null if the file is too large or cannot be read.
+ */
+export const readImageAsBase64 = async (
+  filePath: string,
+): Promise<{ base64: string; mimeType: string } | null> => {
+  try {
+    const bytes = await TauriAPI.readBinaryFile(filePath);
+    if (bytes.length > MAX_IMAGE_SIZE_BYTES) {
+      return null; // Too large
+    }
+    const ext = getExt(filePath);
+    const mime = imageMimeType(ext);
+
+    // Convert Uint8Array to base64 string
+    let binary = '';
+    const len = bytes.length;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const b64 = btoa(binary);
+    return { base64: b64, mimeType: mime };
+  } catch {
+    return null;
+  }
+};
+
 /** Read file content for AI context. Tries text first, then document extraction. */
 export const readFileForAIContext = async (
   file: { name: string; path: string; is_dir: boolean },
@@ -73,6 +131,28 @@ export const readFileForAIContext = async (
 
   if (file.is_dir) {
     return { name: file.name, path: file.path, file_type: 'directory' };
+  }
+
+  // Handle images — read as base64 for vision models
+  if (isImageExtension(ext)) {
+    const imageData = await readImageAsBase64(file.path);
+    if (imageData) {
+      return {
+        name: file.name,
+        path: file.path,
+        file_type: ext,
+        content: `[Image file: ${file.name}]`,
+        imageBase64: imageData.base64,
+        imageMimeType: imageData.mimeType,
+      };
+    }
+    // Fall back to metadata-only if image too large or unreadable
+    return {
+      name: file.name,
+      path: file.path,
+      file_type: ext,
+      content: `[Image file: ${file.name} — too large or unreadable for vision analysis]`,
+    };
   }
 
   // Try reading as plain text first

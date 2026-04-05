@@ -98,6 +98,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (args) => `__DELETE_TEMPLATE__${args}`,
   },
   {
+    name: '/describe',
+    description: 'Describe selected image(s)',
+    toPrompt: (_args) =>
+      'Describe this image in detail. What is shown, what are the key elements, colors, and composition? Provide any useful observations.',
+  },
+  {
     name: '/export',
     description: 'Export this chat as markdown',
     toPrompt: (_args) => '__EXPORT_CHAT__',
