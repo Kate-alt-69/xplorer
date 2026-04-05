@@ -5,8 +5,9 @@
  * - FileActionCard: Single action with allow/reject/undo buttons + diff preview
  * - BatchActionCard: Batch permission card for multi-step operations
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
+  AlertTriangle,
   FileText,
   FolderOpen,
   FilePlus2,
@@ -36,6 +37,7 @@ import {
   isReadOnlyAction,
   canUndoAction,
 } from './chat-file-actions';
+import { scanContentForSecrets, type ScanResult } from './chat-content-scanner';
 
 // ---------------------------------------------------------------------------
 // Labels & icons
@@ -122,6 +124,18 @@ export const FileActionCard = ({
   const hasDestination = action.destination != null;
   const [undoing, setUndoing] = useState(false);
   const showUndo = canUndoAction(pendingAction) && onUndo;
+
+  // Scan content for potential secrets (for create_file/edit_file with content)
+  const secretScan: ScanResult = useMemo(() => {
+    if (
+      (action.action === 'create_file' || action.action === 'edit_file') &&
+      action.content &&
+      status === 'pending'
+    ) {
+      return scanContentForSecrets(action.content);
+    }
+    return { hasSecrets: false, warnings: [] };
+  }, [action.action, action.content, status]);
 
   // Load current file content for diff preview on edit_file actions
   const [existingContent, setExistingContent] = useState<string | null>(null);
@@ -343,6 +357,51 @@ export const FileActionCard = ({
                 ? `${action.content.slice(0, 500)}\n... (${action.content.length} chars total)`
                 : action.content}
             </pre>
+          </div>
+        )}
+
+        {/* Secret detection warning */}
+        {secretScan.hasSecrets && status === 'pending' && (
+          <div
+            style={{
+              marginTop: '6px',
+              padding: '8px 10px',
+              borderRadius: '6px',
+              background: 'rgba(255, 183, 77, 0.12)',
+              border: '1px solid rgba(255, 183, 77, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+            role="alert"
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 600,
+                fontSize: '12px',
+                color: 'var(--xp-yellow, #e0af68)',
+              }}
+            >
+              <AlertTriangle size={13} />
+              This content may contain secrets
+            </div>
+            {secretScan.warnings.map((w) => (
+              <div
+                key={w.label}
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--xp-text-muted)',
+                  fontFamily: 'monospace',
+                  paddingLeft: '19px',
+                }}
+              >
+                {w.label}
+                {w.line != null ? ` (line ${w.line})` : ''}: {w.redactedMatch}
+              </div>
+            ))}
           </div>
         )}
 
