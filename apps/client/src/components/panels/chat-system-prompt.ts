@@ -4,6 +4,10 @@
  * extensions, security rules, file contexts, and editor selection
  * into a single system prompt string.
  *
+ * Performance: heavy context sections (workspace, memory, feedback,
+ * security rules) are cached with TTLs to avoid redundant localStorage
+ * reads and recomputation on every message.
+ *
  * Extracted from StandaloneChatPanel to keep it under the 1000-line limit.
  */
 import { FILE_OPS_SYSTEM_PROMPT } from './chat-file-actions';
@@ -16,8 +20,9 @@ import {
   buildExtensionAwarenessPrompt,
   getContextualExtensionSuggestions,
 } from './chat-extension-awareness';
-import { loadSecurityRules } from './chat-security-rules';
+import { loadSecurityRules, type SecurityRules } from './chat-security-rules';
 import { SMART_FILE_OPS_PROMPT } from './chat-smart-file-ops';
+import { AI_SEARCH_PROMPT } from './chat-search-integration';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +35,97 @@ export interface SystemPromptOptions {
   includeSelection: boolean;
   agentLoopContext?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Prompt section cache — avoids redundant localStorage reads and recomputation
+// ---------------------------------------------------------------------------
+
+interface CacheEntry<T> {
+  value: T;
+  timestamp: number;
+  /** Optional secondary key (e.g. folder path) to invalidate on navigation */
+  key?: string;
+}
+
+/** Cache TTLs */
+const WORKSPACE_CACHE_TTL_MS = 30_000; // 30 seconds
+const MEMORY_CACHE_TTL_MS = 30_000; // 30 seconds
+const FEEDBACK_CACHE_TTL_MS = 30_000; // 30 seconds
+const SECURITY_CACHE_TTL_MS = 30_000; // 30 seconds
+
+let _workspacePromptCache: CacheEntry<string> | null = null;
+let _memoryPromptCache: CacheEntry<string> | null = null;
+let _feedbackPromptCache: CacheEntry<string> | null = null;
+let _securityRulesCache: CacheEntry<SecurityRules> | null = null;
+
+const isCacheValid = <T>(
+  cache: CacheEntry<T> | null,
+  ttl: number,
+  key?: string,
+): cache is CacheEntry<T> => {
+  if (!cache) return false;
+  if (Date.now() - cache.timestamp > ttl) return false;
+  if (key !== undefined && cache.key !== key) return false;
+  return true;
+};
+
+/**
+ * Invalidate all prompt caches. Call when the user changes settings
+ * or navigates to a new folder to force a fresh build.
+ */
+export const invalidatePromptCaches = (): void => {
+  _workspacePromptCache = null;
+  _memoryPromptCache = null;
+  _feedbackPromptCache = null;
+  _securityRulesCache = null;
+};
+
+// ---------------------------------------------------------------------------
+// Cached accessors
+// ---------------------------------------------------------------------------
+
+const getCachedWorkspacePrompt = (ctx: WorkspaceContext | null): string => {
+  if (!ctx) return '';
+  // Use a stable cache key derived from the context
+  const cacheKey = `${ctx.fileCount}:${ctx.dirCount}:${ctx.git.branch ?? ''}`;
+  if (isCacheValid(_workspacePromptCache, WORKSPACE_CACHE_TTL_MS, cacheKey)) {
+    return _workspacePromptCache.value;
+  }
+  const result = buildWorkspacePrompt(ctx);
+  _workspacePromptCache = { value: result, timestamp: Date.now(), key: cacheKey };
+  return result;
+};
+
+const getCachedMemoryPrompt = (folderPath: string): string => {
+  if (isCacheValid(_memoryPromptCache, MEMORY_CACHE_TTL_MS, folderPath)) {
+    return _memoryPromptCache.value;
+  }
+  const result = buildMemoryPrompt(folderPath);
+  _memoryPromptCache = { value: result, timestamp: Date.now(), key: folderPath };
+  return result;
+};
+
+const getCachedFeedbackPrompt = (folderPath: string | undefined): string => {
+  const cacheKey = folderPath ?? '__global__';
+  if (isCacheValid(_feedbackPromptCache, FEEDBACK_CACHE_TTL_MS, cacheKey)) {
+    return _feedbackPromptCache.value;
+  }
+  const folderFb = folderPath ? getFolderFeedback(folderPath) : [];
+  const allFb = loadFeedbackEntries();
+  const feedbackToUse = folderFb.length > 0 ? folderFb : allFb;
+  const result = buildFeedbackPrompt(feedbackToUse);
+  _feedbackPromptCache = { value: result, timestamp: Date.now(), key: cacheKey };
+  return result;
+};
+
+const getCachedSecurityRules = (): SecurityRules => {
+  if (isCacheValid(_securityRulesCache, SECURITY_CACHE_TTL_MS)) {
+    return _securityRulesCache.value;
+  }
+  const result = loadSecurityRules();
+  _securityRulesCache = { value: result, timestamp: Date.now() };
+  return result;
+};
 
 // ---------------------------------------------------------------------------
 // Builder
@@ -45,35 +141,33 @@ export const buildSystemPrompt = async (opts: SystemPromptOptions): Promise<stri
     "You are an AI agent inside the Xplorer file manager. You can observe the user's filesystem, understand their context, and take actions to help them manage files.";
   systemContent += `\n\n${FILE_OPS_SYSTEM_PROMPT}`;
   systemContent += `\n\n${SMART_FILE_OPS_PROMPT}`;
+  systemContent += `\n\n${AI_SEARCH_PROMPT}`;
 
-  // Inject workspace awareness (project type, git info, directory overview)
-  if (workspaceCtx) {
-    const workspacePrompt = buildWorkspacePrompt(workspaceCtx);
+  // Inject workspace awareness (project type, git info, directory overview) — cached 30s
+  {
+    const workspacePrompt = getCachedWorkspacePrompt(workspaceCtx);
     if (workspacePrompt) {
       systemContent += `\n\n${workspacePrompt}`;
     }
   }
 
-  // Inject agent memory (per-folder observations + global preferences)
+  // Inject agent memory (per-folder observations + global preferences) — cached 30s
   if (xState?.currentPath) {
-    const memoryPrompt = buildMemoryPrompt(xState.currentPath);
+    const memoryPrompt = getCachedMemoryPrompt(xState.currentPath);
     if (memoryPrompt) {
       systemContent += `\n${memoryPrompt}`;
     }
   }
 
-  // Inject feedback history so the agent can learn from past mistakes
+  // Inject feedback history so the agent can learn from past mistakes — cached 30s
   {
-    const folderFb = xState?.currentPath ? getFolderFeedback(xState.currentPath) : [];
-    const allFb = loadFeedbackEntries();
-    const feedbackToUse = folderFb.length > 0 ? folderFb : allFb;
-    const feedbackPrompt = buildFeedbackPrompt(feedbackToUse);
+    const feedbackPrompt = getCachedFeedbackPrompt(xState?.currentPath);
     if (feedbackPrompt) {
       systemContent += `\n${feedbackPrompt}`;
     }
   }
 
-  // Inject installed extension awareness
+  // Inject installed extension awareness — cached 60s (in chat-extension-awareness.ts)
   {
     const extensionPrompt = buildExtensionAwarenessPrompt();
     if (extensionPrompt) {
@@ -81,9 +175,9 @@ export const buildSystemPrompt = async (opts: SystemPromptOptions): Promise<stri
     }
   }
 
-  // Inject security rules awareness so the AI avoids blocked paths
+  // Inject security rules awareness so the AI avoids blocked paths — cached 30s
   {
-    const secRules = loadSecurityRules();
+    const secRules = getCachedSecurityRules();
     if (secRules.enabled) {
       const blockedStr = secRules.blockedPaths.slice(0, 10).join(', ');
       const protectedStr = secRules.protectedExtensions.map((e) => `.${e}`).join(', ');
