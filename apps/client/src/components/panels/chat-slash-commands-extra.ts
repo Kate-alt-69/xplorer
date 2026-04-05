@@ -18,6 +18,11 @@ export const EXTRA_SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (_args) => '__GENERATE_COMMIT_MESSAGE__',
   },
   {
+    name: '/share',
+    description: 'Share this conversation as a copyable link',
+    toPrompt: (_args) => '__SHARE_CONVERSATION__',
+  },
+  {
     name: '/workflows',
     description: 'List available workflow templates',
     toPrompt: (_args) => '__LIST_WORKFLOWS__',
