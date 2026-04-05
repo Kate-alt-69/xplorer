@@ -951,3 +951,19 @@ html.high-contrast *:focus-visible {
    WINDOW DRAG REGION
    Dragging is handled via appWindow.startDragging() in TopBar.tsx.
    ═══════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   AI CHAT FEEDBACK BUTTONS
+   Show on hover of the parent message container.
+   ═══════════════════════════════════════════════════════════════════ */
+
+[data-msg-index] .chat-feedback-buttons {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+[data-msg-index]:hover .chat-feedback-buttons,
+[data-msg-index]:focus-within .chat-feedback-buttons,
+[data-msg-index] .chat-feedback-buttons.chat-feedback-given {
+  opacity: 1;
+}

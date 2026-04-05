@@ -87,6 +87,9 @@ export const STORAGE_KEYS = {
   // AI Chat pinned messages
   AI_CHAT_PINNED: 'xplorer:ai-chat-pinned',
 
+  // AI Chat feedback (thumbs up/down)
+  AI_CHAT_FEEDBACK: 'xplorer:ai-chat-feedback',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

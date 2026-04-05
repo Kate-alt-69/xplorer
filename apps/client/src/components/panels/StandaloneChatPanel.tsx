@@ -49,6 +49,19 @@ import { useProactiveAgent } from './use-proactive-agent';
 import ProactiveSuggestionCard from './ProactiveSuggestionCard';
 import { buildMemoryPrompt, parseAndSaveMemories, recordFolderVisit } from './chat-agent-memory';
 import { handleSpecialSlashCommand } from './chat-special-commands';
+import {
+  detectAndLearnCorrection,
+  learnFromPositiveFeedback,
+  learnFromNegativeFeedback,
+  buildFeedbackPrompt,
+} from './chat-correction-learning';
+import {
+  addPositiveFeedback,
+  addNegativeFeedback,
+  loadFeedbackEntries,
+  getFolderFeedback,
+} from './chat-feedback-store';
+import ChatFeedbackButtons from './ChatFeedbackButtons';
 import { compareFiles as performFileComparison, isCompareIntent } from './chat-file-compare';
 import { useChatBranching } from './use-chat-branching';
 import ChatBranchTabs, { BranchForkIndicator } from './ChatBranchTabs';
@@ -352,6 +365,58 @@ const StandaloneChatPanel = () => {
     }
   }, []);
 
+  // ---------------------------------------------------------------------------
+  // Feedback (thumbs up/down) state
+  // ---------------------------------------------------------------------------
+
+  /** Tracks which message indices have received feedback */
+  const [feedbackMap, setFeedbackMap] = useState<Record<number, 'positive' | 'negative'>>({});
+
+  /** Find the user prompt that preceded a given assistant message index */
+  const findUserPromptForMessage = useCallback(
+    (messageIndex: number): string => {
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        const msg = messages[i];
+        if (msg.role === 'user' && !msg.isContextInjection) {
+          return msg.content;
+        }
+      }
+      return '';
+    },
+    [messages],
+  );
+
+  const handlePositiveFeedback = useCallback(
+    (messageIndex: number) => {
+      const msg = messages[messageIndex];
+      if (!msg || msg.role !== 'assistant') return;
+
+      const userPrompt = findUserPromptForMessage(messageIndex);
+      addPositiveFeedback(messageIndex, msg.content, userPrompt, currentPath);
+      learnFromPositiveFeedback(userPrompt, msg.content, currentPath);
+
+      setFeedbackMap((prev) => ({ ...prev, [messageIndex]: 'positive' }));
+    },
+    [messages, currentPath, findUserPromptForMessage],
+  );
+
+  const handleNegativeFeedback = useCallback(
+    (messageIndex: number, correctionText?: string) => {
+      const msg = messages[messageIndex];
+      if (!msg || msg.role !== 'assistant') return;
+
+      const userPrompt = findUserPromptForMessage(messageIndex);
+      addNegativeFeedback(messageIndex, msg.content, userPrompt, currentPath, correctionText);
+
+      if (correctionText) {
+        learnFromNegativeFeedback(correctionText, userPrompt, currentPath);
+      }
+
+      setFeedbackMap((prev) => ({ ...prev, [messageIndex]: 'negative' }));
+    },
+    [messages, currentPath, findUserPromptForMessage],
+  );
+
   // Context menu state for pinning
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -398,6 +463,17 @@ const StandaloneChatPanel = () => {
         const memoryPrompt = buildMemoryPrompt(xState.currentPath);
         if (memoryPrompt) {
           systemContent += `\n${memoryPrompt}`;
+        }
+      }
+
+      // Inject feedback history so the agent can learn from past mistakes
+      {
+        const folderFb = xState?.currentPath ? getFolderFeedback(xState.currentPath) : [];
+        const allFb = loadFeedbackEntries();
+        const feedbackToUse = folderFb.length > 0 ? folderFb : allFb;
+        const feedbackPrompt = buildFeedbackPrompt(feedbackToUse);
+        if (feedbackPrompt) {
+          systemContent += `\n${feedbackPrompt}`;
         }
       }
 
@@ -888,6 +964,16 @@ const StandaloneChatPanel = () => {
 
       const xState = getXplorerState();
 
+      // Detect user corrections and learn preferences from them
+      {
+        const lastAiMsg = [...messages]
+          .reverse()
+          .find((m) => m.role === 'assistant' && !m.isContextInjection);
+        if (lastAiMsg) {
+          detectAndLearnCorrection(text, lastAiMsg.content, currentPath);
+        }
+      }
+
       // Dropped files take priority over xplorer selection
       const filesToRead =
         droppedFiles.length > 0 ? [...droppedFiles] : [...(xState?.selectedFiles ?? [])];
@@ -1315,6 +1401,15 @@ const StandaloneChatPanel = () => {
                 onSaveCodeAsFile={handleSaveCodeAsFile}
                 renderFilePath={renderFilePath}
               />
+              {/* Feedback buttons on assistant messages */}
+              {msg.role === 'assistant' && !msg.isContextInjection && msg.content && !isLoading && (
+                <ChatFeedbackButtons
+                  messageIndex={i}
+                  existingFeedback={feedbackMap[i] ?? null}
+                  onPositive={handlePositiveFeedback}
+                  onNegative={handleNegativeFeedback}
+                />
+              )}
               {/* Show branch fork indicator on assistant messages (main thread only) */}
               {msg.role === 'assistant' &&
                 !msg.isContextInjection &&

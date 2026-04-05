@@ -119,6 +119,11 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (_args) => '__PIN_LAST__',
   },
   {
+    name: '/preferences',
+    description: 'Show learned preferences and feedback history',
+    toPrompt: (_args) => '__SHOW_PREFERENCES__',
+  },
+  {
     name: '/help',
     description: 'Show available commands',
     toPrompt: (_args) => '__SHOW_HELP__',

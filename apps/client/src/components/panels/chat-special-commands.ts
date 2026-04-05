@@ -1,6 +1,6 @@
 /**
  * Handlers for special slash commands that don't go to the AI:
- * /memory, /forget, /compare
+ * /memory, /forget, /compare, /preferences
  *
  * Returns a response object or null if the command is not handled here.
  */
@@ -9,8 +9,11 @@ import {
   clearFolderMemory,
   getGlobalPreferences,
   getMemorySummary,
+  normalizePath,
+  loadMemoryStore,
 } from './chat-agent-memory';
 import { getXplorerState } from './chat-context-helpers';
+import { loadFeedbackEntries } from './chat-feedback-store';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,5 +108,109 @@ export const handleSpecialSlashCommand = (
     };
   }
 
+  // /preferences -- show learned preferences and feedback history
+  if (prompt === '__SHOW_PREFERENCES__') {
+    return { type: 'handled', responseText: buildPreferencesDisplay(currentPath) };
+  }
+
   return null;
+};
+
+// ---------------------------------------------------------------------------
+// Preferences display builder
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a formatted display of all learned preferences and feedback.
+ */
+const buildPreferencesDisplay = (currentPath: string): string => {
+  const store = loadMemoryStore();
+  const globalPrefs = getGlobalPreferences();
+  const feedbackEntries = loadFeedbackEntries();
+  const summary = getMemorySummary();
+  const lines: string[] = ['**Learned Preferences**\n'];
+
+  // Global preferences
+  if (globalPrefs.length > 0) {
+    lines.push('**Global:**');
+    for (const pref of globalPrefs) {
+      const tagStr = pref.tags.includes('correction') ? ' (from correction)' : '';
+      const feedbackStr = pref.tags.includes('feedback') ? ' (from feedback)' : '';
+      lines.push(`- ${pref.text}${tagStr}${feedbackStr}`);
+    }
+    lines.push('');
+  } else {
+    lines.push('**Global:** No global preferences learned yet.\n');
+  }
+
+  // Current folder preferences
+  if (currentPath) {
+    const key = normalizePath(currentPath);
+    const folderMem = store.folders[key];
+    if (folderMem && folderMem.observations.length > 0) {
+      const prefs = folderMem.observations.filter(
+        (obs) =>
+          obs.tags.includes('preference') ||
+          obs.tags.includes('correction') ||
+          obs.tags.includes('feedback'),
+      );
+      if (prefs.length > 0) {
+        lines.push(`**${key}:**`);
+        for (const pref of prefs) {
+          lines.push(`- ${pref.text}`);
+        }
+        lines.push('');
+      }
+    }
+  }
+
+  // Other folder preferences (non-current)
+  const currentKey = currentPath ? normalizePath(currentPath) : '';
+  const otherFolders = Object.values(store.folders).filter((f) => {
+    if (f.path === currentKey) return false;
+    return f.observations.some(
+      (obs) =>
+        obs.tags.includes('preference') ||
+        obs.tags.includes('correction') ||
+        obs.tags.includes('feedback'),
+    );
+  });
+
+  if (otherFolders.length > 0) {
+    for (const folder of otherFolders.slice(0, 5)) {
+      const prefs = folder.observations.filter(
+        (obs) =>
+          obs.tags.includes('preference') ||
+          obs.tags.includes('correction') ||
+          obs.tags.includes('feedback'),
+      );
+      if (prefs.length > 0) {
+        lines.push(`**${folder.path}:**`);
+        for (const pref of prefs) {
+          lines.push(`- ${pref.text}`);
+        }
+        lines.push('');
+      }
+    }
+  }
+
+  // Feedback summary
+  if (feedbackEntries.length > 0) {
+    const positiveCount = feedbackEntries.filter((e) => e.type === 'positive').length;
+    const negativeCount = feedbackEntries.filter((e) => e.type === 'negative').length;
+    lines.push(
+      `**Feedback:** ${positiveCount} positive, ${negativeCount} negative responses recorded.`,
+    );
+  }
+
+  // Stats
+  lines.push('');
+  lines.push(
+    `Tracking ${summary.length} folder${summary.length !== 1 ? 's' : ''}, ${globalPrefs.length} global preferences.`,
+  );
+  lines.push(
+    '\nUse `/forget` to clear this folder\'s memory, or say "clear all preferences" to reset everything.',
+  );
+
+  return lines.join('\n');
 };

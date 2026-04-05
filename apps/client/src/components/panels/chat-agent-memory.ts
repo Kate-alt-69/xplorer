@@ -320,6 +320,10 @@ export const buildMemoryPrompt = (folderPath: string): string => {
     lines.push(
       'IMPORTANT: When you learn something new about the user or this folder during conversation, include a [MEMORY] tag at the end of your response to save it. Format: `[MEMORY:folder] observation text` or `[MEMORY:global] preference text`. Only add memories for genuinely useful observations, not trivial facts.',
     );
+    lines.push('');
+    lines.push(
+      'CORRECTIONS: Preferences tagged [correction] were learned when the user corrected you. Always respect these. If a preference contradicts your default behavior, follow the preference. When you see correction-tagged memories, acknowledge you remember their preference (e.g., "I remember you prefer organizing by date, so I\'ll do that").',
+    );
   }
 
   return lines.join('\n');
