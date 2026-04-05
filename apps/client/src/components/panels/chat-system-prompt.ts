@@ -17,6 +17,7 @@ import {
   getContextualExtensionSuggestions,
 } from './chat-extension-awareness';
 import { loadSecurityRules } from './chat-security-rules';
+import { SMART_FILE_OPS_PROMPT } from './chat-smart-file-ops';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +44,7 @@ export const buildSystemPrompt = async (opts: SystemPromptOptions): Promise<stri
   let systemContent =
     "You are an AI agent inside the Xplorer file manager. You can observe the user's filesystem, understand their context, and take actions to help them manage files.";
   systemContent += `\n\n${FILE_OPS_SYSTEM_PROMPT}`;
+  systemContent += `\n\n${SMART_FILE_OPS_PROMPT}`;
 
   // Inject workspace awareness (project type, git info, directory overview)
   if (workspaceCtx) {

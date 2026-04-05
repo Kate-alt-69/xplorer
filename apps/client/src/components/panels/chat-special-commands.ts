@@ -16,6 +16,13 @@ import { getXplorerState } from './chat-context-helpers';
 import { loadFeedbackEntries } from './chat-feedback-store';
 import { formatAuditLogDisplay } from './chat-audit-log';
 import { formatSecurityRulesDisplay } from './chat-security-rules';
+import {
+  findDuplicatesInDirectory,
+  formatDuplicateReport,
+  detectRenamePatterns,
+  formatRenamePatternReport,
+} from './chat-smart-file-ops';
+import { TauriAPI } from '@/lib/tauri-api';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,6 +132,48 @@ export const handleSpecialSlashCommand = (
     return { type: 'handled', responseText: formatSecurityRulesDisplay() };
   }
 
+  // /duplicates -- find duplicate files in current folder
+  if (prompt === '__FIND_DUPLICATES__') {
+    if (!currentPath) {
+      return {
+        type: 'handled',
+        responseText: 'No current folder to scan for duplicates.',
+      };
+    }
+    return {
+      type: 'redirect',
+      redirectPrompt: `Scan the current directory for duplicate files. List the directory first, then identify files with the same size. For files with matching sizes, compare them to confirm they are duplicates. Report how many duplicate groups you found and how much space could be saved. Offer to clean them up by keeping the oldest copy and trashing the rest.`,
+    };
+  }
+
+  // /rename-pattern -- detect filename patterns and suggest batch rename
+  if (prompt === '__RENAME_PATTERN__') {
+    if (!currentPath) {
+      return {
+        type: 'handled',
+        responseText: 'No current folder to analyze for rename patterns.',
+      };
+    }
+    return {
+      type: 'redirect',
+      redirectPrompt: `Analyze filenames in the current directory for common patterns (camera timestamps like IMG_20240101_001.jpg, screenshot names, copy suffixes like "file (1).txt", WhatsApp media names, etc.). For each pattern found, suggest a cleaner naming convention and show example before/after. Then offer to batch rename matching files.`,
+    };
+  }
+
+  // /organize-folder -- analyze folder and suggest organization by type
+  if (prompt === '__ORGANIZE_FOLDER__') {
+    if (!currentPath) {
+      return {
+        type: 'handled',
+        responseText: 'No current folder to analyze for organization.',
+      };
+    }
+    return {
+      type: 'redirect',
+      redirectPrompt: `Analyze the file types in the current directory and suggest a folder organization structure. Group files by category (Images, Documents, Code, Videos, Audio, Archives) and suggest creating folders for categories with 3+ files. Show how many files would go into each folder and the total space. Present the plan before executing.`,
+    };
+  }
+
   return null;
 };
 
@@ -225,4 +274,63 @@ const buildPreferencesDisplay = (currentPath: string): string => {
   );
 
   return lines.join('\n');
+};
+
+// ---------------------------------------------------------------------------
+// Async smart file ops handlers (for programmatic use)
+// ---------------------------------------------------------------------------
+
+/**
+ * Run the /duplicates analysis and return a formatted report.
+ * This is the async version that pre-computes results directly.
+ */
+export const handleDuplicatesAsync = async (currentPath: string): Promise<SpecialCommandResult> => {
+  if (!currentPath) {
+    return {
+      type: 'handled',
+      responseText: 'No current folder to scan for duplicates.',
+    };
+  }
+  try {
+    const report = await findDuplicatesInDirectory(currentPath);
+    return {
+      type: 'handled',
+      responseText: formatDuplicateReport(currentPath, report),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      type: 'handled',
+      responseText: `Failed to scan for duplicates: ${msg}`,
+    };
+  }
+};
+
+/**
+ * Run the /rename-pattern analysis and return a formatted report.
+ * This is the async version that pre-computes results directly.
+ */
+export const handleRenamePatternAsync = async (
+  currentPath: string,
+): Promise<SpecialCommandResult> => {
+  if (!currentPath) {
+    return {
+      type: 'handled',
+      responseText: 'No current folder to analyze for rename patterns.',
+    };
+  }
+  try {
+    const entries = await TauriAPI.readDirectory(currentPath);
+    const patterns = detectRenamePatterns(entries);
+    return {
+      type: 'handled',
+      responseText: formatRenamePatternReport(currentPath, patterns),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      type: 'handled',
+      responseText: `Failed to analyze filename patterns: ${msg}`,
+    };
+  }
 };
