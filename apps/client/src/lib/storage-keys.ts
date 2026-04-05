@@ -81,6 +81,9 @@ export const STORAGE_KEYS = {
   // AI Proactive agent
   PROACTIVE_AGENT_ENABLED: 'xplorer:proactive-agent-enabled',
 
+  // AI Agent memory
+  AI_AGENT_MEMORY: 'xplorer:ai-agent-memory',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

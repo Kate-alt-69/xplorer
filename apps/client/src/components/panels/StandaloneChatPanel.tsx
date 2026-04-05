@@ -46,6 +46,11 @@ import {
 } from './chat-workspace-awareness';
 import { useProactiveAgent } from './use-proactive-agent';
 import ProactiveSuggestionCard from './ProactiveSuggestionCard';
+import { buildMemoryPrompt, parseAndSaveMemories, recordFolderVisit } from './chat-agent-memory';
+import { handleSpecialSlashCommand } from './chat-special-commands';
+import { compareFiles as performFileComparison, isCompareIntent } from './chat-file-compare';
+import { useChatBranching } from './use-chat-branching';
+import ChatBranchTabs, { BranchForkIndicator } from './ChatBranchTabs';
 
 // ---------------------------------------------------------------------------
 // Chat message type alias
@@ -168,6 +173,8 @@ const StandaloneChatPanel = () => {
       .catch(() => {
         if (!cancelled) setWorkspaceCtx(null);
       });
+    // Record folder visit for agent memory
+    recordFolderVisit(currentPath);
     return () => {
       cancelled = true;
     };
@@ -252,6 +259,25 @@ const StandaloneChatPanel = () => {
     autoExecuteActions,
   } = useChatActions(messagesRef, setMessages, scrollToBottom);
 
+  // Conversation branching
+  const {
+    branchState,
+    resetBranches,
+    handleCreateBranch,
+    handleSwitchBranch,
+    handleDeleteBranch,
+    handleRenameBranch,
+    getMessageBranchCount,
+    hasBranches: showBranchTabs,
+    isOnMainBranch,
+  } = useChatBranching({
+    messages,
+    setMessages,
+    chatHistory,
+    currentConversationId,
+    scrollToBottom,
+  });
+
   // ---------------------------------------------------------------------------
   // Build system prompt with full context
   // ---------------------------------------------------------------------------
@@ -271,6 +297,14 @@ const StandaloneChatPanel = () => {
         const workspacePrompt = buildWorkspacePrompt(workspaceCtx);
         if (workspacePrompt) {
           systemContent += `\n\n${workspacePrompt}`;
+        }
+      }
+
+      // Inject agent memory (per-folder observations + global preferences)
+      if (xState?.currentPath) {
+        const memoryPrompt = buildMemoryPrompt(xState.currentPath);
+        if (memoryPrompt) {
+          systemContent += `\n${memoryPrompt}`;
         }
       }
 
@@ -361,6 +395,11 @@ const StandaloneChatPanel = () => {
           if (abortRef.current) break;
 
           const { cleanText, actions } = parseFileActions(response);
+          // Parse and save memory tags from the response
+          const memoryCleanText = parseAndSaveMemories(
+            cleanText || (actions.length > 0 ? '' : response),
+            xState?.currentPath ?? '',
+          );
           const pendingActions: PendingFileAction[] = actions.map((a: FileAction) => ({
             id: generateActionId(),
             action: a,
@@ -369,7 +408,7 @@ const StandaloneChatPanel = () => {
 
           const assistantMsg: ChatMessage = {
             role: 'assistant',
-            content: cleanText || (actions.length > 0 ? '' : response),
+            content: memoryCleanText,
             fileActions: pendingActions.length > 0 ? pendingActions : undefined,
           };
 
@@ -485,6 +524,23 @@ const StandaloneChatPanel = () => {
           setInput('');
           return;
         }
+        // Handle special commands (/memory, /forget, /compare)
+        {
+          const specialResult = handleSpecialSlashCommand(slashMatch.prompt, currentPath);
+          if (specialResult) {
+            if (specialResult.type === 'redirect' && specialResult.redirectPrompt) {
+              setInput('');
+              return sendMessage(specialResult.redirectPrompt);
+            }
+            setMessages((prev) => [
+              ...prev,
+              { role: 'user', content: text },
+              { role: 'assistant', content: specialResult.responseText ?? '' },
+            ]);
+            setInput('');
+            return;
+          }
+        }
         // Handle template slash commands
         {
           const lastActionMsg = [...messagesRef.current]
@@ -554,10 +610,27 @@ const StandaloneChatPanel = () => {
         file_type: string;
         content?: string;
       }> = [];
+      let compareContext: string | null = null;
 
       if (filesToRead.length > 0) {
         setIsReadingFile(true);
         try {
+          // Detect file comparison intent when exactly 2 files
+          if (
+            filesToRead.length === 2 &&
+            !filesToRead[0].is_dir &&
+            !filesToRead[1].is_dir &&
+            isCompareIntent(text, 2)
+          ) {
+            const compResult = await performFileComparison(
+              filesToRead[0].path,
+              filesToRead[1].path,
+            );
+            if (compResult.success) {
+              compareContext = compResult.contextForAI;
+            }
+          }
+
           fileContexts =
             filesToRead.length === 1 && !filesToRead[0].is_dir
               ? [await readFileForAIContext(filesToRead[0])]
@@ -572,6 +645,14 @@ const StandaloneChatPanel = () => {
       const historyMsgs = newMessages
         .filter((m) => !m.isContextInjection)
         .map((m) => ({ role: m.role, content: m.content }));
+
+      // Inject file comparison context if detected
+      if (compareContext) {
+        historyMsgs.push({
+          role: 'user',
+          content: `[File comparison data]\n${compareContext}`,
+        });
+      }
 
       await runAgentLoop(historyMsgs, xState, fileContexts, newMessages);
       setIsLoading(false);
@@ -594,8 +675,9 @@ const StandaloneChatPanel = () => {
     setAgentStep('');
     setDroppedFiles([]);
     setCurrentConversationId(null);
+    resetBranches();
     abortRef.current = false;
-  }, []);
+  }, [resetBranches]);
 
   const loadConversation = useCallback((conv: SavedConversation) => {
     setMessages(conv.messages as ChatMessage[]);
@@ -810,6 +892,16 @@ const StandaloneChatPanel = () => {
         onToggleSelection={() => setIncludeSelection((v) => !v)}
       />
 
+      {/* Branch tabs */}
+      {showBranchTabs && (
+        <ChatBranchTabs
+          branchState={branchState}
+          onSwitchBranch={handleSwitchBranch}
+          onDeleteBranch={handleDeleteBranch}
+          onRenameBranch={handleRenameBranch}
+        />
+      )}
+
       {/* Messages area */}
       <div
         ref={scrollRef}
@@ -844,22 +936,35 @@ const StandaloneChatPanel = () => {
               ? getVisibleText(`msg-${i}`) || msg.content
               : msg.content;
 
+          const branchCount = getMessageBranchCount(i);
+
           return (
-            <ChatMessageBubble
-              key={`msg-${i}`}
-              message={msg}
-              index={i}
-              displayText={displayText}
-              onExecuteAction={handleExecuteAction}
-              onRejectAction={handleRejectAction}
-              onAlwaysAllowAction={handleAlwaysAllow}
-              onUndoAction={handleUndoAction}
-              onBatchAllowAll={handleBatchAllowAll}
-              onBatchRejectAll={handleBatchRejectAll}
-              onBatchAlwaysAllow={handleBatchAlwaysAllow}
-              onSaveCodeAsFile={handleSaveCodeAsFile}
-              renderFilePath={renderFilePath}
-            />
+            <div key={`msg-${i}`}>
+              <ChatMessageBubble
+                message={msg}
+                index={i}
+                displayText={displayText}
+                onExecuteAction={handleExecuteAction}
+                onRejectAction={handleRejectAction}
+                onAlwaysAllowAction={handleAlwaysAllow}
+                onUndoAction={handleUndoAction}
+                onBatchAllowAll={handleBatchAllowAll}
+                onBatchRejectAll={handleBatchRejectAll}
+                onBatchAlwaysAllow={handleBatchAlwaysAllow}
+                onSaveCodeAsFile={handleSaveCodeAsFile}
+                renderFilePath={renderFilePath}
+              />
+              {/* Show branch fork indicator on assistant messages (main thread only) */}
+              {msg.role === 'assistant' &&
+                !msg.isContextInjection &&
+                isOnMainBranch &&
+                !isLoading && (
+                  <BranchForkIndicator
+                    branchCount={branchCount}
+                    onBranch={() => handleCreateBranch(i)}
+                  />
+                )}
+            </div>
           );
         })}
 

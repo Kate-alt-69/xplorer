@@ -53,6 +53,28 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     },
   },
   {
+    name: '/compare',
+    description: 'Deep file comparison with diff/schema analysis',
+    hasArgs: true,
+    toPrompt: (args) => {
+      const parts = args.trim().split(/\s+/);
+      if (parts.length >= 2) {
+        return `__COMPARE_FILES__${parts[0]}|${parts[1]}`;
+      }
+      return '__COMPARE_SELECTED__';
+    },
+  },
+  {
+    name: '/memory',
+    description: 'Show what the agent remembers about this folder',
+    toPrompt: (_args) => '__SHOW_MEMORY__',
+  },
+  {
+    name: '/forget',
+    description: 'Clear agent memory for this folder',
+    toPrompt: (_args) => '__CLEAR_MEMORY__',
+  },
+  {
     name: '/templates',
     description: 'List saved action templates',
     toPrompt: (_args) => '__LIST_TEMPLATES__',
