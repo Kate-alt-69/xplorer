@@ -27,16 +27,17 @@ export type FileActionType =
   | 'list_directory'
   | 'search_files'
   | 'open_file'
+  | 'open_extension'
   | 'run_command';
 
 /** Actions that modify the filesystem and need permission */
 export type MutatingActionType = Exclude<
   FileActionType,
-  'list_directory' | 'search_files' | 'open_file'
+  'list_directory' | 'search_files' | 'open_file' | 'open_extension'
 >;
 
 /** Actions that are read-only and can auto-execute to feed context back */
-export type ReadOnlyActionType = 'list_directory' | 'search_files' | 'open_file';
+export type ReadOnlyActionType = 'list_directory' | 'search_files' | 'open_file' | 'open_extension';
 
 /** Actions that always require explicit user permission (never auto-execute) */
 export type AlwaysAskActionType = 'run_command';
@@ -47,6 +48,7 @@ export const READONLY_ACTIONS: ReadonlySet<string> = new Set<string>([
   'list_directory',
   'search_files',
   'open_file',
+  'open_extension',
 ]);
 
 export interface FileAction {
@@ -61,6 +63,8 @@ export interface FileAction {
   command?: string;
   /** Working directory for run_command (defaults to path) */
   cwd?: string;
+  /** Extension ID for open_extension action */
+  extension_id?: string;
 }
 
 export interface CommandOutput {
@@ -141,6 +145,7 @@ const ALL_ACTION_NAMES = [
   'list_directory',
   'search_files',
   'open_file',
+  'open_extension',
   'run_command',
 ].join('|');
 
@@ -188,6 +193,17 @@ export const parseFileActions = (
             path: cwdValue,
             command: cmd,
             cwd: cwdValue || undefined,
+          };
+        }
+
+        // open_extension requires "extension_id"
+        if (action === 'open_extension') {
+          const extId = typeof obj.extension_id === 'string' ? obj.extension_id : undefined;
+          if (!extId) return null;
+          return {
+            action: action as FileActionType,
+            path: typeof obj.path === 'string' ? obj.path : '',
+            extension_id: extId,
           };
         }
 
@@ -397,6 +413,11 @@ export const executeFileAction = async (action: FileAction): Promise<string | un
       }
       return `Cannot navigate: Xplorer state not available`;
     }
+    case 'open_extension': {
+      // Dynamically import to avoid circular dependency
+      const { executeOpenExtension } = await import('./chat-extension-awareness');
+      return await executeOpenExtension(action.extension_id ?? '', action.path || undefined);
+    }
     case 'run_command': {
       // Command execution is handled separately via executeRunCommand
       // This case exists so TypeScript is exhaustive
@@ -532,6 +553,9 @@ Include JSON action blocks in your response. The user will be asked for permissi
 - List a directory: \`{"action": "list_directory", "path": "/absolute/path/to/dir"}\`
 - Search for files: \`{"action": "search_files", "path": "/search/root/path", "query": "*.txt"}\`
 - Navigate to / open a file: \`{"action": "open_file", "path": "/absolute/path/to/file_or_dir"}\`
+- Open a file in an extension: \`{"action": "open_extension", "extension_id": "extension-id", "path": "/absolute/path/to/file"}\`
+  - Only use this when you know the extension is installed (check the Installed Extensions section).
+  - The extension_id must match an installed extension. The path is optional for panel-only extensions.
 
 ## Task Plans (for complex multi-step requests)
 When the user asks for something complex that involves 3+ distinct steps (e.g., "organize this folder, rename files by date, and generate a README"), generate a task plan INSTEAD of doing everything at once.

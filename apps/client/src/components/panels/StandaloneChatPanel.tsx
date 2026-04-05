@@ -63,6 +63,11 @@ import {
 } from './chat-feedback-store';
 import ChatFeedbackButtons from './ChatFeedbackButtons';
 import { compareFiles as performFileComparison, isCompareIntent } from './chat-file-compare';
+import {
+  buildExtensionAwarenessPrompt,
+  getContextualExtensionSuggestions,
+  buildMarketplaceSuggestionText,
+} from './chat-extension-awareness';
 import { useChatBranching } from './use-chat-branching';
 import ChatBranchTabs, { BranchForkIndicator } from './ChatBranchTabs';
 import { useTaskPlan, parseTaskPlan } from './use-task-plan';
@@ -477,6 +482,14 @@ const StandaloneChatPanel = () => {
         }
       }
 
+      // Inject installed extension awareness
+      {
+        const extensionPrompt = buildExtensionAwarenessPrompt();
+        if (extensionPrompt) {
+          systemContent += `\n\n${extensionPrompt}`;
+        }
+      }
+
       if (xState?.currentPath) {
         systemContent += `\n\n## Current Context\n[Current directory: ${xState.currentPath}]`;
         const dirListing = await buildDirectoryContext(xState.currentPath);
@@ -489,6 +502,20 @@ const StandaloneChatPanel = () => {
           .map((f) => `  - ${f.name} (${f.path})${f.is_dir ? ' [directory]' : ''}`)
           .join('\n');
         systemContent += `\n\n[Currently selected files]\n${fileList}`;
+
+        // Add contextual extension suggestions for selected files
+        const extSuggestions = getContextualExtensionSuggestions(
+          selectedFileList,
+          xState?.currentPath ?? '',
+        );
+        if (extSuggestions.length > 0) {
+          systemContent += '\n\n[Extension suggestions for selected files]';
+          for (const s of extSuggestions) {
+            systemContent += `\n- ${s.message} (extension: ${s.extensionId})`;
+          }
+          systemContent +=
+            "\nIf relevant to the user's request, suggest opening files with these extensions using the open_extension action.";
+        }
       }
 
       // Count images vs text files in context
@@ -1063,6 +1090,17 @@ const StandaloneChatPanel = () => {
           role: 'user',
           content: `[File comparison data]\n${compareContext}`,
         });
+      }
+
+      // Inject marketplace extension suggestions if relevant
+      {
+        const marketplaceHint = buildMarketplaceSuggestionText(text);
+        if (marketplaceHint) {
+          historyMsgs.push({
+            role: 'user',
+            content: `[Marketplace extension info]\n${marketplaceHint}`,
+          });
+        }
       }
 
       await runAgentLoop(historyMsgs, xState, fileContexts, newMessages);
