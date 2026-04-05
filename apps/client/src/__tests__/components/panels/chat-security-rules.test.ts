@@ -151,9 +151,21 @@ describe('checkSecurity — file type restriction', () => {
     expect(result.allowed).toBe(true);
   });
 
-  it('file type restriction only applies to delete_file', () => {
-    // Creating a .key file is fine
+  it('blocks creating .key files', () => {
     const result = checkSecurity('create_file', '/home/user/secret.key');
+    expect(result.allowed).toBe(false);
+    expect(result.ruleName).toBe('file-type-restriction');
+  });
+
+  it('blocks editing .env files', () => {
+    const result = checkSecurity('edit_file', '/home/user/.env');
+    expect(result.allowed).toBe(false);
+    expect(result.ruleName).toBe('file-type-restriction');
+  });
+
+  it('allows other actions on protected file types', () => {
+    // Moving a .key file is allowed (move_file is not in the restricted set)
+    const result = checkSecurity('move_file', '/home/user/secret.key');
     expect(result.allowed).toBe(true);
   });
 });

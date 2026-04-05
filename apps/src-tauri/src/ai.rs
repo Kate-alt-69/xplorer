@@ -68,20 +68,20 @@ pub async fn get_ai_models() -> Result<Vec<AIModel>, String> {
     if claude_api_key.is_some() {
         all_models.extend(vec![
             AIModel {
-                id: "claude-3-5-sonnet-20241022".to_string(),
-                name: "Claude 3.5 Sonnet".to_string(),
+                id: "claude-sonnet-4-20250514".to_string(),
+                name: "Claude Sonnet 4".to_string(),
                 provider: "anthropic".to_string(),
                 available: true,
             },
             AIModel {
-                id: "claude-3-5-haiku-20241022".to_string(),
-                name: "Claude 3.5 Haiku".to_string(),
+                id: "claude-haiku-4-5-20251001".to_string(),
+                name: "Claude Haiku 4.5".to_string(),
                 provider: "anthropic".to_string(),
                 available: true,
             },
             AIModel {
-                id: "claude-3-opus-20240229".to_string(),
-                name: "Claude 3 Opus".to_string(),
+                id: "claude-opus-4-6-20250515".to_string(),
+                name: "Claude Opus 4.6".to_string(),
                 provider: "anthropic".to_string(),
                 available: true,
             },

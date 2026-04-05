@@ -515,6 +515,7 @@ fn execute_write_tool(
     tool_input: &Value,
     session_id: &str,
     app_handle: &tauri::AppHandle,
+    approved: bool,
 ) -> (Value, AgentToolCall) {
     let requires_approval = tools::tool_requires_approval(tool_name);
 
@@ -531,7 +532,9 @@ fn execute_write_tool(
     // Backend enforcement: verify that write operations have been approved.
     // This is a defense-in-depth check — the caller (execute_write_tools)
     // should only call this function after approval, but we verify here.
-    if requires_approval && !tool_call.requires_approval {
+    // The `approved` parameter is passed in by the caller to confirm the
+    // operation went through the approval flow.
+    if requires_approval && !approved {
         tool_call.status = "error".to_string();
         tool_call.error = Some("Write operation requires approval".to_string());
         let result = json!({
@@ -665,7 +668,7 @@ async fn execute_write_tools(
 
         if allowed && !is_session_cancelled(session_id) {
             let (result_json, tc) =
-                execute_write_tool(tool_id, tool_name, tool_input, session_id, app_handle);
+                execute_write_tool(tool_id, tool_name, tool_input, session_id, app_handle, true);
             tool_results.push(result_json);
             final_tool_call = tc;
         } else {

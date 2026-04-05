@@ -209,13 +209,15 @@ export const checkSecurity = (
     }
   }
 
-  // 2. File type restriction check (only for delete actions)
-  if (actionType === 'delete_file') {
+  // 2. File type restriction check (for delete, edit, and create actions)
+  if (actionType === 'delete_file' || actionType === 'edit_file' || actionType === 'create_file') {
     const ext = getFileExtension(path);
     if (ext && rules.protectedExtensions.includes(ext)) {
+      const verb =
+        actionType === 'delete_file' ? 'delete' : actionType === 'edit_file' ? 'edit' : 'create';
       return {
         allowed: false,
-        reason: `Action blocked: cannot delete .${ext} files (protected file type).`,
+        reason: `Action blocked: cannot ${verb} .${ext} files (protected file type).`,
         ruleName: 'file-type-restriction',
       };
     }
@@ -283,7 +285,7 @@ export const formatSecurityRulesDisplay = (): string => {
   }
   lines.push('');
 
-  lines.push('**Protected file types** (cannot be deleted):');
+  lines.push('**Protected file types** (cannot be created, edited, or deleted):');
   if (rules.protectedExtensions.length === 0) {
     lines.push('- (none)');
   } else {
