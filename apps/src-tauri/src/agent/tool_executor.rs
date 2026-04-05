@@ -290,9 +290,71 @@ pub fn execute_move_file(input: &Value) -> Result<String, String> {
         .ok_or("Missing 'destination' parameter")?;
     validate_path_with_perms(source)?;
     validate_path_with_perms(dest)?;
-    std::fs::rename(source, dest)
-        .map_err(|e| format!("Failed to move '{}' to '{}': {}", source, dest, e))?;
-    Ok(format!("Successfully moved {} to {}", source, dest))
+
+    // Try rename first (fast, same-device). Fall back to copy+delete for
+    // cross-device moves where rename returns EXDEV / "cross-device link".
+    match std::fs::rename(source, dest) {
+        Ok(()) => Ok(format!("Successfully moved {} to {}", source, dest)),
+        Err(ref e) if is_cross_device_error(e) => {
+            let src_path = Path::new(source);
+            if src_path.is_dir() {
+                copy_dir_recursive(src_path, Path::new(dest))?;
+            } else {
+                if let Some(parent) = Path::new(dest).parent() {
+                    std::fs::create_dir_all(parent).ok();
+                }
+                std::fs::copy(source, dest).map_err(|err| {
+                    format!(
+                        "Cross-device move failed during copy '{}' to '{}': {}",
+                        source, dest, err
+                    )
+                })?;
+            }
+            // Remove original after successful copy
+            if src_path.is_dir() {
+                std::fs::remove_dir_all(source).map_err(|err| {
+                    format!(
+                        "Cross-device move copied successfully but failed to remove source '{}': {}",
+                        source, err
+                    )
+                })?;
+            } else {
+                std::fs::remove_file(source).map_err(|err| {
+                    format!(
+                        "Cross-device move copied successfully but failed to remove source '{}': {}",
+                        source, err
+                    )
+                })?;
+            }
+            Ok(format!(
+                "Successfully moved {} to {} (cross-device)",
+                source, dest
+            ))
+        }
+        Err(e) => Err(format!("Failed to move '{}' to '{}': {}", source, dest, e)),
+    }
+}
+
+/// Check whether an IO error represents a cross-device link failure.
+fn is_cross_device_error(err: &std::io::Error) -> bool {
+    // On Unix, EXDEV is raw_os_error 18; on Windows, ERROR_NOT_SAME_DEVICE is 17.
+    if let Some(code) = err.raw_os_error() {
+        #[cfg(unix)]
+        {
+            return code == 18; // EXDEV
+        }
+        #[cfg(windows)]
+        {
+            return code == 17; // ERROR_NOT_SAME_DEVICE
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            let _ = code;
+        }
+    }
+    // Fallback: check the error message for common cross-device indicators
+    let msg = err.to_string().to_lowercase();
+    msg.contains("cross-device") || msg.contains("not same device")
 }
 
 pub fn execute_copy_file(input: &Value) -> Result<String, String> {

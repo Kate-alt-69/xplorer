@@ -222,6 +222,45 @@ export interface UpdateAgentApiKeysPayload {
   openai_api_key?: string;
 }
 
+export interface AgentPermissions {
+  disabled_tools: string[];
+  auto_approve_tools: string[];
+  allowed_paths: string[];
+  blocked_paths: string[];
+  custom_blocked_commands: string[];
+  block_internet: boolean;
+}
+
+export interface MemoryEntry {
+  key: string;
+  value: string;
+  category: 'preference' | 'knowledge' | 'context';
+  created_at: number;
+  updated_at: number;
+  access_count: number;
+}
+
+export interface PlanStep {
+  action: string;
+  description: string;
+  params: Record<string, unknown>;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
+  result?: string;
+  error?: string;
+}
+
+export interface OperationPlan {
+  id: string;
+  title: string;
+  description?: string;
+  steps: PlanStep[];
+  status: 'pending_approval' | 'approved' | 'executing' | 'completed' | 'failed' | 'cancelled';
+  created_at: number;
+  completed_at?: number;
+  completed_steps: number;
+  total_steps: number;
+}
+
 // ── Bulk rename types ────────────────────────────────────────────────────────
 
 export interface BulkRenameResult {

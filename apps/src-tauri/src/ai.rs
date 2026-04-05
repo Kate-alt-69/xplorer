@@ -89,6 +89,35 @@ pub async fn get_ai_models() -> Result<Vec<AIModel>, String> {
         info!("Added Claude models to available models");
     }
 
+    // Add OpenAI models if API key is available (from keychain or env var)
+    let openai_api_key = crate::secure_credentials::get_secret("agent-openai-api-key")
+        .ok()
+        .flatten()
+        .or_else(|| env::var("OPENAI_API_KEY").ok());
+    if openai_api_key.is_some() {
+        all_models.extend(vec![
+            AIModel {
+                id: "gpt-4o".to_string(),
+                name: "GPT-4o".to_string(),
+                provider: "openai".to_string(),
+                available: true,
+            },
+            AIModel {
+                id: "gpt-4o-mini".to_string(),
+                name: "GPT-4o Mini".to_string(),
+                provider: "openai".to_string(),
+                available: true,
+            },
+            AIModel {
+                id: "o3-mini".to_string(),
+                name: "o3 Mini".to_string(),
+                provider: "openai".to_string(),
+                available: true,
+            },
+        ]);
+        info!("Added OpenAI models to available models");
+    }
+
     // Try to get Ollama models
     let ollama = Ollama::default();
     match ollama.list_local_models().await {
