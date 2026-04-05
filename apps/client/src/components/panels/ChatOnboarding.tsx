@@ -5,6 +5,7 @@
  * dismissal via localStorage (`xplorer:ai-onboarding-done`).
  */
 import { useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderSearch, FileEdit, Terminal, Eye, Sparkles, X } from 'lucide-react';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 
@@ -14,8 +15,8 @@ import { STORAGE_KEYS } from '@/lib/storage-keys';
 
 interface CapabilityCard {
   icon: React.ReactNode;
-  title: string;
-  description: string;
+  titleKey: string;
+  descKey: string;
 }
 
 interface ChatOnboardingProps {
@@ -26,38 +27,36 @@ interface ChatOnboardingProps {
 }
 
 // ---------------------------------------------------------------------------
-// Capability definitions
+// Capability definitions (i18n keys, not raw strings)
 // ---------------------------------------------------------------------------
 
 const CAPABILITIES: CapabilityCard[] = [
   {
     icon: <FolderSearch size={16} />,
-    title: 'Search & Browse',
-    description: 'Find files, list directories, and explore your workspace.',
+    titleKey: 'aiChat.onboarding.searchBrowse',
+    descKey: 'aiChat.onboarding.searchBrowseDesc',
   },
   {
     icon: <FileEdit size={16} />,
-    title: 'File Operations',
-    description: 'Create, edit, rename, move, copy, and delete files.',
+    titleKey: 'aiChat.onboarding.fileOperations',
+    descKey: 'aiChat.onboarding.fileOperationsDesc',
   },
   {
     icon: <Terminal size={16} />,
-    title: 'Run Commands',
-    description: 'Execute shell commands directly from chat.',
+    titleKey: 'aiChat.onboarding.runCommands',
+    descKey: 'aiChat.onboarding.runCommandsDesc',
   },
   {
     icon: <Eye size={16} />,
-    title: 'Vision & Analysis',
-    description: 'Analyze images and understand file contents.',
+    titleKey: 'aiChat.onboarding.visionAnalysis',
+    descKey: 'aiChat.onboarding.visionAnalysisDesc',
   },
   {
     icon: <Sparkles size={16} />,
-    title: 'Smart Organization',
-    description: 'Suggest folder structures and clean up clutter.',
+    titleKey: 'aiChat.onboarding.smartOrganization',
+    descKey: 'aiChat.onboarding.smartOrganizationDesc',
   },
 ];
-
-const EXAMPLE_PROMPT = 'Organize this folder by file type';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -84,6 +83,7 @@ const markOnboardingDone = (): void => {
 // ---------------------------------------------------------------------------
 
 const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
+  const { t } = useTranslation();
   const [dismissed, setDismissed] = useState(isOnboardingDone);
 
   const handleDismiss = useCallback(() => {
@@ -94,15 +94,15 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
   const handleExampleClick = useCallback(() => {
     markOnboardingDone();
     setDismissed(true);
-    onSendMessage(EXAMPLE_PROMPT);
-  }, [onSendMessage]);
+    onSendMessage(t('aiChat.onboarding.examplePrompt'));
+  }, [onSendMessage, t]);
 
   if (dismissed) return null;
 
   return (
     <div
       role="region"
-      aria-label="AI chat onboarding"
+      aria-label={t('aiChat.onboarding.welcomeTitle')}
       style={{
         margin: '12px',
         padding: '16px',
@@ -116,7 +116,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
       {/* Dismiss button */}
       <button
         onClick={handleDismiss}
-        aria-label="Dismiss onboarding"
+        aria-label={t('aiChat.onboarding.dismiss')}
         style={{
           position: 'absolute',
           top: '10px',
@@ -143,7 +143,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
           marginBottom: '4px',
         }}
       >
-        Welcome! I&apos;m your AI file assistant.
+        {t('aiChat.onboarding.welcomeTitle')}
       </div>
       <div
         style={{
@@ -152,7 +152,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
           marginBottom: '14px',
         }}
       >
-        Here&apos;s what I can do:
+        {t('aiChat.onboarding.welcomeSubtitle')}
       </div>
 
       {/* Capability cards */}
@@ -166,7 +166,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
       >
         {CAPABILITIES.map((cap) => (
           <div
-            key={cap.title}
+            key={cap.titleKey}
             style={{
               display: 'flex',
               alignItems: 'flex-start',
@@ -195,7 +195,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
                   marginBottom: '2px',
                 }}
               >
-                {cap.title}
+                {t(cap.titleKey)}
               </div>
               <div
                 style={{
@@ -204,7 +204,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
                   lineHeight: '1.3',
                 }}
               >
-                {cap.description}
+                {t(cap.descKey)}
               </div>
             </div>
           </div>
@@ -219,7 +219,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
           marginBottom: '6px',
         }}
       >
-        Try saying:
+        {t('aiChat.onboarding.trySaying')}
       </div>
       <button
         onClick={handleExampleClick}
@@ -250,7 +250,7 @@ const ChatOnboarding = ({ onSendMessage, isLoading }: ChatOnboardingProps) => {
         }}
       >
         <Sparkles size={14} />
-        &ldquo;{EXAMPLE_PROMPT}&rdquo;
+        &ldquo;{t('aiChat.onboarding.examplePrompt')}&rdquo;
       </button>
     </div>
   );

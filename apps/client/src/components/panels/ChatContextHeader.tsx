@@ -2,6 +2,7 @@
  * Context header bar for the AI chat panel.
  * Shows the current directory, selected files, and editor selection.
  */
+import { useTranslation } from 'react-i18next';
 import { FileText, FolderOpen, Code2, X } from 'lucide-react';
 import { basename } from './chat-file-actions';
 
@@ -33,6 +34,7 @@ const ChatContextHeader = ({
   includeSelection,
   onToggleSelection,
 }: ChatContextHeaderProps) => {
+  const { t } = useTranslation();
   const hasContext = currentPath || selectedFiles.length > 0 || editorSelection;
   if (!hasContext) return null;
 
@@ -93,7 +95,7 @@ const ChatContextHeader = ({
           ))}
           {selectedFiles.length > 5 && (
             <span style={{ fontSize: '11px', color: 'var(--xp-text-muted)', padding: '1px 4px' }}>
-              +{selectedFiles.length - 5} more
+              {t('aiChat.context.moreFiles', { count: selectedFiles.length - 5 })}
             </span>
           )}
         </div>
@@ -126,7 +128,14 @@ const ChatContextHeader = ({
           <button
             onClick={onToggleSelection}
             title={
-              includeSelection ? 'Exclude selection from context' : 'Include selection in context'
+              includeSelection
+                ? t('aiChat.context.excludeSelection')
+                : t('aiChat.context.includeSelection')
+            }
+            aria-label={
+              includeSelection
+                ? t('aiChat.context.excludeSelection')
+                : t('aiChat.context.includeSelection')
             }
             style={{
               background: 'none',
@@ -138,7 +147,7 @@ const ChatContextHeader = ({
               opacity: 0.7,
             }}
           >
-            {includeSelection ? <X size={10} /> : 'include'}
+            {includeSelection ? <X size={10} /> : t('aiChat.context.include')}
           </button>
         </div>
       )}

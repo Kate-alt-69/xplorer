@@ -49,7 +49,7 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
     },
     ref,
   ) => {
-    const { i18n } = useTranslation();
+    const { t, i18n } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
     const [slashSuggestions, setSlashSuggestions] = useState<SlashCommand[]>([]);
     const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState(0);
@@ -210,8 +210,8 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
       >
         <button
           onClick={onShowHistory}
-          title="Chat history"
-          aria-label="Open chat history"
+          title={t('aiChat.input.chatHistory')}
+          aria-label={t('aiChat.input.openChatHistory')}
           style={{
             padding: '8px',
             borderRadius: '6px',
@@ -229,8 +229,8 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
         {hasMessages && (
           <button
             onClick={onClearChat}
-            title="New chat"
-            aria-label="Start new chat"
+            title={t('aiChat.input.newChat')}
+            aria-label={t('aiChat.input.startNewChat')}
             style={{
               padding: '8px',
               borderRadius: '6px',
@@ -319,13 +319,13 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
               onKeyDown={handleKeyDown}
               placeholder={
                 isListening
-                  ? 'Listening...'
+                  ? t('aiChat.input.placeholderListening')
                   : droppedFileCount > 0
-                    ? `Ask about ${droppedFileCount} attached file${droppedFileCount !== 1 ? 's' : ''}...`
-                    : 'Ask about your files... (type / for commands)'
+                    ? t('aiChat.input.placeholderAttached', { count: droppedFileCount })
+                    : t('aiChat.input.placeholder')
               }
               disabled={isLoading}
-              aria-label="Chat message input"
+              aria-label={t('aiChat.input.sendMessage')}
               aria-autocomplete="list"
               aria-expanded={slashSuggestions.length > 0}
               style={{
@@ -371,7 +371,7 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
             <button
               onClick={isListening ? stopListening : startListening}
               disabled={isLoading}
-              aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+              aria-label={isListening ? t('aiChat.input.voiceStop') : t('aiChat.input.voiceStart')}
               title={
                 isListening
                   ? 'Stop listening'
@@ -408,7 +408,7 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
                   borderRadius: '50%',
                   background: 'var(--xp-green, #38a169)',
                 }}
-                title="Auto-send enabled (right-click mic to toggle)"
+                title={t('aiChat.input.voiceAutoSend')}
               />
             )}
           </div>
@@ -416,7 +416,7 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
         <button
           onClick={onSend}
           disabled={isLoading || !input.trim()}
-          aria-label="Send message"
+          aria-label={t('aiChat.input.sendMessage')}
           style={{
             padding: '8px',
             borderRadius: '6px',

@@ -1,45 +1,50 @@
 /**
  * Drag & drop overlay and attached-files bar for the AI chat panel.
  */
+import { useTranslation } from 'react-i18next';
 import { FileText, X, FileDown } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
 // Drag overlay (shown while dragging files over the chat)
 // ---------------------------------------------------------------------------
 
-export const DragOverlay = () => (
-  <div
-    role="presentation"
-    aria-label="Drop files here to add context"
-    style={{
-      position: 'absolute',
-      inset: 0,
-      zIndex: 50,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'rgba(122, 162, 247, 0.08)',
-      border: '2px dashed var(--xp-blue)',
-      borderRadius: '8px',
-      pointerEvents: 'none',
-    }}
-  >
+export const DragOverlay = () => {
+  const { t } = useTranslation();
+
+  return (
     <div
+      role="presentation"
+      aria-label={t('aiChat.dropZone.dropFiles')}
       style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 50,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
-        gap: '8px',
-        color: 'var(--xp-blue)',
-        fontSize: '14px',
-        fontWeight: 600,
+        justifyContent: 'center',
+        background: 'rgba(122, 162, 247, 0.08)',
+        border: '2px dashed var(--xp-blue)',
+        borderRadius: '8px',
+        pointerEvents: 'none',
       }}
     >
-      <FileDown size={28} />
-      <span>Drop files to add context</span>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          color: 'var(--xp-blue)',
+          fontSize: '14px',
+          fontWeight: 600,
+        }}
+      >
+        <FileDown size={28} />
+        <span>{t('aiChat.dropZone.dropFiles')}</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Attached files bar (shown when files have been dropped)
@@ -58,10 +63,14 @@ interface AttachedFilesBarProps {
 }
 
 export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesBarProps) => {
+  const { t } = useTranslation();
+
   if (files.length === 0) return null;
 
   return (
     <div
+      role="region"
+      aria-label={t('aiChat.dropZone.attached')}
       style={{
         borderTop: '1px solid var(--xp-border)',
         padding: '6px 8px',
@@ -82,7 +91,7 @@ export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesB
           marginRight: '4px',
         }}
       >
-        Attached:
+        {t('aiChat.dropZone.attached')}
       </span>
       {files.map((file) => (
         <span
@@ -111,7 +120,7 @@ export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesB
           </span>
           <button
             onClick={() => onRemove(file.path)}
-            aria-label={`Remove ${file.name} from context`}
+            aria-label={t('aiChat.dropZone.removeFile', { name: file.name })}
             style={{
               background: 'none',
               border: 'none',
@@ -128,7 +137,7 @@ export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesB
       ))}
       <button
         onClick={onClearAll}
-        aria-label="Remove all attached files"
+        aria-label={t('aiChat.dropZone.removeAll')}
         style={{
           background: 'none',
           border: 'none',
@@ -139,7 +148,7 @@ export const AttachedFilesBar = ({ files, onRemove, onClearAll }: AttachedFilesB
           padding: '0 4px',
         }}
       >
-        Clear all
+        {t('aiChat.dropZone.clearAll')}
       </button>
     </div>
   );

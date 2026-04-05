@@ -3,6 +3,7 @@
  * Shows after every assistant response. Thumbs down opens a quick correction input.
  */
 import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,7 @@ interface ChatFeedbackButtonsProps {
 
 const ChatFeedbackButtons = React.memo(
   ({ messageIndex, existingFeedback, onPositive, onNegative }: ChatFeedbackButtonsProps) => {
+    const { t } = useTranslation();
     const [showCorrectionInput, setShowCorrectionInput] = useState(false);
     const [correctionText, setCorrectionText] = useState('');
     const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(existingFeedback);
@@ -102,8 +104,8 @@ const ChatFeedbackButtons = React.memo(
         >
           <button
             onClick={handleThumbsUp}
-            title="Good response"
-            aria-label="Mark as good response"
+            title={t('aiChat.feedback.goodResponse')}
+            aria-label={t('aiChat.feedback.goodResponse')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -123,8 +125,8 @@ const ChatFeedbackButtons = React.memo(
           </button>
           <button
             onClick={handleThumbsDown}
-            title="Bad response — suggest improvement"
-            aria-label="Mark as bad response"
+            title={t('aiChat.feedback.badResponse')}
+            aria-label={t('aiChat.feedback.badResponse')}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -150,7 +152,7 @@ const ChatFeedbackButtons = React.memo(
                 marginLeft: '2px',
               }}
             >
-              {feedback === 'positive' ? 'Thanks!' : 'Noted'}
+              {feedback === 'positive' ? t('aiChat.feedback.thanks') : t('aiChat.feedback.noted')}
             </span>
           )}
         </div>
@@ -171,7 +173,7 @@ const ChatFeedbackButtons = React.memo(
               value={correctionText}
               onChange={(e) => setCorrectionText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="What should I do differently?"
+              placeholder={t('aiChat.feedback.correctionPlaceholder')}
               style={{
                 flex: 1,
                 padding: '4px 8px',
@@ -182,7 +184,7 @@ const ChatFeedbackButtons = React.memo(
                 fontSize: '11px',
                 outline: 'none',
               }}
-              aria-label="Describe what the AI should do differently"
+              aria-label={t('aiChat.feedback.correctionLabel')}
             />
             <button
               onClick={handleSubmitCorrection}
@@ -196,9 +198,9 @@ const ChatFeedbackButtons = React.memo(
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
               }}
-              aria-label="Submit feedback"
+              aria-label={t('aiChat.feedback.submitFeedback')}
             >
-              Save
+              {t('aiChat.feedback.save')}
             </button>
             <button
               onClick={handleSkipCorrection}
@@ -211,9 +213,9 @@ const ChatFeedbackButtons = React.memo(
                 fontSize: '11px',
                 cursor: 'pointer',
               }}
-              aria-label="Skip correction details"
+              aria-label={t('aiChat.feedback.skipCorrection')}
             >
-              Skip
+              {t('aiChat.feedback.skip')}
             </button>
           </div>
         )}
