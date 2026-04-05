@@ -226,7 +226,8 @@ const buildSummary = (entries: AuditEntry[], startTime: number): ActionSummary =
         key !== 'actionsRejected' &&
         key !== 'actionsBlocked'
       ) {
-        (summary[key] as number)++;
+        const rec = summary as unknown as Record<string, number>;
+        rec[key] = (rec[key] ?? 0) + 1;
       }
     }
   }
