@@ -22,6 +22,8 @@ import {
   detectRenamePatterns,
   formatRenamePatternReport,
 } from './chat-smart-file-ops';
+import { handleCommitMessageCommand } from './ai-git-helpers';
+import { handleWorkflowSlashCommand, type WorkflowCommandResult } from './chat-workflow-templates';
 import { TauriAPI } from '@/lib/tauri-api';
 
 // ---------------------------------------------------------------------------
@@ -174,7 +176,54 @@ export const handleSpecialSlashCommand = (
     };
   }
 
+  // /find [query] -- AI-enhanced search
+  if (prompt === '__AI_SEARCH__') {
+    return {
+      type: 'handled',
+      responseText: 'Please provide a search query: `/find [query]`',
+    };
+  }
+  if (prompt.startsWith('__AI_SEARCH__')) {
+    const query = prompt.slice('__AI_SEARCH__'.length).trim();
+    if (!query) {
+      return {
+        type: 'handled',
+        responseText: 'Please provide a search query: `/find [query]`',
+      };
+    }
+    return {
+      type: 'redirect',
+      redirectPrompt: `Search for "${query}" in the current directory. Use both filename matching and content search (search inside files). Show all matching files with relevant snippets. Group results by content matches vs filename matches.`,
+    };
+  }
+
+  // /workflows, /run-workflow, /save-workflow, /delete-workflow
+  const workflowResult = handleWorkflowSlashCommand(prompt, currentPath);
+  if (workflowResult) {
+    return convertWorkflowResult(workflowResult);
+  }
+
   return null;
+};
+
+// ---------------------------------------------------------------------------
+// Workflow result converter
+// ---------------------------------------------------------------------------
+
+const convertWorkflowResult = (result: WorkflowCommandResult): SpecialCommandResult => {
+  if (result.type === 'task_plan' && result.taskPlanJson) {
+    // Return a redirect that includes the task plan JSON so the chat panel
+    // can parse it and show the plan approval UI.
+    return {
+      type: 'handled',
+      responseText: `${result.responseText ?? ''}\n\n\`\`\`task_plan\n${result.taskPlanJson}\n\`\`\``,
+    };
+  }
+  return {
+    type: result.type === 'handled' ? 'handled' : 'redirect',
+    responseText: result.responseText,
+    redirectPrompt: result.redirectPrompt,
+  };
 };
 
 // ---------------------------------------------------------------------------
@@ -281,6 +330,17 @@ const buildPreferencesDisplay = (currentPath: string): string => {
 // ---------------------------------------------------------------------------
 
 /**
+ * Handle the /commit-message command (async — calls AI).
+ */
+export const handleCommitMessageAsync = async (
+  currentPath: string,
+  model: string,
+): Promise<SpecialCommandResult> => {
+  const responseText = await handleCommitMessageCommand(currentPath, model);
+  return { type: 'handled', responseText };
+};
+
+/**
  * Run the /duplicates analysis and return a formatted report.
  * This is the async version that pre-computes results directly.
  */
@@ -331,6 +391,36 @@ export const handleRenamePatternAsync = async (
     return {
       type: 'handled',
       responseText: `Failed to analyze filename patterns: ${msg}`,
+    };
+  }
+};
+
+/**
+ * Run the /find search and return a formatted report.
+ * This is the async version that pre-computes results directly.
+ */
+export const handleAISearchAsync = async (
+  query: string,
+  currentPath: string,
+): Promise<SpecialCommandResult> => {
+  if (!query) {
+    return {
+      type: 'handled',
+      responseText: 'Please provide a search query: `/find [query]`',
+    };
+  }
+  try {
+    const { performAISearch, formatSearchReport } = await import('./chat-search-integration');
+    const report = await performAISearch(query, currentPath);
+    return {
+      type: 'handled',
+      responseText: formatSearchReport(report),
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return {
+      type: 'handled',
+      responseText: `Search failed: ${msg}`,
     };
   }
 };

@@ -149,6 +149,12 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (_args) => '__ORGANIZE_FOLDER__',
   },
   {
+    name: '/find',
+    description: 'AI-enhanced search across filenames and content',
+    hasArgs: true,
+    toPrompt: (args) => (args ? `__AI_SEARCH__${args}` : '__AI_SEARCH__'),
+  },
+  {
     name: '/help',
     description: 'Show available commands',
     toPrompt: (_args) => '__SHOW_HELP__',

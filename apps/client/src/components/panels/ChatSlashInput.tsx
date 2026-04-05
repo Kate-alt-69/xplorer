@@ -6,7 +6,11 @@ import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHand
 import { useTranslation } from 'react-i18next';
 import { Send, RotateCcw, History, Mic, MicOff } from 'lucide-react';
 import { SLASH_COMMANDS, type SlashCommand } from './chat-slash-commands';
+import { EXTRA_SLASH_COMMANDS } from './chat-slash-commands-extra';
 import useVoiceInput from '@/hooks/use-voice-input';
+
+/** Merged set of all slash commands (core + extensions like /commit-message, /workflows). */
+const ALL_SLASH_COMMANDS: SlashCommand[] = [...SLASH_COMMANDS, ...EXTRA_SLASH_COMMANDS];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,7 +97,7 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
     useEffect(() => {
       if (input.startsWith('/') && input.length > 0) {
         const trimmed = input.trim().toLowerCase();
-        const matches = SLASH_COMMANDS.filter(
+        const matches = ALL_SLASH_COMMANDS.filter(
           (cmd) => cmd.name.startsWith(trimmed) || cmd.name.startsWith(trimmed.split(' ')[0]),
         );
         const newSuggestions = matches.length > 0 && trimmed !== matches[0]?.name ? matches : [];
