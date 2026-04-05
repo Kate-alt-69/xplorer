@@ -26,6 +26,10 @@ pub struct FileContext {
     pub path: String,
     pub file_type: String,
     pub content: Option<String>,
+    /// Base64-encoded image data (raw base64, no data URL prefix).
+    pub image_base64: Option<String>,
+    /// MIME type of the image (e.g. "image/png").
+    pub image_mime_type: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -273,7 +277,7 @@ pub async fn get_system_info() -> Result<SystemInfo, String> {
 #[derive(Debug, Serialize, Deserialize)]
 struct ClaudeMessage {
     role: String,
-    content: String,
+    content: serde_json::Value,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -288,7 +292,7 @@ struct ClaudeRequest {
 struct ClaudeContent {
     #[serde(rename = "type")]
     content_type: String,
-    text: String,
+    text: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -333,16 +337,54 @@ async fn chat_with_claude(
         }
     }
 
-    // Convert messages to Claude format
+    // Convert messages to Claude format, injecting image content blocks when present
+    let has_image = file_context
+        .as_ref()
+        .map(|c| c.image_base64.is_some())
+        .unwrap_or(false);
+
+    // Find the index of the last user message (to inject image only there)
+    let last_user_idx = messages.iter().rposition(|m| m.role == "user");
+
     let claude_messages: Vec<ClaudeMessage> = messages
         .into_iter()
-        .map(|msg| ClaudeMessage {
-            role: if msg.role == "user" {
+        .enumerate()
+        .map(|(idx, msg)| {
+            let role = if msg.role == "user" {
                 "user".to_string()
             } else {
                 "assistant".to_string()
-            },
-            content: msg.content,
+            };
+
+            // Inject image content block on the last user message only
+            if has_image && last_user_idx == Some(idx) {
+                if let Some(ref ctx) = file_context {
+                    if let (Some(ref b64), Some(ref mime)) =
+                        (&ctx.image_base64, &ctx.image_mime_type)
+                    {
+                        let content = serde_json::json!([
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": mime,
+                                    "data": b64,
+                                }
+                            },
+                            {
+                                "type": "text",
+                                "text": msg.content,
+                            }
+                        ]);
+                        return ClaudeMessage { role, content };
+                    }
+                }
+            }
+
+            ClaudeMessage {
+                role,
+                content: serde_json::Value::String(msg.content),
+            }
         })
         .collect();
 
@@ -376,11 +418,11 @@ async fn chat_with_claude(
         .await
         .map_err(|e| format!("Failed to parse Claude response: {}", e))?;
 
-    // Extract text from the first content item
+    // Extract text from the first content item that has text
     claude_response
         .content
-        .first()
-        .map(|content| content.text.clone())
+        .iter()
+        .find_map(|c| c.text.clone())
         .ok_or_else(|| "No content in Claude response".to_string())
 }
 
@@ -1130,6 +1172,22 @@ async fn chat_with_ollama(
 ) -> Result<String, String> {
     info!("Starting chat with Ollama using model: {}", model);
 
+    // Check if we have image data and should use a vision model
+    let has_image = file_context
+        .as_ref()
+        .map(|c| c.image_base64.is_some())
+        .unwrap_or(false);
+
+    if has_image {
+        // Try to use a vision model for image analysis
+        let vision_model = detect_ollama_vision_model().await;
+        if let Some(vm) = vision_model {
+            return chat_with_ollama_vision(vm, messages, file_context).await;
+        }
+        // No vision model available — fall through to text-only with metadata
+        info!("No Ollama vision model available, falling back to text-only");
+    }
+
     let ollama = Ollama::default();
 
     // Build the prompt from messages
@@ -1209,4 +1267,41 @@ async fn chat_with_ollama(
             Err(format!("Failed to get AI response from Ollama: {}. Make sure Ollama is running and the model '{}' is available.", e, model))
         }
     }
+}
+
+/// Chat with Ollama using a vision model when images are provided in context.
+async fn chat_with_ollama_vision(
+    vision_model: String,
+    messages: Vec<ChatMessage>,
+    file_context: Option<FileContext>,
+) -> Result<String, String> {
+    info!(
+        "Using Ollama vision model '{}' for image analysis",
+        vision_model
+    );
+
+    // Build prompt from messages
+    let mut prompt = String::new();
+    for message in &messages {
+        match message.role.as_str() {
+            "user" => prompt.push_str(&format!("User: {}\n", message.content)),
+            "assistant" => prompt.push_str(&format!("Assistant: {}\n", message.content)),
+            "system" => prompt.push_str(&format!("System: {}\n", message.content)),
+            _ => prompt.push_str(&format!("{}: {}\n", message.role, message.content)),
+        }
+    }
+    prompt.push_str("\nAssistant: ");
+
+    // Collect image base64 data
+    let images: Vec<String> = file_context
+        .as_ref()
+        .and_then(|ctx| ctx.image_base64.clone())
+        .into_iter()
+        .collect();
+
+    if images.is_empty() {
+        return Err("No image data available for vision model".to_string());
+    }
+
+    call_ollama_vision_async(&vision_model, &prompt, &images).await
 }

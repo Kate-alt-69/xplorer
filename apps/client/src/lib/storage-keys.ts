@@ -69,6 +69,33 @@ export const STORAGE_KEYS = {
   // File open preferences (Open With)
   FILE_OPEN_PREFS: 'xplorer:file-open-prefs',
 
+  // AI Chat file access
+  AI_FILE_ACCESS_GRANTED: 'xplorer:ai-file-access-granted',
+
+  // AI Chat history
+  AI_CHAT_HISTORY: 'xplorer:ai-chat-history',
+
+  // AI Chat action templates
+  AI_ACTION_TEMPLATES: 'xplorer:ai-action-templates',
+
+  // AI Proactive agent
+  PROACTIVE_AGENT_ENABLED: 'xplorer:proactive-agent-enabled',
+
+  // AI Agent memory
+  AI_AGENT_MEMORY: 'xplorer:ai-agent-memory',
+
+  // AI Chat pinned messages
+  AI_CHAT_PINNED: 'xplorer:ai-chat-pinned',
+
+  // AI Chat feedback (thumbs up/down)
+  AI_CHAT_FEEDBACK: 'xplorer:ai-chat-feedback',
+
+  // AI Agent audit log
+  AI_AUDIT_LOG: 'xplorer:ai-audit-log',
+
+  // AI Agent security rules
+  AI_SECURITY_RULES: 'xplorer:ai-security-rules',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

@@ -26,7 +26,14 @@ export const checkOllamaStatus = async (): Promise<boolean> =>
 export const chatWithAI = async (
   model: string,
   messages: { role: string; content: string }[],
-  fileContext?: { name: string; path: string; file_type: string; content?: string } | null,
+  fileContext?: {
+    name: string;
+    path: string;
+    file_type: string;
+    content?: string;
+    image_base64?: string;
+    image_mime_type?: string;
+  } | null,
 ): Promise<string> =>
   await transport('chat_with_ai', {
     model,

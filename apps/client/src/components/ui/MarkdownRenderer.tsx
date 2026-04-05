@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface MarkdownRendererProps {
   content: string;
   className?: string;
   /** Called when the user clicks "Apply to editor" on a fenced code block. */
   onApplyCode?: (code: string) => void;
+  /** Called when the user clicks "Save as file" on a fenced code block. */
+  onSaveCodeAsFile?: (code: string, language: string) => void;
+  /** Render a file path as an interactive card. Return null to render as plain text. */
+  renderFilePath?: (filePath: string) => React.ReactNode | null;
 }
 
 /**
@@ -21,8 +25,14 @@ interface MarkdownRendererProps {
  * - Blockquotes (> text)
  * - Tables (| col | col |)
  */
-const MarkdownRenderer = ({ content, className = '', onApplyCode }: MarkdownRendererProps) => {
-  const elements = parseMarkdown(content, onApplyCode);
+const MarkdownRenderer = ({
+  content,
+  className = '',
+  onApplyCode,
+  onSaveCodeAsFile,
+  renderFilePath,
+}: MarkdownRendererProps) => {
+  const elements = parseMarkdown(content, onApplyCode, onSaveCodeAsFile, renderFilePath);
   return (
     <div
       className={`markdown-content ${className}`}
@@ -33,7 +43,87 @@ const MarkdownRenderer = ({ content, className = '', onApplyCode }: MarkdownRend
   );
 };
 
-const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): React.ReactNode[] => {
+// ---------------------------------------------------------------------------
+// Code block with Copy / Save as file buttons
+// ---------------------------------------------------------------------------
+
+interface CodeBlockWithActionsProps {
+  code: string;
+  language: string;
+  onApplyCode?: (code: string) => void;
+  onSaveAsFile?: (code: string, language: string) => void;
+}
+
+const CodeBlockWithActions = ({
+  code,
+  language,
+  onApplyCode,
+  onSaveAsFile,
+}: CodeBlockWithActionsProps) => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API might not be available
+    }
+  };
+
+  return (
+    <div className="group relative my-2">
+      {language && (
+        <div
+          className="text-xp-text-muted bg-xp-bg border-xp-border rounded-t-md border border-b-0 px-3 py-1 text-[10px]"
+          style={{ fontFamily: 'monospace' }}
+        >
+          {language}
+        </div>
+      )}
+      <pre
+        className={`bg-xp-bg border-xp-border overflow-x-auto border p-3 text-xs ${language ? 'rounded-b-md' : 'rounded-md'}`}
+      >
+        <code className="text-xp-text">{code}</code>
+      </pre>
+      <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button
+          onClick={handleCopy}
+          className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text rounded border px-2 py-0.5 text-[10px]"
+          title="Copy to clipboard"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+        {onSaveAsFile && (
+          <button
+            onClick={() => onSaveAsFile(code, language)}
+            className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text rounded border px-2 py-0.5 text-[10px]"
+            title="Save as file"
+          >
+            Save as file
+          </button>
+        )}
+        {onApplyCode && (
+          <button
+            onClick={() => onApplyCode(code)}
+            className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text rounded border px-2 py-0.5 text-[10px]"
+            title="Replace selected code in editor"
+          >
+            Apply
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const parseMarkdown = (
+  text: string,
+  onApplyCode?: (code: string) => void,
+  onSaveCodeAsFile?: (code: string, language: string) => void,
+  renderFilePath?: (filePath: string) => React.ReactNode | null,
+): React.ReactNode[] => {
   const lines = text.split('\n');
   const elements: React.ReactNode[] = [];
   let i = 0;
@@ -44,6 +134,8 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
 
     // Code block
     if (line.trimStart().startsWith('```')) {
+      const langMatch = line.trimStart().match(/^```(\w+)?/);
+      const language = langMatch?.[1] ?? '';
       const codeLines: string[] = [];
       i++;
       while (i < lines.length && !lines[i].trimStart().startsWith('```')) {
@@ -53,20 +145,13 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
       i++; // skip closing ```
       const codeText = codeLines.join('\n');
       elements.push(
-        <div key={key++} className="group relative my-2">
-          <pre className="bg-xp-bg border-xp-border overflow-x-auto rounded-md border p-3 text-xs">
-            <code className="text-xp-text">{codeText}</code>
-          </pre>
-          {onApplyCode && (
-            <button
-              onClick={() => onApplyCode(codeText)}
-              className="border-xp-border bg-xp-surface text-xp-text-muted hover:text-xp-text absolute right-2 top-2 rounded border px-2 py-0.5 text-[10px] opacity-0 transition-opacity group-hover:opacity-100"
-              title="Replace selected code in editor"
-            >
-              Apply to editor
-            </button>
-          )}
-        </div>,
+        <CodeBlockWithActions
+          key={key++}
+          code={codeText}
+          language={language}
+          onApplyCode={onApplyCode}
+          onSaveAsFile={onSaveCodeAsFile}
+        />,
       );
       continue;
     }
@@ -185,7 +270,7 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
           {items.map((item, idx) => (
             // eslint-disable-next-line react/no-array-index-key
             <li key={`ul-${idx}`} className="text-sm">
-              {renderInline(item)}
+              {renderInlineWithFilePaths(item, renderFilePath)}
             </li>
           ))}
         </ul>,
@@ -205,7 +290,7 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
           {items.map((item, idx) => (
             // eslint-disable-next-line react/no-array-index-key
             <li key={`ol-${idx}`} className="text-sm">
-              {renderInline(item)}
+              {renderInlineWithFilePaths(item, renderFilePath)}
             </li>
           ))}
         </ol>,
@@ -222,7 +307,7 @@ const parseMarkdown = (text: string, onApplyCode?: (code: string) => void): Reac
     // Regular paragraph
     elements.push(
       <p key={key++} className="my-0.5 text-sm leading-relaxed">
-        {renderInline(line)}
+        {renderInlineWithFilePaths(line, renderFilePath)}
       </p>,
     );
     i++;
@@ -318,6 +403,85 @@ const renderInline = (text: string): React.ReactNode => {
   }
 
   return parts.length === 1 ? parts[0] : <>{parts}</>;
+};
+
+/**
+ * File path detection regex for inline rendering.
+ * Matches absolute paths: /path/to/file.ext or C:\path\to\file.ext
+ * Avoids matching inside backticks (handled by inline code rendering).
+ */
+const FILE_PATH_INLINE_REGEX =
+  /(?:\/(?:[a-zA-Z0-9._-]+\/){1,}[a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9]+)?)|(?:[A-Z]:[/\\](?:[^\s:*?"<>|]+[/\\])*[^\s:*?"<>|]+)/g;
+
+/**
+ * Render inline markdown with file path detection.
+ * File paths in regular text (not inside code blocks) get replaced with
+ * interactive cards via the renderFilePath callback.
+ */
+const renderInlineWithFilePaths = (
+  text: string,
+  renderFilePath?: (filePath: string) => React.ReactNode | null,
+): React.ReactNode => {
+  if (!renderFilePath) return renderInline(text);
+
+  // First render normal inline markdown
+  const inlineResult = renderInline(text);
+
+  // If the text doesn't contain file-path-like patterns, skip the expensive regex
+  if (!text.includes('/') && !text.match(/[A-Z]:[/\\]/)) return inlineResult;
+
+  // Find file paths in the raw text
+  const matches: Array<{ path: string; start: number; end: number }> = [];
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(FILE_PATH_INLINE_REGEX.source, 'g');
+  match = regex.exec(text);
+  while (match !== null) {
+    // Skip if the path looks like it's inside inline code (backticks)
+    const beforeMatch = text.slice(0, match.index);
+    const backtickCount = (beforeMatch.match(/`/g) ?? []).length;
+    if (backtickCount % 2 === 0) {
+      // Only match paths with at least 2 segments
+      const segments = match[0].split(/[/\\]/).filter(Boolean);
+      if (segments.length >= 2) {
+        matches.push({ path: match[0], start: match.index, end: match.index + match[0].length });
+      }
+    }
+    match = regex.exec(text);
+  }
+
+  if (matches.length === 0) return inlineResult;
+
+  // Rebuild the text with file path cards
+  const parts: React.ReactNode[] = [];
+  let lastEnd = 0;
+
+  for (let i = 0; i < matches.length; i++) {
+    const m = matches[i];
+    // Text before this match
+    if (m.start > lastEnd) {
+      parts.push(
+        <React.Fragment key={`pre-${i}`}>
+          {renderInline(text.slice(lastEnd, m.start))}
+        </React.Fragment>,
+      );
+    }
+    // Render the file path card
+    const card = renderFilePath(m.path);
+    if (card !== null) {
+      parts.push(<React.Fragment key={`fp-${i}`}>{card}</React.Fragment>);
+    } else {
+      // Fallback to inline render if callback returns null
+      parts.push(<React.Fragment key={`fp-${i}`}>{renderInline(m.path)}</React.Fragment>);
+    }
+    lastEnd = m.end;
+  }
+
+  // Text after the last match
+  if (lastEnd < text.length) {
+    parts.push(<React.Fragment key="post">{renderInline(text.slice(lastEnd))}</React.Fragment>);
+  }
+
+  return <>{parts}</>;
 };
 
 const renderBoldItalic = (text: string, keyBase: number): React.ReactNode[] => {
