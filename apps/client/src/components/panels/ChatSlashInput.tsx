@@ -3,8 +3,10 @@
  * Extracted from StandaloneChatPanel to keep it under the 1000-line limit.
  */
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Send, RotateCcw, History } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Send, RotateCcw, History, Mic, MicOff } from 'lucide-react';
 import { SLASH_COMMANDS, type SlashCommand } from './chat-slash-commands';
+import useVoiceInput from '@/hooks/use-voice-input';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,11 +45,35 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
     },
     ref,
   ) => {
+    const { i18n } = useTranslation();
     const inputRef = useRef<HTMLInputElement>(null);
     const [slashSuggestions, setSlashSuggestions] = useState<SlashCommand[]>([]);
     const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState(0);
     const inputHistoryRef = useRef<string[]>([]);
     const inputHistoryIndexRef = useRef(-1);
+    const [voiceAutoSend, setVoiceAutoSend] = useState(false);
+
+    const handleVoiceResult = useCallback(
+      (text: string) => {
+        // Append to existing input or set directly
+        const combined = input ? `${input} ${text}` : text;
+        onInputChange(combined);
+      },
+      [input, onInputChange],
+    );
+
+    const handleAutoSend = useCallback(() => {
+      // Small delay so the final transcript has time to land in state
+      setTimeout(() => onSend(), 50);
+    }, [onSend]);
+
+    const { isListening, isSupported, interimTranscript, startListening, stopListening } =
+      useVoiceInput({
+        lang: i18n.language,
+        onResult: handleVoiceResult,
+        autoSend: voiceAutoSend,
+        onAutoSend: handleAutoSend,
+      });
 
     useImperativeHandle(ref, () => ({
       focus: () => inputRef.current?.focus(),
@@ -281,32 +307,108 @@ const ChatSlashInput = forwardRef<ChatSlashInputHandle, ChatSlashInputProps>(
               ))}
             </div>
           )}
-          <input
-            ref={inputRef}
-            value={input}
-            onChange={(e) => onInputChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              droppedFileCount > 0
-                ? `Ask about ${droppedFileCount} attached file${droppedFileCount !== 1 ? 's' : ''}...`
-                : 'Ask about your files... (type / for commands)'
-            }
-            disabled={isLoading}
-            aria-label="Chat message input"
-            aria-autocomplete="list"
-            aria-expanded={slashSuggestions.length > 0}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              borderRadius: '6px',
-              border: '1px solid var(--xp-border)',
-              background: 'var(--xp-bg)',
-              color: 'var(--xp-text)',
-              fontSize: '13px',
-              outline: 'none',
-            }}
-          />
+          <div style={{ position: 'relative' }}>
+            <input
+              ref={inputRef}
+              value={input}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                isListening
+                  ? 'Listening...'
+                  : droppedFileCount > 0
+                    ? `Ask about ${droppedFileCount} attached file${droppedFileCount !== 1 ? 's' : ''}...`
+                    : 'Ask about your files... (type / for commands)'
+              }
+              disabled={isLoading}
+              aria-label="Chat message input"
+              aria-autocomplete="list"
+              aria-expanded={slashSuggestions.length > 0}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: isListening
+                  ? '1px solid var(--xp-red, #e53e3e)'
+                  : '1px solid var(--xp-border)',
+                background: 'var(--xp-bg)',
+                color: 'var(--xp-text)',
+                fontSize: '13px',
+                outline: 'none',
+              }}
+            />
+            {isListening && interimTranscript && (
+              <div
+                aria-live="polite"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  padding: '8px 12px',
+                  fontSize: '13px',
+                  color: 'var(--xp-text-muted)',
+                  opacity: 0.6,
+                  pointerEvents: 'none',
+                  overflow: 'hidden',
+                  whiteSpace: 'nowrap',
+                  textOverflow: 'ellipsis',
+                  display: input ? 'none' : 'block',
+                }}
+              >
+                {interimTranscript}
+              </div>
+            )}
+          </div>
         </div>
+        {isSupported && (
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={isLoading}
+              aria-label={isListening ? 'Stop voice input' : 'Start voice input'}
+              title={
+                isListening
+                  ? 'Stop listening'
+                  : `Voice input${voiceAutoSend ? ' (auto-send on)' : ''}`
+              }
+              style={{
+                padding: '8px',
+                borderRadius: '6px',
+                border: isListening
+                  ? '1px solid var(--xp-red, #e53e3e)'
+                  : '1px solid var(--xp-border)',
+                background: isListening ? 'rgba(229, 62, 62, 0.15)' : 'transparent',
+                color: isListening ? 'var(--xp-red, #e53e3e)' : 'var(--xp-text-muted)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                animation: isListening ? 'xp-voice-pulse 1.5s ease-in-out infinite' : undefined,
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                setVoiceAutoSend((prev) => !prev);
+              }}
+            >
+              {isListening ? <MicOff size={14} /> : <Mic size={14} />}
+            </button>
+            {voiceAutoSend && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: -2,
+                  right: -2,
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: 'var(--xp-green, #38a169)',
+                }}
+                title="Auto-send enabled (right-click mic to toggle)"
+              />
+            )}
+          </div>
+        )}
         <button
           onClick={onSend}
           disabled={isLoading || !input.trim()}
