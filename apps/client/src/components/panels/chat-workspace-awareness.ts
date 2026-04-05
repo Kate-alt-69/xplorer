@@ -1,6 +1,7 @@
 /**
- * Workspace awareness: detect project types and environment context
- * to provide intelligent, project-specific suggestions in the AI chat.
+ * Workspace awareness: detect project types, monorepo structure, and
+ * environment context to provide intelligent, project-specific suggestions
+ * in the AI chat.
  */
 import { TauriAPI } from '@/lib/tauri-api';
 import { getExt } from './chat-context-helpers';
@@ -31,6 +32,21 @@ export type ProjectType =
   | 'flutter'
   | 'unknown';
 
+export interface MonorepoInfo {
+  tool: 'pnpm' | 'lerna' | 'nx' | 'turborepo' | 'yarn' | 'rush' | null;
+  /** Workspace package globs, if found */
+  workspaceGlobs?: string[];
+}
+
+export interface TsConfigInfo {
+  /** Compiler option paths / aliases */
+  pathAliases?: Record<string, string[]>;
+  /** Project references from tsconfig */
+  projectReferences?: string[];
+  /** Composite project? */
+  composite?: boolean;
+}
+
 export interface GitInfo {
   isRepo: boolean;
   branch?: string;
@@ -38,9 +54,19 @@ export interface GitInfo {
   repoRoot?: string;
 }
 
+export interface GitDiffSummary {
+  /** Number of files changed */
+  filesChanged: number;
+  /** Short summary of changes, e.g. "3 files changed, 12 insertions, 4 deletions" */
+  summary: string;
+}
+
 export interface WorkspaceContext {
   project: ProjectInfo | null;
+  monorepo: MonorepoInfo;
+  tsConfig: TsConfigInfo | null;
   git: GitInfo;
+  gitDiffSummary: GitDiffSummary | null;
   /** Total items in current directory */
   totalItems: number;
   /** Breakdown by file type (top 5 extensions) */
@@ -224,6 +250,168 @@ export const detectProjectType = async (dirPath: string): Promise<ProjectInfo | 
 };
 
 // ---------------------------------------------------------------------------
+// Monorepo detection
+// ---------------------------------------------------------------------------
+
+/**
+ * Monorepo manifest files to check, ordered by priority.
+ */
+const MONOREPO_CHECKS: Array<{
+  file: string;
+  tool: MonorepoInfo['tool'];
+  extractGlobs?: (content: string) => string[] | undefined;
+}> = [
+  {
+    file: 'pnpm-workspace.yaml',
+    tool: 'pnpm',
+    extractGlobs: (content) => {
+      // Simple YAML list extraction: lines starting with " - "
+      const matches = content.match(/^\s*-\s+['"]?([^'"#\n]+)['"]?/gm);
+      return matches?.map((m) => m.replace(/^\s*-\s+['"]?/, '').replace(/['"]?\s*$/, ''));
+    },
+  },
+  {
+    file: 'lerna.json',
+    tool: 'lerna',
+    extractGlobs: (content) => {
+      try {
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        if (Array.isArray(parsed.packages)) {
+          return (parsed.packages as unknown[]).filter((p) => typeof p === 'string') as string[];
+        }
+      } catch {
+        /* ignore */
+      }
+      return undefined;
+    },
+  },
+  {
+    file: 'nx.json',
+    tool: 'nx',
+  },
+  {
+    file: 'turbo.json',
+    tool: 'turborepo',
+  },
+  {
+    file: 'rush.json',
+    tool: 'rush',
+  },
+];
+
+/**
+ * Detect monorepo tooling in the given directory.
+ */
+export const detectMonorepoInfo = async (dirPath: string): Promise<MonorepoInfo> => {
+  if (!dirPath) return { tool: null };
+
+  try {
+    const entries = await TauriAPI.readDirectory(dirPath);
+    const fileNames = new Set(entries.map((e) => e.name));
+
+    for (const check of MONOREPO_CHECKS) {
+      if (fileNames.has(check.file)) {
+        const info: MonorepoInfo = { tool: check.tool };
+        if (check.extractGlobs) {
+          try {
+            const content = await TauriAPI.readTextFile(`${dirPath}/${check.file}`);
+            const globs = check.extractGlobs(content);
+            if (globs && globs.length > 0) {
+              info.workspaceGlobs = globs;
+            }
+          } catch {
+            /* file read failed */
+          }
+        }
+        return info;
+      }
+    }
+
+    // Also check package.json workspaces (Yarn/npm workspaces)
+    if (fileNames.has('package.json')) {
+      try {
+        const content = await TauriAPI.readTextFile(`${dirPath}/package.json`);
+        const parsed = JSON.parse(content) as Record<string, unknown>;
+        if (Array.isArray(parsed.workspaces)) {
+          return {
+            tool: 'yarn',
+            workspaceGlobs: (parsed.workspaces as unknown[]).filter(
+              (w) => typeof w === 'string',
+            ) as string[],
+          };
+        }
+        // npm-style: { workspaces: { packages: [...] } }
+        if (parsed.workspaces && typeof parsed.workspaces === 'object') {
+          const ws = parsed.workspaces as Record<string, unknown>;
+          if (Array.isArray(ws.packages)) {
+            return {
+              tool: 'yarn',
+              workspaceGlobs: (ws.packages as unknown[]).filter(
+                (w) => typeof w === 'string',
+              ) as string[],
+            };
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+  } catch {
+    /* directory read failed */
+  }
+
+  return { tool: null };
+};
+
+// ---------------------------------------------------------------------------
+// tsconfig.json reading
+// ---------------------------------------------------------------------------
+
+/**
+ * Read tsconfig.json to extract path aliases and project references.
+ */
+export const detectTsConfigInfo = async (dirPath: string): Promise<TsConfigInfo | null> => {
+  if (!dirPath) return null;
+
+  try {
+    const content = await TauriAPI.readTextFile(`${dirPath}/tsconfig.json`);
+    const parsed = JSON.parse(content) as Record<string, unknown>;
+    const result: TsConfigInfo = {};
+
+    const compilerOptions =
+      parsed.compilerOptions && typeof parsed.compilerOptions === 'object'
+        ? (parsed.compilerOptions as Record<string, unknown>)
+        : null;
+
+    // Extract path aliases
+    if (compilerOptions?.paths && typeof compilerOptions.paths === 'object') {
+      result.pathAliases = compilerOptions.paths as Record<string, string[]>;
+    }
+
+    // Check if composite
+    if (compilerOptions?.composite === true) {
+      result.composite = true;
+    }
+
+    // Extract project references
+    if (Array.isArray(parsed.references)) {
+      result.projectReferences = (parsed.references as Array<Record<string, unknown>>)
+        .map((ref) => (typeof ref.path === 'string' ? ref.path : null))
+        .filter((p): p is string => p !== null);
+    }
+
+    // Only return if we found something useful
+    if (result.pathAliases || result.projectReferences || result.composite) {
+      return result;
+    }
+  } catch {
+    /* tsconfig.json not found or invalid */
+  }
+
+  return null;
+};
+
+// ---------------------------------------------------------------------------
 // Git context detection
 // ---------------------------------------------------------------------------
 
@@ -260,6 +448,39 @@ export const detectGitInfo = async (dirPath: string): Promise<GitInfo> => {
     return info;
   } catch {
     return { isRepo: false };
+  }
+};
+
+/**
+ * Get a short summary of uncommitted git changes (git diff --stat).
+ */
+export const detectGitDiffSummary = async (dirPath: string): Promise<GitDiffSummary | null> => {
+  if (!dirPath) return null;
+
+  try {
+    const repoRoot = await TauriAPI.findGitRepository(dirPath);
+    if (!repoRoot) return null;
+
+    // Use git diff --stat to get a compact summary
+    const output = await TauriAPI.executeCommand(
+      `git -C "${repoRoot}" diff --stat --no-color`,
+      repoRoot,
+    );
+
+    if (!output || !output.stdout?.trim()) return null;
+
+    const lines = output.stdout.trim().split('\n');
+    // Last line of --stat is usually: "N files changed, M insertions(+), K deletions(-)"
+    const summaryLine = lines[lines.length - 1] ?? '';
+    const filesMatch = summaryLine.match(/(\d+)\s+files?\s+changed/);
+    const filesChanged = filesMatch ? parseInt(filesMatch[1], 10) : lines.length - 1;
+
+    return {
+      filesChanged: Math.max(0, filesChanged),
+      summary: summaryLine.trim() || `${filesChanged} files with uncommitted changes`,
+    };
+  } catch {
+    return null;
   }
 };
 
@@ -324,15 +545,21 @@ export const buildDirectorySummary = async (
  * Used to power the contextual welcome message and workspace-aware prompts.
  */
 export const detectWorkspaceContext = async (dirPath: string): Promise<WorkspaceContext> => {
-  const [project, git, summary] = await Promise.all([
+  const [project, monorepo, tsConfig, git, gitDiffSummary, summary] = await Promise.all([
     detectProjectType(dirPath),
+    detectMonorepoInfo(dirPath),
+    detectTsConfigInfo(dirPath),
     detectGitInfo(dirPath),
+    detectGitDiffSummary(dirPath),
     buildDirectorySummary(dirPath),
   ]);
 
   return {
     project,
+    monorepo,
+    tsConfig,
     git,
+    gitDiffSummary,
     ...summary,
   };
 };
@@ -387,11 +614,42 @@ export const buildWorkspacePrompt = (ctx: WorkspaceContext): string => {
     }
   }
 
+  // Monorepo info
+  if (ctx.monorepo.tool) {
+    lines.push(`\n## Monorepo: ${ctx.monorepo.tool}`);
+    if (ctx.monorepo.workspaceGlobs && ctx.monorepo.workspaceGlobs.length > 0) {
+      lines.push(`Workspace packages: ${ctx.monorepo.workspaceGlobs.join(', ')}`);
+    }
+    lines.push(
+      'This is a monorepo. Be aware of workspace-level commands and cross-package dependencies.',
+    );
+  }
+
+  // TypeScript config info
+  if (ctx.tsConfig) {
+    lines.push(`\n## TypeScript Configuration`);
+    if (ctx.tsConfig.pathAliases) {
+      const aliases = Object.entries(ctx.tsConfig.pathAliases)
+        .map(([alias, targets]) => `${alias} -> ${targets.join(', ')}`)
+        .join('; ');
+      lines.push(`Path aliases: ${aliases}`);
+    }
+    if (ctx.tsConfig.projectReferences && ctx.tsConfig.projectReferences.length > 0) {
+      lines.push(`Project references: ${ctx.tsConfig.projectReferences.join(', ')}`);
+    }
+    if (ctx.tsConfig.composite) {
+      lines.push('This is a composite TypeScript project (incremental builds).');
+    }
+  }
+
   if (ctx.git.isRepo) {
     lines.push(`\n## Git Repository`);
     if (ctx.git.branch) lines.push(`Current branch: ${ctx.git.branch}`);
     if (ctx.git.uncommittedCount !== undefined && ctx.git.uncommittedCount > 0) {
       lines.push(`Uncommitted changes: ${ctx.git.uncommittedCount} files`);
+    }
+    if (ctx.gitDiffSummary && ctx.gitDiffSummary.filesChanged > 0) {
+      lines.push(`Recent diff: ${ctx.gitDiffSummary.summary}`);
     }
   }
 
