@@ -35,6 +35,7 @@ export const useChatActions = (
   messagesRef: React.RefObject<RuntimeChatMessage[]>,
   setMessages: SetMessages,
   scrollToBottom: () => void,
+  onActionComplete?: () => void,
 ) => {
   // -----------------------------------------------------------------------
   // Status updater (shared by single + batch actions)
@@ -139,6 +140,8 @@ export const useChatActions = (
           ]);
 
           scrollToBottom();
+          // Continue the AI conversation with the command results
+          onActionComplete?.();
           return;
         }
 
@@ -162,6 +165,9 @@ export const useChatActions = (
         logAction(action.action.action, action.action.path, 'success', 'user', {
           destination: action.action.destination,
         });
+
+        scrollToBottom();
+        onActionComplete?.();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         updateActionStatus(messageIndex, actionId, 'error', { error: errorMsg });
@@ -171,6 +177,20 @@ export const useChatActions = (
           destination: action.action.destination,
           errorMessage: errorMsg,
         });
+
+        // Inject error context so the AI can respond to the failure
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: 'user',
+            content: `[Action failed: ${action.action.action} on ${action.action.path ?? action.action.command ?? ''}]\nError: ${errorMsg}`,
+            isContextInjection: true,
+            isCommandResult: true,
+          },
+        ]);
+
+        scrollToBottom();
+        onActionComplete?.();
       }
       scrollToBottom();
     },

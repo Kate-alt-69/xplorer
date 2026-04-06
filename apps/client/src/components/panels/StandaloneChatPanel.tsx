@@ -276,6 +276,7 @@ const StandaloneChatPanel = () => {
   // Use a ref to always access the latest messages without stale closures
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
+  const sendMessageRef = useRef<((text?: string) => Promise<void>) | null>(null);
 
   const {
     handleExecuteAction,
@@ -286,7 +287,15 @@ const StandaloneChatPanel = () => {
     handleBatchRejectAll,
     handleBatchAlwaysAllow,
     autoExecuteActions,
-  } = useChatActions(messagesRef, setMessages, scrollToBottom);
+  } = useChatActions(messagesRef, setMessages, scrollToBottom, () => {
+    // After an action completes (success or failure), continue the AI conversation.
+    // Use sendMessageRef to avoid circular dependency (sendMessage defined later).
+    setTimeout(() => {
+      sendMessageRef.current?.(
+        'Continue based on the action results above. If something failed, suggest an alternative approach. If everything succeeded, summarize what was done and suggest next steps.',
+      );
+    }, 500);
+  });
 
   // Conversation branching
   const {
@@ -492,6 +501,7 @@ const StandaloneChatPanel = () => {
       currentConversationId,
     ],
   );
+  sendMessageRef.current = sendMessage;
 
   const stopAgent = useCallback(() => {
     abortRef.current = true;
