@@ -26,6 +26,8 @@ import {
   Undo2,
   Terminal,
   Puzzle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import ChatDiffPreview from './ChatDiffPreview';
 import ChatErrorBoundary from './ChatErrorBoundary';
@@ -110,6 +112,27 @@ interface FileActionCardProps {
   onUndo?: () => void;
 }
 
+/** Build a one-line summary for a completed file action */
+const fileActionSummary = (pendingAction: PendingFileAction): string => {
+  const { action, status } = pendingAction;
+  const name = basename(action.path);
+  const label = ACTION_LABELS[action.action];
+
+  if (status === 'rejected') return `${label} ${name} — rejected`;
+  if (status === 'error') return `${label} ${name} — ${pendingAction.error ?? 'failed'}`;
+
+  // For successful read-only actions, extract a brief result summary
+  if (pendingAction.result) {
+    const firstLine = pendingAction.result.split('\n')[0]?.trim() ?? '';
+    const summary = firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine;
+    return `${label} — ${summary}`;
+  }
+
+  if (action.action === 'delete_file') return `${label} ${name} — moved to trash`;
+  if (pendingAction.undone) return `${label} ${name} — undone`;
+  return `${label} ${name} — done`;
+};
+
 export const FileActionCard = ({
   pendingAction,
   onAllow,
@@ -124,6 +147,9 @@ export const FileActionCard = ({
   const hasDestination = action.destination != null;
   const [undoing, setUndoing] = useState(false);
   const showUndo = canUndoAction(pendingAction) && onUndo;
+
+  const isCompleted = status === 'success' || status === 'rejected' || status === 'error';
+  const [isExpanded, setIsExpanded] = useState(false);
 
   // Scan content for potential secrets (for create_file/edit_file with content)
   const secretScan: ScanResult = useMemo(() => {
@@ -174,6 +200,89 @@ export const FileActionCard = ({
     onUndo();
   };
 
+  // Collapsed view for completed actions
+  if (isCompleted && !isExpanded) {
+    const isSuccess = status === 'success';
+    const isRejected = status === 'rejected';
+
+    return (
+      <div
+        role="region"
+        aria-label={`File action: ${ACTION_LABELS[action.action]} ${fileName}`}
+        onClick={() => setIsExpanded(true)}
+        style={{
+          margin: '4px 0',
+          border: '1px solid var(--xp-border)',
+          borderRadius: '6px',
+          background: 'var(--xp-surface)',
+          padding: '6px 10px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          opacity: isRejected ? 0.6 : 1,
+        }}
+        title="Click to expand"
+      >
+        {isSuccess ? (
+          pendingAction.undone ? (
+            <Undo2 size={13} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+          ) : (
+            <CheckCircle2 size={13} style={{ flexShrink: 0, color: 'var(--xp-green, #9ece6a)' }} />
+          )
+        ) : isRejected ? (
+          <XCircle size={13} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+        ) : (
+          <XCircle size={13} style={{ flexShrink: 0, color: 'var(--xp-red, #f7768e)' }} />
+        )}
+        <ActionIcon action={action.action} />
+        <span
+          style={{
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: 'var(--xp-text-muted)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+          }}
+        >
+          {fileActionSummary(pendingAction)}
+        </span>
+        {showUndo && !pendingAction.undone && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleUndo();
+            }}
+            disabled={undoing}
+            aria-label={`Undo ${ACTION_LABELS[action.action].toLowerCase()} ${fileName}`}
+            style={{
+              padding: '2px 6px',
+              borderRadius: '4px',
+              border: '1px solid var(--xp-border)',
+              background: 'transparent',
+              color: 'var(--xp-text-muted)',
+              cursor: undoing ? 'not-allowed' : 'pointer',
+              fontSize: '10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              opacity: undoing ? 0.5 : 1,
+              flexShrink: 0,
+            }}
+            title="Undo this action"
+          >
+            <Undo2 size={10} />
+            {undoing ? '...' : 'Undo'}
+          </button>
+        )}
+        <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+      </div>
+    );
+  }
+
   return (
     <div
       role="region"
@@ -196,15 +305,19 @@ export const FileActionCard = ({
           padding: '10px 12px',
           borderBottom: '1px solid var(--xp-border)',
           background: isReadOnly ? 'var(--xp-surface)' : 'var(--xp-surface-light)',
+          cursor: isCompleted ? 'pointer' : undefined,
         }}
+        onClick={isCompleted ? () => setIsExpanded(false) : undefined}
       >
         <ActionIcon action={action.action} />
         <span style={{ fontWeight: 600, color: 'var(--xp-text)' }}>
           {isReadOnly
             ? ACTION_LABELS[action.action]
-            : `AI wants to ${ACTION_LABELS[action.action].toLowerCase()}`}
+            : isCompleted
+              ? ACTION_LABELS[action.action]
+              : `AI wants to ${ACTION_LABELS[action.action].toLowerCase()}`}
         </span>
-        {isReadOnly && (
+        {isReadOnly && !isCompleted && (
           <span
             style={{
               fontSize: '10px',
@@ -217,6 +330,12 @@ export const FileActionCard = ({
           >
             auto
           </span>
+        )}
+        {isCompleted && (
+          <ChevronUp
+            size={14}
+            style={{ marginLeft: 'auto', color: 'var(--xp-text-muted)', cursor: 'pointer' }}
+          />
         )}
       </div>
 

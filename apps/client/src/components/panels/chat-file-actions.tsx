@@ -270,10 +270,19 @@ const DANGEROUS_COMMAND_PATTERNS: ReadonlyArray<{ pattern: RegExp; reason: strin
   { pattern: /\|\s*(sh|bash|zsh)\b/i, reason: 'Piping to shell' },
 ];
 
+/**
+ * Strip common stderr/stdout redirect-to-/dev/null patterns before checking
+ * for dangerous metacharacters, so `2>/dev/null`, `2>&1`, `>/dev/null` etc.
+ * don't trigger false positives.
+ */
+const stripSafeRedirects = (command: string): string =>
+  command.replace(/\s*[12]?>(?:\/dev\/null|&[12])\s*/g, ' ');
+
 /** Check if a command matches dangerous patterns. Returns the reason or undefined. */
 export const isDangerousCommand = (command: string): string | undefined => {
+  const cleaned = stripSafeRedirects(command);
   for (const { pattern, reason } of DANGEROUS_COMMAND_PATTERNS) {
-    if (pattern.test(command)) return reason;
+    if (pattern.test(cleaned)) return reason;
   }
   return undefined;
 };

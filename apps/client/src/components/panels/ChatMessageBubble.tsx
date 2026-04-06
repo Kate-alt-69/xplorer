@@ -254,15 +254,6 @@ const ChatMessageBubble = ({
         </div>
       )}
 
-      {showBatchCard && msg.fileActions && (
-        <BatchActionCard
-          actions={msg.fileActions}
-          onAllowAll={() => onBatchAllowAll(i)}
-          onRejectAll={() => onBatchRejectAll(i)}
-          onAlwaysAllow={() => onBatchAlwaysAllow(i)}
-        />
-      )}
-
       {msg.fileActions?.map((pa) =>
         pa.action.action === 'run_command' ? (
           <CommandActionCard
@@ -281,6 +272,23 @@ const ChatMessageBubble = ({
             onUndo={() => onUndoAction(i, pa.id)}
           />
         ),
+      )}
+
+      {showBatchCard && msg.fileActions && (
+        <div
+          style={{
+            position: 'sticky',
+            bottom: 0,
+            zIndex: 2,
+          }}
+        >
+          <BatchActionCard
+            actions={msg.fileActions}
+            onAllowAll={() => onBatchAllowAll(i)}
+            onRejectAll={() => onBatchRejectAll(i)}
+            onAlwaysAllow={() => onBatchAlwaysAllow(i)}
+          />
+        </div>
       )}
     </div>
   );

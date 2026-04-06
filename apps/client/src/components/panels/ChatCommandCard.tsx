@@ -131,6 +131,25 @@ interface CommandActionCardProps {
   onReject: () => void;
 }
 
+/** Build a one-line summary for a completed command */
+const commandSummary = (pendingAction: PendingFileAction): string => {
+  const cmd = pendingAction.action.command ?? '';
+  const truncatedCmd = cmd.length > 60 ? `${cmd.slice(0, 57)}...` : cmd;
+  const output = pendingAction.commandOutput;
+
+  if (!output) return truncatedCmd;
+
+  if (output.exit_code === 0) {
+    const firstLine = (output.stdout || 'completed').split('\n')[0]?.trim() ?? 'completed';
+    const summary = firstLine.length > 80 ? `${firstLine.slice(0, 77)}...` : firstLine;
+    return `${truncatedCmd} — ${summary}`;
+  }
+
+  const errLine = (output.stderr || output.stdout || '').split('\n')[0]?.trim() ?? '';
+  const errSummary = errLine.length > 60 ? `${errLine.slice(0, 57)}...` : errLine;
+  return `${truncatedCmd} — exit code ${output.exit_code}${errSummary ? `: ${errSummary}` : ''}`;
+};
+
 export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandActionCardProps) => {
   const { action, status } = pendingAction;
   const command = action.command ?? '';
@@ -138,6 +157,62 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
   const dangerReason = isDangerousCommand(command);
   const unknown = !dangerReason && isUnknownCommand(command);
   const warningLevel = dangerReason ? 'danger' : unknown ? 'unknown' : 'safe';
+
+  const isCompleted = status === 'success' || status === 'rejected' || status === 'error';
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Collapsed view for completed commands
+  if (isCompleted && !isExpanded) {
+    const isSuccess = status === 'success' && pendingAction.commandOutput?.exit_code === 0;
+    const isRejected = status === 'rejected';
+
+    return (
+      <div
+        role="region"
+        aria-label={`Terminal command: ${command}`}
+        onClick={() => setIsExpanded(true)}
+        style={{
+          margin: '4px 0',
+          border: '1px solid var(--xp-border)',
+          borderRadius: '6px',
+          background: 'var(--xp-surface)',
+          padding: '6px 10px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          opacity: isRejected ? 0.6 : 1,
+        }}
+        title="Click to expand"
+      >
+        {isSuccess ? (
+          <CheckCircle2 size={13} style={{ flexShrink: 0, color: 'var(--xp-green, #9ece6a)' }} />
+        ) : isRejected ? (
+          <XCircle size={13} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+        ) : (
+          <XCircle size={13} style={{ flexShrink: 0, color: 'var(--xp-red, #f7768e)' }} />
+        )}
+        <Terminal size={12} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+        <span
+          style={{
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: 'var(--xp-text-muted)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+          }}
+        >
+          {isRejected
+            ? `${command.length > 60 ? `${command.slice(0, 57)}...` : command} — rejected`
+            : commandSummary(pendingAction)}
+        </span>
+        <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -166,7 +241,9 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
               : warningLevel === 'unknown'
                 ? 'rgba(224, 175, 104, 0.08)'
                 : 'var(--xp-surface-light)',
+          cursor: isCompleted ? 'pointer' : undefined,
         }}
+        onClick={isCompleted ? () => setIsExpanded(false) : undefined}
       >
         <Terminal
           size={14}
@@ -179,8 +256,10 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
                   : 'var(--xp-blue)',
           }}
         />
-        <span style={{ fontWeight: 600, color: 'var(--xp-text)' }}>AI wants to run a command</span>
-        {warningLevel === 'unknown' && (
+        <span style={{ fontWeight: 600, color: 'var(--xp-text)' }}>
+          {isCompleted ? 'Command' : 'AI wants to run a command'}
+        </span>
+        {warningLevel === 'unknown' && !isCompleted && (
           <span
             style={{
               fontSize: '10px',
@@ -194,7 +273,7 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
             UNRECOGNIZED
           </span>
         )}
-        {dangerReason && (
+        {dangerReason && !isCompleted && (
           <span
             style={{
               fontSize: '10px',
@@ -211,6 +290,12 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
             <AlertTriangle size={10} />
             dangerous
           </span>
+        )}
+        {isCompleted && (
+          <ChevronUp
+            size={14}
+            style={{ marginLeft: 'auto', color: 'var(--xp-text-muted)', cursor: 'pointer' }}
+          />
         )}
       </div>
 

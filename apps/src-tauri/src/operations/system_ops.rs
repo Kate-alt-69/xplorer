@@ -469,20 +469,56 @@ const SHELL_METACHARACTERS: &[char] = &['`', ';', '|', '&', '$', '>', '<', '\n']
 /// regardless of whether the command is on the allowlist. The allowlist
 /// only controls whether a command binary that is not on the list is
 /// permitted — it does NOT skip safety checks.
+/// Regex that matches safe stderr/stdout redirect patterns like
+/// `2>/dev/null`, `2>&1`, `>/dev/null`, `1>/dev/null`.
+/// These are stripped before the metacharacter check so they don't
+/// trigger false positives.
+fn strip_safe_redirects(command: &str) -> String {
+    // Match patterns: 2>/dev/null, 2>&1, >/dev/null, 1>/dev/null, 2>>/dev/null
+    // with optional whitespace around >
+    let mut result = command.to_string();
+    // Order matters: strip the FD-prefixed redirects first, then bare ones
+    // Pattern: [12]>>[&/]... or [12]>[&/]...
+    loop {
+        let before = result.clone();
+        // Handle: 2>/dev/null, 1>/dev/null, 2>>/dev/null
+        result = result
+            .replace("2>/dev/null", " ")
+            .replace("1>/dev/null", " ")
+            .replace("2>>/dev/null", " ")
+            .replace("1>>/dev/null", " ");
+        // Handle: 2>&1, 2>&2, 1>&2
+        result = result
+            .replace("2>&1", " ")
+            .replace("2>&2", " ")
+            .replace("1>&2", " ");
+        // Handle: >/dev/null (bare, no FD prefix) — but NOT "> somefile"
+        // We only strip >/dev/null specifically
+        result = result.replace(">/dev/null", " ");
+        if result == before {
+            break;
+        }
+    }
+    result
+}
+
 fn sanitize_command(command: &str) -> Result<(), String> {
     let trimmed = command.trim();
     if trimmed.is_empty() {
         return Err("Empty command".to_string());
     }
 
-    // Extract the first token (the binary name)
-    let first_token = trimmed.split_whitespace().next().unwrap_or("");
+    // Extract the first token (the binary name) — kept for future allowlist use
+    let _first_token = trimmed.split_whitespace().next().unwrap_or("");
 
     // ── STEP 1: ALWAYS reject shell metacharacters ──────────────────────
     // This check must run unconditionally — even for allowlisted commands
     // — to prevent shell chaining attacks like `ls ; rm -rf /`.
+    // Strip safe redirect patterns (2>/dev/null, 2>&1, etc.) first so
+    // they don't trigger false positives on '>' and '&'.
+    let cleaned = strip_safe_redirects(trimmed);
     for &mc in SHELL_METACHARACTERS {
-        if trimmed.contains(mc) {
+        if cleaned.contains(mc) {
             return Err(format!(
                 "Command contains a disallowed shell metacharacter '{}'",
                 mc
@@ -827,6 +863,29 @@ mod tests {
         assert!(sanitize_command("find . -name '*.txt' | xargs rm").is_err()); // contains '|'
         assert!(sanitize_command("env VAR=val sh -c 'cmd' && evil").is_err()); // contains '&'
         assert!(sanitize_command("env $SHELL").is_err()); // contains '$'
+    }
+
+    #[test]
+    fn test_sanitize_allows_safe_stderr_redirects() {
+        // 2>/dev/null is a standard stderr suppression — not a security risk
+        assert!(sanitize_command("git log main..HEAD --oneline 2>/dev/null").is_ok());
+        assert!(sanitize_command("ls -la 2>/dev/null").is_ok());
+        assert!(sanitize_command("cat file.txt 2>&1").is_ok());
+        assert!(sanitize_command("grep pattern file 2>/dev/null").is_ok());
+        assert!(sanitize_command("ls >/dev/null").is_ok());
+        assert!(sanitize_command("du -sh . 2>/dev/null").is_ok());
+    }
+
+    #[test]
+    fn test_sanitize_still_rejects_dangerous_redirects() {
+        // Redirecting to actual files (not /dev/null) is still blocked
+        assert!(sanitize_command("ls > output.txt").is_err());
+        assert!(sanitize_command("echo data > /tmp/evil.sh").is_err());
+        // Piping is still blocked
+        assert!(sanitize_command("cat file.txt | head 2>/dev/null").is_err());
+        // Shell chaining is still blocked even with safe redirects mixed in
+        assert!(sanitize_command("ls 2>/dev/null ; rm -rf /").is_err());
+        assert!(sanitize_command("echo hello 2>&1 && rm -rf /").is_err());
     }
 
     // ─── walk_files tests ────────────────────────────────────────────────
