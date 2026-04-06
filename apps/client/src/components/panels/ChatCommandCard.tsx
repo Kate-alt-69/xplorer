@@ -15,7 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import { type PendingFileAction, isDangerousCommand } from './chat-file-actions';
+import { type PendingFileAction, isDangerousCommand, isUnknownCommand } from './chat-file-actions';
 
 // ---------------------------------------------------------------------------
 // Command output display (terminal-style)
@@ -136,6 +136,8 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
   const command = action.command ?? '';
   const cwd = action.cwd || action.path || '';
   const dangerReason = isDangerousCommand(command);
+  const unknown = !dangerReason && isUnknownCommand(command);
+  const warningLevel = dangerReason ? 'danger' : unknown ? 'unknown' : 'safe';
 
   return (
     <div
@@ -143,7 +145,7 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
       aria-label={`Terminal command: ${command}`}
       style={{
         margin: '8px 0',
-        border: `1px solid ${dangerReason ? 'rgba(247, 118, 142, 0.5)' : 'var(--xp-border)'}`,
+        border: `1px solid ${warningLevel === 'danger' ? 'rgba(247, 118, 142, 0.5)' : warningLevel === 'unknown' ? 'rgba(224, 175, 104, 0.5)' : 'var(--xp-border)'}`,
         borderRadius: '8px',
         background: 'var(--xp-surface)',
         overflow: 'hidden',
@@ -158,11 +160,40 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
           gap: '8px',
           padding: '10px 12px',
           borderBottom: '1px solid var(--xp-border)',
-          background: dangerReason ? 'rgba(247, 118, 142, 0.08)' : 'var(--xp-surface-light)',
+          background:
+            warningLevel === 'danger'
+              ? 'rgba(247, 118, 142, 0.08)'
+              : warningLevel === 'unknown'
+                ? 'rgba(224, 175, 104, 0.08)'
+                : 'var(--xp-surface-light)',
         }}
       >
-        <Terminal size={14} style={{ color: dangerReason ? '#f7768e' : 'var(--xp-blue)' }} />
+        <Terminal
+          size={14}
+          style={{
+            color:
+              warningLevel === 'danger'
+                ? '#f7768e'
+                : warningLevel === 'unknown'
+                  ? '#e0af68'
+                  : 'var(--xp-blue)',
+          }}
+        />
         <span style={{ fontWeight: 600, color: 'var(--xp-text)' }}>AI wants to run a command</span>
+        {warningLevel === 'unknown' && (
+          <span
+            style={{
+              fontSize: '10px',
+              padding: '1px 6px',
+              borderRadius: '4px',
+              background: 'rgba(224, 175, 104, 0.2)',
+              color: '#e0af68',
+              fontWeight: 700,
+            }}
+          >
+            UNRECOGNIZED
+          </span>
+        )}
         {dangerReason && (
           <span
             style={{
@@ -225,6 +256,29 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
               title={cwd}
             >
               {cwd}
+            </span>
+          </div>
+        )}
+
+        {/* Unknown command warning */}
+        {unknown && status === 'pending' && (
+          <div
+            style={{
+              padding: '8px 10px',
+              borderRadius: '4px',
+              background: 'rgba(224, 175, 104, 0.1)',
+              border: '1px solid rgba(224, 175, 104, 0.2)',
+              color: '#e0af68',
+              fontSize: '11px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <AlertTriangle size={12} style={{ flexShrink: 0 }} />
+            <span>
+              This command is not in the recognized safe list. It may still be safe, but please
+              review carefully before running.
             </span>
           </div>
         )}
@@ -293,14 +347,23 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
                 padding: '5px 12px',
                 borderRadius: '4px',
                 border: 'none',
-                background: dangerReason ? '#f7768e' : 'var(--xp-blue)',
-                color: 'white',
+                background:
+                  warningLevel === 'danger'
+                    ? '#f7768e'
+                    : warningLevel === 'unknown'
+                      ? '#e0af68'
+                      : 'var(--xp-blue)',
+                color: warningLevel === 'unknown' ? '#1a1b26' : 'white',
                 cursor: 'pointer',
                 fontSize: '12px',
                 fontWeight: 600,
               }}
             >
-              {dangerReason ? 'Run Anyway' : 'Run'}
+              {warningLevel === 'danger'
+                ? 'Run Anyway'
+                : warningLevel === 'unknown'
+                  ? 'Run (Unverified)'
+                  : 'Run'}
             </button>
           </>
         )}

@@ -278,6 +278,123 @@ export const isDangerousCommand = (command: string): string | undefined => {
   return undefined;
 };
 
+/** Common safe commands that get normal permission prompt */
+const KNOWN_SAFE_COMMANDS = new Set([
+  'ls',
+  'dir',
+  'cat',
+  'head',
+  'tail',
+  'echo',
+  'pwd',
+  'cd',
+  'whoami',
+  'hostname',
+  'uname',
+  'date',
+  'which',
+  'where',
+  'type',
+  'grep',
+  'wc',
+  'sort',
+  'uniq',
+  'file',
+  'stat',
+  'df',
+  'du',
+  'printenv',
+  'set',
+  'mkdir',
+  'cp',
+  'mv',
+  'rm',
+  'touch',
+  'chmod',
+  'chown',
+  'ln',
+  'basename',
+  'dirname',
+  'tr',
+  'cut',
+  'sed',
+  'awk',
+  'diff',
+  'tar',
+  'zip',
+  'unzip',
+  'gzip',
+  'curl',
+  'wget',
+  'tree',
+  'git',
+  'npm',
+  'npx',
+  'pnpm',
+  'yarn',
+  'bun',
+  'bunx',
+  'node',
+  'deno',
+  'python',
+  'python3',
+  'pip',
+  'pip3',
+  'uv',
+  'uvx',
+  'cargo',
+  'rustc',
+  'rustup',
+  'rustfmt',
+  'go',
+  'make',
+  'cmake',
+  'gcc',
+  'g++',
+  'clang',
+  'docker',
+  'docker-compose',
+  'kubectl',
+  'ssh',
+  'scp',
+  'rsync',
+  'java',
+  'javac',
+  'mvn',
+  'gradle',
+  'ruby',
+  'gem',
+  'bundle',
+  'swift',
+  'dotnet',
+  'gh',
+  'jq',
+  'yq',
+  'bat',
+  'rg',
+  'fd',
+  'fzf',
+  'htop',
+  'top',
+  'ps',
+  'open',
+  'xdg-open',
+  'start',
+]);
+
+/** Check if a command is NOT in the known-safe list. Returns true for unknown commands. */
+export const isUnknownCommand = (command: string): boolean => {
+  const binary = command.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+  const name =
+    binary
+      .split('/')
+      .pop()
+      ?.split('\\')
+      .pop()
+      ?.replace(/\.exe$/, '') ?? binary;
+  return !KNOWN_SAFE_COMMANDS.has(name);
+};
+
 /** Default timeout for command execution (30 seconds) */
 const COMMAND_TIMEOUT_MS = 30_000;
 

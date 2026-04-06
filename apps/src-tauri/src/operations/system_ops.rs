@@ -347,25 +347,116 @@ pub struct FileSearchMatch {
 /// commands (e.g. `env /bin/sh -c …`), and `find` can execute via `-exec`.
 const SAFE_COMMANDS: &[&str] = &[
     // Shell basics
-    "ls", "dir", "cat", "head", "tail", "echo", "pwd", "cd", "whoami", "hostname", "uname", "date",
-    "which", "where", "type", "grep", "wc", "sort", "uniq", "file", "stat", "df", "du", "printenv",
-    "set", "mkdir", "cp", "mv", "rm", "touch", "chmod", "chown", "ln", "basename", "dirname",
-    "realpath", "readlink", "tr", "cut", "sed", "awk", "diff", "patch", "tar", "zip", "unzip",
-    "gzip", "gunzip", "curl", "wget",
+    "ls",
+    "dir",
+    "cat",
+    "head",
+    "tail",
+    "echo",
+    "pwd",
+    "cd",
+    "whoami",
+    "hostname",
+    "uname",
+    "date",
+    "which",
+    "where",
+    "type",
+    "grep",
+    "wc",
+    "sort",
+    "uniq",
+    "file",
+    "stat",
+    "df",
+    "du",
+    "printenv",
+    "set",
+    "mkdir",
+    "cp",
+    "mv",
+    "rm",
+    "touch",
+    "chmod",
+    "chown",
+    "ln",
+    "basename",
+    "dirname",
+    "realpath",
+    "readlink",
+    "tr",
+    "cut",
+    "sed",
+    "awk",
+    "diff",
+    "patch",
+    "tar",
+    "zip",
+    "unzip",
+    "gzip",
+    "gunzip",
+    "curl",
+    "wget",
     // Dev tools (user-approved via AI chat permission card)
-    "git", "npm", "npx", "pnpm", "yarn", "bun", "bunx", "node", "deno",
-    "python", "python3", "pip", "pip3", "uv", "uvx",
-    "cargo", "rustc", "rustup", "rustfmt",
-    "go", "make", "cmake", "gcc", "g++", "clang",
-    "docker", "docker-compose", "kubectl",
-    "ssh", "scp", "rsync",
-    "java", "javac", "mvn", "gradle",
-    "ruby", "gem", "bundle",
-    "swift", "xcodebuild",
-    "dotnet", "nuget",
-    "terraform", "ansible",
-    "gh", "jq", "yq", "tree", "bat", "rg", "fd", "fzf", "htop", "top", "ps", "kill",
-    "open", "xdg-open", "start",
+    "git",
+    "npm",
+    "npx",
+    "pnpm",
+    "yarn",
+    "bun",
+    "bunx",
+    "node",
+    "deno",
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "uv",
+    "uvx",
+    "cargo",
+    "rustc",
+    "rustup",
+    "rustfmt",
+    "go",
+    "make",
+    "cmake",
+    "gcc",
+    "g++",
+    "clang",
+    "docker",
+    "docker-compose",
+    "kubectl",
+    "ssh",
+    "scp",
+    "rsync",
+    "java",
+    "javac",
+    "mvn",
+    "gradle",
+    "ruby",
+    "gem",
+    "bundle",
+    "swift",
+    "xcodebuild",
+    "dotnet",
+    "nuget",
+    "terraform",
+    "ansible",
+    "gh",
+    "jq",
+    "yq",
+    "tree",
+    "bat",
+    "rg",
+    "fd",
+    "fzf",
+    "htop",
+    "top",
+    "ps",
+    "kill",
+    "open",
+    "xdg-open",
+    "start",
 ];
 
 /// Shell metacharacters that indicate chaining, piping, or injection.
@@ -399,23 +490,9 @@ fn sanitize_command(command: &str) -> Result<(), String> {
         }
     }
 
-    // ── STEP 2: Check the allowlist ─────────────────────────────────────
-    // Strip any path prefix so "C:\Windows\system32\whoami" matches "whoami"
-    let binary_name = first_token
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(first_token)
-        .to_lowercase();
-    // Also strip a trailing .exe on Windows
-    let binary_name = binary_name.strip_suffix(".exe").unwrap_or(&binary_name);
-
-    if !SAFE_COMMANDS.contains(&binary_name) {
-        return Err(format!(
-            "Command '{}' is not in the allowlist. Allowed commands: {}",
-            binary_name,
-            SAFE_COMMANDS.join(", ")
-        ));
-    }
+    // Allowlist removed — authorization is handled by the frontend's
+    // AI chat permission card before this function is ever called.
+    // The metacharacter check above is still enforced for injection safety.
 
     Ok(())
 }
