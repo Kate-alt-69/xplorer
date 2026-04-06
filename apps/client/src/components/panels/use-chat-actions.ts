@@ -35,7 +35,6 @@ export const useChatActions = (
   messagesRef: React.RefObject<RuntimeChatMessage[]>,
   setMessages: SetMessages,
   scrollToBottom: () => void,
-  onActionComplete?: () => void,
 ) => {
   // -----------------------------------------------------------------------
   // Status updater (shared by single + batch actions)
@@ -141,7 +140,6 @@ export const useChatActions = (
 
           scrollToBottom();
           // Continue the AI conversation with the command results
-          onActionComplete?.();
           return;
         }
 
@@ -167,7 +165,6 @@ export const useChatActions = (
         });
 
         scrollToBottom();
-        onActionComplete?.();
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         updateActionStatus(messageIndex, actionId, 'error', { error: errorMsg });
@@ -190,7 +187,6 @@ export const useChatActions = (
         ]);
 
         scrollToBottom();
-        onActionComplete?.();
       }
       scrollToBottom();
     },

@@ -366,6 +366,15 @@ async fn chat_with_claude(
         }
     }
 
+    // Ensure the conversation ends with a user message (Claude API requirement).
+    let mut messages = messages;
+    if messages.last().map(|m| m.role.as_str()) != Some("user") {
+        messages.push(ChatMessage {
+            role: "user".to_string(),
+            content: "Continue.".to_string(),
+        });
+    }
+
     // Convert messages to Claude format, injecting image content blocks when present
     let has_image = file_context
         .as_ref()
