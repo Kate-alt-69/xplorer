@@ -159,7 +159,131 @@ export const CommandActionCard = ({ pendingAction, onAllow, onReject }: CommandA
   const warningLevel = dangerReason ? 'danger' : unknown ? 'unknown' : 'safe';
 
   const isCompleted = status === 'success' || status === 'rejected' || status === 'error';
+  const _isRunning = status === 'approved';
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Collapsed view for pending commands (click to expand details)
+  if (status === 'pending' && !isExpanded) {
+    const truncatedCmd = command.length > 50 ? `${command.slice(0, 47)}...` : command;
+    return (
+      <div
+        role="region"
+        aria-label={`Terminal command: ${command}`}
+        onClick={() => setIsExpanded(true)}
+        style={{
+          margin: '4px 0',
+          border: `1px solid ${warningLevel === 'danger' ? 'rgba(247, 118, 142, 0.5)' : warningLevel === 'unknown' ? 'rgba(224, 175, 104, 0.5)' : 'var(--xp-border)'}`,
+          borderRadius: '6px',
+          background: 'var(--xp-surface)',
+          padding: '6px 10px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '12px',
+        }}
+      >
+        <Terminal
+          size={13}
+          style={{
+            color:
+              warningLevel === 'danger'
+                ? '#f7768e'
+                : warningLevel === 'unknown'
+                  ? '#e0af68'
+                  : 'var(--xp-blue)',
+            flexShrink: 0,
+          }}
+        />
+        <span
+          style={{
+            color: 'var(--xp-text-muted)',
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <code style={{ color: 'var(--xp-text)', fontFamily: 'monospace', fontSize: '11px' }}>
+            {truncatedCmd}
+          </code>
+        </span>
+        {warningLevel === 'danger' && (
+          <span
+            style={{
+              fontSize: '9px',
+              padding: '1px 5px',
+              borderRadius: '3px',
+              background: 'rgba(247, 118, 142, 0.2)',
+              color: '#f7768e',
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            DANGEROUS
+          </span>
+        )}
+        {warningLevel === 'unknown' && (
+          <span
+            style={{
+              fontSize: '9px',
+              padding: '1px 5px',
+              borderRadius: '3px',
+              background: 'rgba(224, 175, 104, 0.2)',
+              color: '#e0af68',
+              fontWeight: 700,
+              flexShrink: 0,
+            }}
+          >
+            UNRECOGNIZED
+          </span>
+        )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onReject();
+          }}
+          style={{
+            padding: '2px 8px',
+            borderRadius: '3px',
+            border: '1px solid var(--xp-border)',
+            background: 'transparent',
+            color: 'var(--xp-text-muted)',
+            cursor: 'pointer',
+            fontSize: '11px',
+            flexShrink: 0,
+          }}
+        >
+          Reject
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAllow();
+          }}
+          style={{
+            padding: '2px 8px',
+            borderRadius: '3px',
+            border: 'none',
+            background:
+              warningLevel === 'danger'
+                ? '#f7768e'
+                : warningLevel === 'unknown'
+                  ? '#e0af68'
+                  : 'var(--xp-blue)',
+            color: warningLevel === 'unknown' ? '#1a1b26' : 'white',
+            cursor: 'pointer',
+            fontSize: '11px',
+            fontWeight: 600,
+            flexShrink: 0,
+          }}
+        >
+          {warningLevel === 'danger' ? 'Run!' : 'Run'}
+        </button>
+        <ChevronDown size={14} style={{ color: 'var(--xp-text-muted)', flexShrink: 0 }} />
+      </div>
+    );
+  }
 
   // Collapsed view for completed commands
   if (isCompleted && !isExpanded) {
