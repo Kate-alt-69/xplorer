@@ -346,9 +346,26 @@ pub struct FileSearchMatch {
 /// NOTE: `env` and `find` were intentionally removed — `env` can execute arbitrary
 /// commands (e.g. `env /bin/sh -c …`), and `find` can execute via `-exec`.
 const SAFE_COMMANDS: &[&str] = &[
+    // Shell basics
     "ls", "dir", "cat", "head", "tail", "echo", "pwd", "cd", "whoami", "hostname", "uname", "date",
     "which", "where", "type", "grep", "wc", "sort", "uniq", "file", "stat", "df", "du", "printenv",
-    "set",
+    "set", "mkdir", "cp", "mv", "rm", "touch", "chmod", "chown", "ln", "basename", "dirname",
+    "realpath", "readlink", "tr", "cut", "sed", "awk", "diff", "patch", "tar", "zip", "unzip",
+    "gzip", "gunzip", "curl", "wget",
+    // Dev tools (user-approved via AI chat permission card)
+    "git", "npm", "npx", "pnpm", "yarn", "bun", "bunx", "node", "deno",
+    "python", "python3", "pip", "pip3", "uv", "uvx",
+    "cargo", "rustc", "rustup", "rustfmt",
+    "go", "make", "cmake", "gcc", "g++", "clang",
+    "docker", "docker-compose", "kubectl",
+    "ssh", "scp", "rsync",
+    "java", "javac", "mvn", "gradle",
+    "ruby", "gem", "bundle",
+    "swift", "xcodebuild",
+    "dotnet", "nuget",
+    "terraform", "ansible",
+    "gh", "jq", "yq", "tree", "bat", "rg", "fd", "fzf", "htop", "top", "ps", "kill",
+    "open", "xdg-open", "start",
 ];
 
 /// Shell metacharacters that indicate chaining, piping, or injection.
