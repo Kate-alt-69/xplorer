@@ -259,6 +259,11 @@ export interface AppSettings {
   aiSearchProvider: string;
   aiSearchModel: string;
   aiSearchApiKey: string;
+  aiServiceMode: 'cloud' | 'custom';
+  aiCloudModel: string;
+  aiCustomProvider: string;
+  aiCustomModel: string;
+  aiCustomApiKey: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -281,6 +286,11 @@ export const DEFAULT_SETTINGS: AppSettings = {
   aiSearchProvider: 'auto',
   aiSearchModel: '',
   aiSearchApiKey: '',
+  aiServiceMode: 'cloud',
+  aiCloudModel: 'anthropic/claude-sonnet-4',
+  aiCustomProvider: 'ollama',
+  aiCustomModel: '',
+  aiCustomApiKey: '',
 };
 
 export const SETTINGS_KEY = STORAGE_KEYS.SETTINGS;

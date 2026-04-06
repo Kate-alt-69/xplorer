@@ -473,10 +473,120 @@ async fn route_ai_request(
     // Check if it's a Claude model
     if model.starts_with("claude-") {
         chat_with_claude(model, messages, file_context).await
+    } else if model.starts_with("openrouter:") {
+        // OpenRouter model — strip the "openrouter:" prefix
+        let or_model = model
+            .strip_prefix("openrouter:")
+            .unwrap_or(&model)
+            .to_string();
+        chat_with_openrouter(or_model, messages, file_context, None).await
     } else {
         // Use existing Ollama chat function
         chat_with_ollama(model, messages, file_context).await
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OpenRouter API (OpenAI-compatible)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Chat via OpenRouter. Uses the caller's `api_key` when provided, otherwise
+/// falls back to the `OPENROUTER_API_KEY` env var (for the hosted Xplorer Cloud service).
+async fn chat_with_openrouter(
+    model: String,
+    messages: Vec<ChatMessage>,
+    file_context: Option<FileContext>,
+    api_key: Option<String>,
+) -> Result<String, String> {
+    let key = api_key
+        .or_else(|| env::var("OPENROUTER_API_KEY").ok())
+        .ok_or_else(|| {
+            "OpenRouter API key not configured. Set it in Settings → AI or via OPENROUTER_API_KEY env var.".to_string()
+        })?;
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .connect_timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    // Build system message
+    let mut system_content = "You are Copilot, an AI assistant integrated into the Xplorer file explorer. You help users with file management, code analysis, and development tasks. Be helpful, thorough, and practical. Provide detailed, comprehensive responses with specific examples and step-by-step guidance when appropriate. Include code examples, best practices, and additional context that would be valuable to the user.".to_string();
+
+    if let Some(context) = &file_context {
+        system_content.push_str(&format!(
+            "\n\nYou are currently working with:\nFile: {}\nPath: {}\nType: {}",
+            context.name, context.path, context.file_type
+        ));
+        if let Some(content) = &context.content {
+            system_content.push_str(&format!("\nContent:\n{}", content));
+        }
+    }
+
+    // Build OpenAI-compatible messages array
+    let mut api_messages = vec![serde_json::json!({
+        "role": "system",
+        "content": system_content,
+    })];
+
+    for msg in &messages {
+        let role = if msg.role == "user" {
+            "user"
+        } else {
+            "assistant"
+        };
+        api_messages.push(serde_json::json!({
+            "role": role,
+            "content": msg.content,
+        }));
+    }
+
+    // Ensure conversation ends with a user message
+    if messages.last().map(|m| m.role.as_str()) != Some("user") {
+        api_messages.push(serde_json::json!({
+            "role": "user",
+            "content": "Continue.",
+        }));
+    }
+
+    let body = serde_json::json!({
+        "model": model,
+        "max_tokens": 4096,
+        "messages": api_messages,
+    });
+
+    let response = client
+        .post("https://openrouter.ai/api/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", key))
+        .header("HTTP-Referer", "https://xplorer.space")
+        .header("X-Title", "Xplorer")
+        .header("content-type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send request to OpenRouter API: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!("OpenRouter API error: {}", error_text));
+    }
+
+    let resp: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse OpenRouter response: {}", e))?;
+
+    resp.get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|msg| msg.get("content"))
+        .and_then(|t| t.as_str())
+        .map(|s| s.to_string())
+        .ok_or_else(|| "No content in OpenRouter response".to_string())
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -647,6 +757,68 @@ pub async fn search_rerank_with_ai(
             }
         }
 
+        "openrouter" => {
+            let key = api_key
+                .map(|k| k.to_string())
+                .or_else(|| env::var("OPENROUTER_API_KEY").ok())
+                .ok_or_else(|| {
+                    "OpenRouter API key not configured. Set it in Settings → AI or via OPENROUTER_API_KEY env var.".to_string()
+                })?;
+
+            let model_id = model.unwrap_or("anthropic/claude-sonnet-4");
+
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .map_err(|e| format!("HTTP client error: {}", e))?;
+
+            let body = serde_json::json!({
+                "model": model_id,
+                "max_tokens": 2048,
+                "messages": [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": prompt}
+                ]
+            });
+
+            let response = client
+                .post("https://openrouter.ai/api/v1/chat/completions")
+                .header("Authorization", format!("Bearer {}", key))
+                .header("HTTP-Referer", "https://xplorer.space")
+                .header("X-Title", "Xplorer")
+                .header("content-type", "application/json")
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| format!("OpenRouter API request failed: {}", e))?;
+
+            if !response.status().is_success() {
+                let err = response.text().await.unwrap_or_default();
+                return Err(format!("OpenRouter API error: {}", err));
+            }
+
+            let resp: serde_json::Value = response
+                .json()
+                .await
+                .map_err(|e| format!("Failed to parse OpenRouter response: {}", e))?;
+
+            resp.get("choices")
+                .and_then(|c| c.as_array())
+                .and_then(|arr| arr.first())
+                .and_then(|choice| choice.get("message"))
+                .and_then(|msg| msg.get("content"))
+                .and_then(|t| t.as_str())
+                .map(|s| {
+                    if let Some(start) = s.find('[') {
+                        if let Some(end) = s.rfind(']') {
+                            return s[start..=end].to_string();
+                        }
+                    }
+                    s.to_string()
+                })
+                .ok_or_else(|| "No content in OpenRouter response".to_string())
+        }
+
         _ => Err(format!("Unknown AI provider: {}", provider)),
     }
 }
@@ -691,6 +863,15 @@ pub async fn detect_best_provider() -> Option<(String, Option<String>, String)> 
         .or_else(|| env::var("OPENAI_API_KEY").ok());
     if let Some(key) = openai_key {
         return Some(("openai".into(), Some(key), "gpt-4o-mini".into()));
+    }
+
+    // 4. Try OpenRouter (env var — used by Xplorer Cloud hosted service)
+    if let Ok(key) = env::var("OPENROUTER_API_KEY") {
+        return Some((
+            "openrouter".into(),
+            Some(key),
+            "anthropic/claude-sonnet-4".into(),
+        ));
     }
 
     None

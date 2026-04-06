@@ -10,6 +10,8 @@ import {
   SlidersHorizontal,
   Brain,
   RotateCcw,
+  Cloud,
+  Settings2,
 } from 'lucide-react';
 import {
   Select,
@@ -84,6 +86,7 @@ const AISettings = ({
     claude: 'claude-haiku-4-5-20251001',
     openai: 'gpt-4o-mini',
     ollama: 'llama3',
+    openrouter: 'anthropic/claude-sonnet-4',
   };
   const searchModelPlaceholder =
     searchModelPlaceholderMap[settings.aiSearchProvider] || t('settings.ai.searchModelPlaceholder');
@@ -122,6 +125,157 @@ const AISettings = ({
 
       <Divider />
       <SectionTitle title={t('settings.ai.configuration')} />
+
+      {/* AI Service Mode toggle */}
+      <SettingRow
+        icon={Cloud}
+        label={t('settings.ai.serviceMode')}
+        description={t('settings.ai.serviceModeDesc')}
+      >
+        <Select
+          value={settings.aiServiceMode || 'cloud'}
+          onValueChange={(v) => updateSetting('aiServiceMode', v)}
+        >
+          <SelectTrigger className="h-9 min-w-[180px]" aria-label="AI Service Mode">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="cloud">{t('settings.ai.cloudMode')}</SelectItem>
+            <SelectItem value="custom">{t('settings.ai.customMode')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingRow>
+
+      {/* ── Xplorer Cloud mode ── */}
+      {(settings.aiServiceMode || 'cloud') === 'cloud' && (
+        <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
+          <div className="mb-2 flex items-center gap-3">
+            <Brain size={18} className="text-xp-text-secondary shrink-0" />
+            <div>
+              <div className="text-xp-text text-sm font-medium">{t('settings.ai.cloudModel')}</div>
+              <div className="text-xp-text-secondary mt-0.5 text-xs">
+                {t('settings.ai.cloudModelDesc')}
+              </div>
+            </div>
+          </div>
+          <div className="ml-[30px]">
+            <input
+              type="text"
+              value={settings.aiCloudModel || 'anthropic/claude-sonnet-4'}
+              onChange={(e) => updateSetting('aiCloudModel', e.target.value)}
+              placeholder="anthropic/claude-sonnet-4"
+              className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
+            />
+            <div className="text-xp-text-secondary/60 mt-1 text-[10px]">
+              {t('settings.ai.cloudModelHint')}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Custom Provider mode ── */}
+      {settings.aiServiceMode === 'custom' && (
+        <>
+          {/* Custom provider picker */}
+          <SettingRow
+            icon={Settings2}
+            label={t('settings.ai.customProvider')}
+            description={t('settings.ai.customProviderDesc')}
+          >
+            <Select
+              value={settings.aiCustomProvider || 'ollama'}
+              onValueChange={(v) => updateSetting('aiCustomProvider', v)}
+            >
+              <SelectTrigger className="h-9 min-w-[160px]" aria-label="Custom AI Provider">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ollama">{t('settings.ai.providerOllama')}</SelectItem>
+                <SelectItem value="claude">{t('settings.ai.providerClaude')}</SelectItem>
+                <SelectItem value="openai">{t('settings.ai.providerOpenAI')}</SelectItem>
+                <SelectItem value="openrouter">{t('settings.ai.providerOpenRouter')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </SettingRow>
+
+          {/* Custom model text input */}
+          <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
+            <div className="mb-2 flex items-center gap-3">
+              <Brain size={18} className="text-xp-text-secondary shrink-0" />
+              <div>
+                <div className="text-xp-text text-sm font-medium">
+                  {t('settings.ai.customModel')}
+                </div>
+                <div className="text-xp-text-secondary mt-0.5 text-xs">
+                  {t('settings.ai.customModelDesc')}
+                </div>
+              </div>
+            </div>
+            <div className="ml-[30px]">
+              <input
+                type="text"
+                value={settings.aiCustomModel || ''}
+                onChange={(e) => updateSetting('aiCustomModel', e.target.value)}
+                placeholder={
+                  (
+                    {
+                      openrouter: 'anthropic/claude-sonnet-4',
+                      claude: 'claude-sonnet-4-6',
+                      openai: 'gpt-4o',
+                      ollama: 'llama3',
+                    } as Record<string, string>
+                  )[settings.aiCustomProvider] || 'llama3'
+                }
+                className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
+              />
+            </div>
+          </div>
+
+          {/* Custom API key — not shown for Ollama */}
+          {settings.aiCustomProvider !== 'ollama' && (
+            <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
+              <div className="mb-2 flex items-center gap-3">
+                <Key size={18} className="text-xp-text-secondary shrink-0" />
+                <div>
+                  <div className="text-xp-text text-sm font-medium">
+                    {t('settings.ai.customApiKey')}
+                  </div>
+                  <div className="text-xp-text-secondary mt-0.5 text-xs">
+                    {t('settings.ai.customApiKeyDesc')}
+                  </div>
+                </div>
+              </div>
+              <div className="relative ml-[30px]">
+                <input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={settings.aiCustomApiKey || ''}
+                  onChange={(e) => updateSetting('aiCustomApiKey', e.target.value)}
+                  placeholder={
+                    (
+                      {
+                        openrouter: 'sk-or-...',
+                        claude: 'sk-ant-...',
+                      } as Record<string, string>
+                    )[settings.aiCustomProvider] || 'sk-...'
+                  }
+                  className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 pr-16 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                  className="text-xp-text-secondary hover:text-xp-text hover:bg-xp-surface-light absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded px-2 py-1 text-xs transition-colors"
+                >
+                  {showApiKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showApiKey ? t('settings.ai.hideKey') : t('settings.ai.showKey')}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <Divider />
+      <SectionTitle title={t('settings.ai.agentAdvanced')} />
 
       {/* Anthropic API Key */}
       <div className="hover:bg-xp-surface-light/50 rounded-lg px-4 py-3 transition-colors">
@@ -273,6 +427,7 @@ const AISettings = ({
             <SelectItem value="ollama">{t('settings.ai.providerOllama')}</SelectItem>
             <SelectItem value="claude">{t('settings.ai.providerClaude')}</SelectItem>
             <SelectItem value="openai">{t('settings.ai.providerOpenAI')}</SelectItem>
+            <SelectItem value="openrouter">{t('settings.ai.providerOpenRouter')}</SelectItem>
           </SelectContent>
         </Select>
       </SettingRow>
@@ -318,7 +473,11 @@ const AISettings = ({
               type="password"
               value={settings.aiSearchApiKey || ''}
               onChange={(e) => updateSetting('aiSearchApiKey', e.target.value)}
-              placeholder={settings.aiSearchProvider === 'claude' ? 'sk-ant-...' : 'sk-...'}
+              placeholder={
+                ({ claude: 'sk-ant-...', openrouter: 'sk-or-...' } as Record<string, string>)[
+                  settings.aiSearchProvider
+                ] || 'sk-...'
+              }
               className="border-xp-border bg-xp-bg text-xp-text hover:border-xp-text-secondary focus:border-xp-accent focus:ring-xp-accent h-9 w-full rounded-md border px-3 font-mono text-sm transition-colors focus:outline-none focus:ring-1"
             />
           </div>

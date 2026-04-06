@@ -153,20 +153,40 @@ const StandaloneChatPanel = () => {
   }, []);
 
   useEffect(() => {
+    // Check AI service mode first, then fall back to agent settings
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        const mode = (s.aiServiceMode as string) || 'cloud';
+        if (mode === 'cloud') {
+          const cloudModel = (s.aiCloudModel as string) || 'anthropic/claude-sonnet-4';
+          setModel(`openrouter:${cloudModel}`);
+          return;
+        }
+        if (mode === 'custom') {
+          const cp = (s.aiCustomProvider as string) || 'ollama';
+          const cm = (s.aiCustomModel as string) || '';
+          if (cp === 'openrouter' && cm) {
+            setModel(`openrouter:${cm}`);
+            return;
+          }
+          if (cm) {
+            setModel(cm);
+            return;
+          }
+        }
+      }
+    } catch {
+      /* ignore parse errors */
+    }
+
     AgentService.getSettings()
       .then((s) => {
         if (s.model) setModel(s.model);
       })
       .catch(() => {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-          if (raw) {
-            const s = JSON.parse(raw);
-            if (s.aiModel) setModel(s.aiModel);
-          }
-        } catch {
-          /* ignore */
-        }
+        /* ignore */
       });
   }, []);
 
