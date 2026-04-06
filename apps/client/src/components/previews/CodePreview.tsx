@@ -3,6 +3,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { PreviewProps } from '@/lib/preview-factory';
 import { TauriAPI } from '@/lib/tauri-api';
 import { PreviewSkeleton } from '@/components/ui/Skeleton';
+import CodeAIActions from './CodeAIActions';
 
 const SyntaxHighlighter = lazy(() =>
   import('react-syntax-highlighter/dist/esm/prism-light').then(async (m) => {
@@ -175,6 +176,13 @@ const CodePreview = ({ file, onError, onLoad }: PreviewProps) => {
       ) : null}
       {!error && content && (
         <div className="flex flex-1 flex-col">
+          {/* AI-powered code actions */}
+          <CodeAIActions
+            filePath={file.path}
+            language={language}
+            content={content}
+            fileName={file.name}
+          />
           <div className="mb-2 flex items-center justify-between px-2">
             <span className="text-xp-text-muted bg-xp-bg rounded px-2 py-1 text-xs">
               {language}

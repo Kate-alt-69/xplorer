@@ -194,7 +194,7 @@ export const getInstalledExtensionCapabilities = (): ExtensionCapability[] => {
 /** Cache for the extension awareness prompt to avoid recomputing on every message */
 
 let _extensionPromptCache: { result: string; timestamp: number } | null = null;
-const EXTENSION_PROMPT_CACHE_TTL_MS = 30_000; // 30 seconds
+const EXTENSION_PROMPT_CACHE_TTL_MS = 60_000; // 60 seconds
 
 /**
  * Build a system prompt section describing installed extensions.

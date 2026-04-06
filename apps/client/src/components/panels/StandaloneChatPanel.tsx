@@ -1,15 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react';
 import { Loader2 } from 'lucide-react';
-import { TauriAPI } from '@/lib/tauri-api';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { AgentService } from '@/lib/agent-service';
-import {
-  parseFileActions,
-  generateActionId,
-  basename,
-  type PendingFileAction,
-  type FileAction,
-} from './chat-file-actions';
 import { useChatActions } from './use-chat-actions';
 import {
   type SavedConversation,
@@ -19,17 +11,7 @@ import {
   saveChatHistory,
 } from './chat-history';
 import { QUICK_ACTIONS, QuickActionsBar, type QuickAction } from './chat-quick-actions';
-import { SLASH_COMMANDS, matchSlashCommand, LANG_EXTENSIONS } from './chat-slash-commands';
-import {
-  MAX_AGENT_ITERATIONS,
-  IMAGE_EXTENSIONS,
-  type XplorerState,
-  type FileContext,
-  getXplorerState,
-  readFileForAIContext,
-  readMultipleFilesForAIContext,
-} from './chat-context-helpers';
-import { handleTemplateSlashCommand } from './chat-action-templates';
+import { type XplorerState, type FileContext, getXplorerState } from './chat-context-helpers';
 import ChatContextHeader from './ChatContextHeader';
 import ChatWelcome from './ChatWelcome';
 import ChatFilePathCard from './ChatFilePathCard';
@@ -40,34 +22,30 @@ import { useStreamingText, type StreamingEntry } from './use-streaming-text';
 import { type WorkspaceContext, detectWorkspaceContext } from './chat-workspace-awareness';
 import { useProactiveAgent } from './use-proactive-agent';
 import ProactiveSuggestionCard from './ProactiveSuggestionCard';
-import { parseAndSaveMemories, recordFolderVisit } from './chat-agent-memory';
-import { handleSpecialSlashCommand } from './chat-special-commands';
-import {
-  detectAndLearnCorrection,
-  learnFromPositiveFeedback,
-  learnFromNegativeFeedback,
-} from './chat-correction-learning';
-import { addPositiveFeedback, addNegativeFeedback } from './chat-feedback-store';
+import { recordFolderVisit } from './chat-agent-memory';
+import { detectAndLearnCorrection } from './chat-correction-learning';
 import ChatFeedbackButtons from './ChatFeedbackButtons';
-import { compareFiles as performFileComparison, isCompareIntent } from './chat-file-compare';
-import { buildMarketplaceSuggestionText } from './chat-extension-awareness';
 import { useChatBranching } from './use-chat-branching';
 import { BranchForkIndicator } from './ChatBranchTabs';
-import { useTaskPlan, parseTaskPlan } from './use-task-plan';
+import { useTaskPlan } from './use-task-plan';
 import { exportChatAsHtml } from './chat-export-html';
-import {
-  getPinnedMessages,
-  pinMessage,
-  unpinMessage,
-  isMessagePinned,
-  type PinnedMessage,
-} from './chat-pinning';
+import { isMessagePinned } from './chat-pinning';
 import ChatMessageContextMenu from './ChatMessageContextMenu';
 import { startSession, endSession, formatSessionSummary } from './chat-audit-log';
+import { useChatFeedback } from './use-chat-feedback';
 import {
   buildSystemPrompt as buildSystemPromptFn,
   exportChatAsMarkdown,
 } from './chat-system-prompt';
+import {
+  dispatchSlashCommand,
+  useSaveCodeAsFile,
+  buildDroppedFiles,
+  buildFileContext,
+  buildHistoryMessages,
+  IMAGE_EXTENSIONS,
+} from './use-chat-send';
+import { useAgentLoop } from './use-agent-loop';
 
 // ---------------------------------------------------------------------------
 // Lazy-loaded heavy components (reduces initial bundle)
@@ -175,20 +153,40 @@ const StandaloneChatPanel = () => {
   }, []);
 
   useEffect(() => {
+    // Check AI service mode first, then fall back to agent settings
+    try {
+      const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
+      if (raw) {
+        const s = JSON.parse(raw) as Record<string, unknown>;
+        const mode = (s.aiServiceMode as string) || 'cloud';
+        if (mode === 'cloud') {
+          const cloudModel = (s.aiCloudModel as string) || 'anthropic/claude-sonnet-4';
+          setModel(`openrouter:${cloudModel}`);
+          return;
+        }
+        if (mode === 'custom') {
+          const cp = (s.aiCustomProvider as string) || 'ollama';
+          const cm = (s.aiCustomModel as string) || '';
+          if (cp === 'openrouter' && cm) {
+            setModel(`openrouter:${cm}`);
+            return;
+          }
+          if (cm) {
+            setModel(cm);
+            return;
+          }
+        }
+      }
+    } catch {
+      /* ignore parse errors */
+    }
+
     AgentService.getSettings()
       .then((s) => {
         if (s.model) setModel(s.model);
       })
       .catch(() => {
-        try {
-          const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
-          if (raw) {
-            const s = JSON.parse(raw);
-            if (s.aiModel) setModel(s.aiModel);
-          }
-        } catch {
-          /* ignore */
-        }
+        /* ignore */
       });
   }, []);
 
@@ -293,9 +291,7 @@ const StandaloneChatPanel = () => {
     return undefined;
   }, [isTextStreaming, scrollToBottom]);
 
-  // ---------------------------------------------------------------------------
   // File action handlers (extracted to use-chat-actions.ts)
-  // ---------------------------------------------------------------------------
 
   // Use a ref to always access the latest messages without stale closures
   const messagesRef = useRef(messages);
@@ -331,137 +327,21 @@ const StandaloneChatPanel = () => {
     scrollToBottom,
   });
 
-  // ---------------------------------------------------------------------------
-  // Pinned messages
-  // ---------------------------------------------------------------------------
+  // Pinning, feedback, and context menu (extracted to use-chat-feedback.ts)
+  const {
+    pinnedMessages,
+    handlePinMessage,
+    handleUnpinMessage,
+    handleJumpToMessage,
+    feedbackMap,
+    handlePositiveFeedback,
+    handleNegativeFeedback,
+    contextMenu,
+    handleMessageContextMenu,
+    closeContextMenu,
+  } = useChatFeedback(messages, currentPath, currentConversationId, scrollRef);
 
-  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
-
-  // Sync pinned messages whenever conversation changes
-  useEffect(() => {
-    if (currentConversationId) {
-      setPinnedMessages(getPinnedMessages(currentConversationId));
-    } else {
-      setPinnedMessages([]);
-    }
-  }, [currentConversationId]);
-
-  const handlePinMessage = useCallback(
-    (messageIndex: number) => {
-      const convId = currentConversationId || 'unsaved';
-      const msg = messages[messageIndex];
-      if (!msg) return;
-      if (isMessagePinned(convId, messageIndex)) {
-        unpinMessage(convId, messageIndex);
-      } else {
-        pinMessage(convId, messageIndex, msg.content, msg.role);
-      }
-      setPinnedMessages(getPinnedMessages(convId));
-    },
-    [currentConversationId, messages],
-  );
-
-  const handleUnpinMessage = useCallback(
-    (messageIndex: number) => {
-      const convId = currentConversationId || 'unsaved';
-      unpinMessage(convId, messageIndex);
-      setPinnedMessages(getPinnedMessages(convId));
-    },
-    [currentConversationId],
-  );
-
-  const handleJumpToMessage = useCallback((messageIndex: number) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    const msgEl = el.querySelector(`[data-msg-index="${messageIndex}"]`);
-    if (msgEl) {
-      msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Brief highlight effect
-      const htmlEl = msgEl as HTMLElement;
-      htmlEl.style.outline = '2px solid var(--xp-yellow)';
-      htmlEl.style.outlineOffset = '2px';
-      htmlEl.style.borderRadius = '8px';
-      setTimeout(() => {
-        htmlEl.style.outline = '';
-        htmlEl.style.outlineOffset = '';
-      }, 1500);
-    }
-  }, []);
-
-  // ---------------------------------------------------------------------------
-  // Feedback (thumbs up/down) state
-  // ---------------------------------------------------------------------------
-
-  /** Tracks which message indices have received feedback */
-  const [feedbackMap, setFeedbackMap] = useState<Record<number, 'positive' | 'negative'>>({});
-
-  /** Find the user prompt that preceded a given assistant message index */
-  const findUserPromptForMessage = useCallback(
-    (messageIndex: number): string => {
-      for (let i = messageIndex - 1; i >= 0; i--) {
-        const msg = messages[i];
-        if (msg.role === 'user' && !msg.isContextInjection) {
-          return msg.content;
-        }
-      }
-      return '';
-    },
-    [messages],
-  );
-
-  const handlePositiveFeedback = useCallback(
-    (messageIndex: number) => {
-      const msg = messages[messageIndex];
-      if (!msg || msg.role !== 'assistant') return;
-
-      const userPrompt = findUserPromptForMessage(messageIndex);
-      addPositiveFeedback(messageIndex, msg.content, userPrompt, currentPath);
-      learnFromPositiveFeedback(userPrompt, msg.content, currentPath);
-
-      setFeedbackMap((prev) => ({ ...prev, [messageIndex]: 'positive' }));
-    },
-    [messages, currentPath, findUserPromptForMessage],
-  );
-
-  const handleNegativeFeedback = useCallback(
-    (messageIndex: number, correctionText?: string) => {
-      const msg = messages[messageIndex];
-      if (!msg || msg.role !== 'assistant') return;
-
-      const userPrompt = findUserPromptForMessage(messageIndex);
-      addNegativeFeedback(messageIndex, msg.content, userPrompt, currentPath, correctionText);
-
-      if (correctionText) {
-        learnFromNegativeFeedback(correctionText, userPrompt, currentPath);
-      }
-
-      setFeedbackMap((prev) => ({ ...prev, [messageIndex]: 'negative' }));
-    },
-    [messages, currentPath, findUserPromptForMessage],
-  );
-
-  // Context menu state for pinning
-  const [contextMenu, setContextMenu] = useState<{
-    x: number;
-    y: number;
-    messageIndex: number;
-  } | null>(null);
-
-  const handleMessageContextMenu = useCallback(
-    (e: React.MouseEvent, messageIndex: number) => {
-      const msg = messages[messageIndex];
-      if (!msg || msg.isContextInjection) return;
-      e.preventDefault();
-      setContextMenu({ x: e.clientX, y: e.clientY, messageIndex });
-    },
-    [messages],
-  );
-
-  const closeContextMenu = useCallback(() => setContextMenu(null), []);
-
-  // ---------------------------------------------------------------------------
   // Build system prompt with full context (delegated to chat-system-prompt.ts)
-  // ---------------------------------------------------------------------------
 
   const buildSystemPrompt = useCallback(
     async (
@@ -479,264 +359,22 @@ const StandaloneChatPanel = () => {
     [includeSelection, workspaceCtx],
   );
 
-  // ---------------------------------------------------------------------------
-  // Agent loop
-  // ---------------------------------------------------------------------------
+  // Agent loop + plan execution (extracted to use-agent-loop.ts)
 
-  const runAgentLoop = useCallback(
-    async (
-      initialMessages: Array<{ role: string; content: string }>,
-      xState: XplorerState | undefined,
-      fileContexts: FileContext[],
-      currentMsgs: ChatMessage[],
-    ) => {
-      let loopMessages = [...initialMessages];
-      let iteration = 0;
-      let messagesSnapshot = [...currentMsgs];
-      const fc = fileContexts.length > 0 ? fileContexts[0] : null;
-      const primaryFileContext = fc
-        ? {
-            name: fc.name,
-            path: fc.path,
-            file_type: fc.file_type,
-            content: fc.content,
-            image_base64: fc.imageBase64,
-            image_mime_type: fc.imageMimeType,
-          }
-        : null;
+  const { runAgentLoop, executePlanSteps } = useAgentLoop({
+    model,
+    abortRef,
+    messagesRef,
+    taskPlan,
+    setMessages,
+    setIsLoading,
+    setAgentStep,
+    scrollToBottom,
+    autoExecuteActions,
+    buildSystemPrompt,
+  });
 
-      /** Max time (ms) for a single agent iteration before we bail out. */
-      const ITERATION_TIMEOUT_MS = 60_000;
-
-      while (iteration < MAX_AGENT_ITERATIONS && !abortRef.current) {
-        iteration++;
-
-        const agentLoopContext =
-          iteration > 1
-            ? loopMessages
-                .filter((m) => m.role === 'tool_result')
-                .map((m) => m.content)
-                .join('\n\n')
-            : undefined;
-
-        const systemContent = await buildSystemPrompt(xState, fileContexts, agentLoopContext);
-        const apiMsgs = [
-          { role: 'system', content: systemContent },
-          ...loopMessages.filter((m) => m.role !== 'tool_result' && m.role !== 'system'),
-        ];
-
-        if (iteration > 1) setAgentStep(`Agent iteration ${iteration}...`);
-
-        try {
-          const response = await Promise.race([
-            TauriAPI.chatWithAI(model || 'claude-sonnet-4-20250514', apiMsgs, primaryFileContext),
-            new Promise<never>((_resolve, reject) =>
-              setTimeout(
-                () => reject(new Error('Agent iteration timed out (60s)')),
-                ITERATION_TIMEOUT_MS,
-              ),
-            ),
-          ]);
-          if (abortRef.current) break;
-
-          // Check for a task_plan block before parsing file actions
-          const planResult = parseTaskPlan(response);
-          if (planResult) {
-            const memoryCleanText = parseAndSaveMemories(
-              planResult.cleanText,
-              xState?.currentPath ?? '',
-            );
-            if (memoryCleanText) {
-              messagesSnapshot = [
-                ...messagesSnapshot,
-                { role: 'assistant', content: memoryCleanText },
-              ];
-              setMessages(messagesSnapshot);
-            }
-            taskPlan.setPlan(planResult.plan);
-            scrollToBottom();
-            // Break out of the loop -- plan execution handled separately
-            break;
-          }
-
-          const { cleanText, actions } = parseFileActions(response);
-          // Parse and save memory tags from the response
-          const memoryCleanText = parseAndSaveMemories(
-            cleanText || (actions.length > 0 ? '' : response),
-            xState?.currentPath ?? '',
-          );
-          const pendingActions: PendingFileAction[] = actions.map((a: FileAction) => ({
-            id: generateActionId(),
-            action: a,
-            status: 'pending' as const,
-          }));
-
-          const assistantMsg: ChatMessage = {
-            role: 'assistant',
-            content: memoryCleanText,
-            fileActions: pendingActions.length > 0 ? pendingActions : undefined,
-          };
-
-          messagesSnapshot = [...messagesSnapshot, assistantMsg];
-          setMessages(messagesSnapshot);
-          scrollToBottom();
-
-          if (pendingActions.length === 0) break;
-
-          const msgIndex = messagesSnapshot.length - 1;
-          const { readOnlyResults, hasRemainingPending } = await autoExecuteActions(
-            msgIndex,
-            pendingActions,
-          );
-
-          if (readOnlyResults.length > 0 && !hasRemainingPending) {
-            loopMessages = [
-              ...loopMessages,
-              { role: 'assistant', content: response },
-              { role: 'tool_result', content: readOnlyResults.join('\n\n') },
-            ];
-          } else {
-            break;
-          }
-        } catch (err) {
-          messagesSnapshot = [...messagesSnapshot, { role: 'assistant', content: `Error: ${err}` }];
-          setMessages(messagesSnapshot);
-          break;
-        }
-      }
-      setAgentStep('');
-    },
-    [model, scrollToBottom, autoExecuteActions, buildSystemPrompt, taskPlan],
-  );
-
-  // ---------------------------------------------------------------------------
-  // Plan step execution
-  // ---------------------------------------------------------------------------
-
-  const executePlanSteps = useCallback(async () => {
-    const plan = taskPlan.activePlan;
-    if (!plan) return;
-
-    taskPlan.approvePlan();
-    setIsLoading(true);
-    abortRef.current = false;
-
-    // Start audit session for plan execution
-    startSession();
-
-    const xState = getXplorerState();
-
-    for (let i = 0; i < plan.steps.length; i++) {
-      // Check cancel / abort
-      if (taskPlan.isCancelled.current || abortRef.current) break;
-
-      // Check pause -- wait until resumed
-      while (taskPlan.isPaused.current) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
-        if (taskPlan.isCancelled.current || abortRef.current) break;
-      }
-      if (taskPlan.isCancelled.current || abortRef.current) break;
-
-      const step = plan.steps[i];
-      taskPlan.startStep(i);
-      setAgentStep(`Plan step ${i + 1}/${plan.steps.length}: ${step.description}`);
-
-      // Build messages for this step -- include previous step results as context
-      const stepPrompt = step.prompt;
-      const stepUserMsg: ChatMessage = {
-        role: 'user',
-        content: stepPrompt,
-        isContextInjection: true,
-      };
-
-      setMessages((prev) => [...prev, stepUserMsg]);
-
-      // Run the agent loop for this single step
-      const historyMsgs = messagesRef.current
-        .filter((m) => !m.isContextInjection || m.isCommandResult)
-        .map((m) => ({ role: m.role, content: m.content }));
-      historyMsgs.push({ role: 'user', content: stepPrompt });
-
-      try {
-        const systemContent = await buildSystemPrompt(xState, []);
-        const apiMsgs = [
-          { role: 'system', content: systemContent },
-          ...historyMsgs.filter((m) => m.role !== 'system'),
-        ];
-
-        const response = await TauriAPI.chatWithAI(
-          model || 'claude-sonnet-4-20250514',
-          apiMsgs,
-          null,
-        );
-
-        if (taskPlan.isCancelled.current || abortRef.current) break;
-
-        const { cleanText, actions } = parseFileActions(response);
-        const memoryCleanText = parseAndSaveMemories(
-          cleanText || (actions.length > 0 ? '' : response),
-          xState?.currentPath ?? '',
-        );
-
-        const pendingActions: PendingFileAction[] = actions.map((a: FileAction) => ({
-          id: generateActionId(),
-          action: a,
-          status: 'pending' as const,
-        }));
-
-        const assistantMsg: ChatMessage = {
-          role: 'assistant',
-          content: memoryCleanText,
-          fileActions: pendingActions.length > 0 ? pendingActions : undefined,
-        };
-
-        setMessages((prev) => [...prev, assistantMsg]);
-        scrollToBottom();
-
-        // Auto-execute read-only actions for context gathering
-        if (pendingActions.length > 0) {
-          const msgIndex = messagesRef.current.length - 1;
-          await autoExecuteActions(msgIndex, pendingActions);
-        }
-
-        const resultSummary =
-          memoryCleanText.length > 100 ? `${memoryCleanText.slice(0, 100)}...` : memoryCleanText;
-        taskPlan.completeStep(i, resultSummary || 'Done');
-      } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        taskPlan.failStep(i, errorMsg);
-        setMessages((prev) => [
-          ...prev,
-          { role: 'assistant', content: `Step ${i + 1} failed: ${errorMsg}` },
-        ]);
-        break;
-      }
-
-      scrollToBottom();
-    }
-
-    // End audit session and show summary if meaningful actions were performed
-    const planSessionSummary = endSession();
-    if (planSessionSummary && planSessionSummary.totalActions > 0) {
-      const summaryText = formatSessionSummary(planSessionSummary);
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: summaryText, isContextInjection: true },
-      ]);
-    }
-
-    setIsLoading(false);
-    setAgentStep('');
-    scrollToBottom();
-  }, [taskPlan, model, scrollToBottom, autoExecuteActions, buildSystemPrompt]);
-
-  // ---------------------------------------------------------------------------
-  // Send message
-  // ---------------------------------------------------------------------------
-
-  // ---------------------------------------------------------------------------
-  // Chat export handler
-  // ---------------------------------------------------------------------------
+  // Chat export handlers
 
   const exportChatMarkdown = useCallback(() => {
     exportChatAsMarkdown(messages);
@@ -744,170 +382,47 @@ const StandaloneChatPanel = () => {
 
   const exportChatHtml = useCallback(() => {
     if (messages.length === 0) return;
-    exportChatAsHtml({
-      messages,
-      currentPath,
-      model,
-    });
+    exportChatAsHtml({ messages, currentPath, model });
   }, [messages, currentPath, model]);
 
-  // ---------------------------------------------------------------------------
-  // Save code as file handler
-  // ---------------------------------------------------------------------------
+  // Save code as file (extracted to use-chat-send.ts)
 
-  const handleSaveCodeAsFile = useCallback(async (code: string, language: string) => {
-    const ext = (LANG_EXTENSIONS[language.toLowerCase()] ?? language) || 'txt';
-    const xState = getXplorerState();
-    const dir = xState?.currentPath ?? '';
-    if (!dir) {
-      console.warn('No current directory to save file in');
-      return;
-    }
-    const fileName = `untitled.${ext}`;
-    const filePath = `${dir}/${fileName}`;
-    try {
-      await TauriAPI.createFileWithContent(filePath, code);
-      // Add a system message to confirm
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: `Saved code to \`${filePath}\`` },
-      ]);
-    } catch (err) {
-      console.error('Failed to save code as file:', err);
-    }
-  }, []);
+  const handleSaveCodeAsFile = useSaveCodeAsFile(setMessages);
+
+  // Send message (slash dispatch extracted to use-chat-send.ts)
 
   const sendMessage = useCallback(
     async (overrideText?: string) => {
       const text = (overrideText ?? input).trim();
       if (!text || isLoading) return;
 
-      // Handle special slash commands
-      const slashMatch = matchSlashCommand(text);
-      if (slashMatch) {
-        if (slashMatch.prompt === '__EXPORT_CHAT_HTML__') {
-          exportChatHtml();
-          setMessages((prev) => [
-            ...prev,
-            { role: 'user', content: text },
-            { role: 'assistant', content: 'Chat exported as HTML report.' },
-          ]);
+      // Dispatch slash commands without calling the AI
+      const slashResult = dispatchSlashCommand(text, {
+        messages,
+        messagesRef,
+        currentPath,
+        currentConversationId,
+        exportChatHtml,
+        exportChatMarkdown,
+        handlePinMessage,
+        isMessagePinnedFn: isMessagePinned,
+      });
+      if (slashResult) {
+        if (slashResult.redirectPrompt) {
           setInput('');
-          return;
+          return sendMessage(slashResult.redirectPrompt);
         }
-        if (slashMatch.prompt === '__EXPORT_CHAT_MD__') {
-          exportChatMarkdown();
-          setMessages((prev) => [
-            ...prev,
-            { role: 'user', content: text },
-            { role: 'assistant', content: 'Chat exported as markdown.' },
-          ]);
-          setInput('');
-          return;
+        slashResult.sideEffect?.();
+        if (slashResult.appendMessages) {
+          setMessages((prev) => [...prev, ...slashResult.appendMessages!]);
         }
-        if (slashMatch.prompt === '__PIN_LAST__') {
-          // Find the last assistant message and toggle pin
-          const lastAssistantIdx = messages.reduce(
-            (acc, m, idx) => (m.role === 'assistant' && !m.isContextInjection ? idx : acc),
-            -1,
-          );
-          if (lastAssistantIdx >= 0) {
-            handlePinMessage(lastAssistantIdx);
-            const convId = currentConversationId || 'unsaved';
-            const wasPinned = isMessagePinned(convId, lastAssistantIdx);
-            setMessages((prev) => [
-              ...prev,
-              { role: 'user', content: text },
-              {
-                role: 'assistant',
-                content: wasPinned
-                  ? 'Unpinned the last AI message.'
-                  : 'Pinned the last AI message.',
-              },
-            ]);
-          } else {
-            setMessages((prev) => [
-              ...prev,
-              { role: 'user', content: text },
-              { role: 'assistant', content: 'No AI message to pin.' },
-            ]);
-          }
-          setInput('');
-          return;
-        }
-        if (slashMatch.prompt === '__SHOW_HELP__') {
-          const helpLines = SLASH_COMMANDS.map((cmd) => `\`${cmd.name}\` -- ${cmd.description}`);
-          const helpText = `Available commands:\n${helpLines.join('\n')}\n\nKeyboard shortcuts:\n\`Ctrl+L\` -- Clear chat\n\`Up Arrow\` -- Recall last message\n\`Escape\` -- Cancel agent / close`;
-          setMessages((prev) => [
-            ...prev,
-            { role: 'user', content: text },
-            { role: 'assistant', content: helpText },
-          ]);
-          setInput('');
-          return;
-        }
-        // Handle special commands (/memory, /forget, /compare)
-        {
-          const specialResult = handleSpecialSlashCommand(slashMatch.prompt, currentPath);
-          if (specialResult) {
-            if (specialResult.type === 'redirect' && specialResult.redirectPrompt) {
-              setInput('');
-              return sendMessage(specialResult.redirectPrompt);
-            }
-            setMessages((prev) => [
-              ...prev,
-              { role: 'user', content: text },
-              { role: 'assistant', content: specialResult.responseText ?? '' },
-            ]);
-            setInput('');
-            return;
-          }
-        }
-        // Handle template slash commands
-        {
-          const lastActionMsg = [...messagesRef.current]
-            .reverse()
-            .find(
-              (m) => m.role === 'assistant' && m.fileActions?.some((a) => a.status === 'success'),
-            );
-          const lastSuccessActions =
-            lastActionMsg?.fileActions
-              ?.filter((a) => a.status === 'success')
-              .map((a) => a.action) ?? [];
-          const triggerIdx = lastActionMsg ? messagesRef.current.indexOf(lastActionMsg) : -1;
-          const triggerPrompt =
-            triggerIdx > 0
-              ? (messagesRef.current
-                  .slice(0, triggerIdx)
-                  .reverse()
-                  .find((m) => m.role === 'user' && !m.isContextInjection)?.content ?? '')
-              : '';
-          const tmplResult = handleTemplateSlashCommand(
-            slashMatch.prompt,
-            lastSuccessActions,
-            triggerPrompt,
-          );
-          if (tmplResult) {
-            if (tmplResult.type === 'redirect' && tmplResult.redirectPrompt) {
-              setInput('');
-              return sendMessage(tmplResult.redirectPrompt);
-            }
-            setMessages((prev) => [
-              ...prev,
-              { role: 'user', content: text },
-              { role: 'assistant', content: tmplResult.responseText ?? '' },
-            ]);
-            setInput('');
-            return;
-          }
-        }
-        // For other slash commands, use the generated prompt
-        return sendMessage(slashMatch.prompt);
+        setInput('');
+        return;
       }
 
       const xState = getXplorerState();
 
-      // Detect user corrections and learn preferences from them
+      // Detect user corrections and learn preferences
       {
         const lastAiMsg = [...messages]
           .reverse()
@@ -920,9 +435,6 @@ const StandaloneChatPanel = () => {
       // Dropped files take priority over xplorer selection
       const filesToRead =
         droppedFiles.length > 0 ? [...droppedFiles] : [...(xState?.selectedFiles ?? [])];
-
-      // Pre-build image contexts for the user message thumbnail strip
-      const imageContextsForMsg: Array<{ name: string; path: string; dataUrl: string }> = [];
 
       const userMsg: ChatMessage = {
         role: 'user',
@@ -938,7 +450,6 @@ const StandaloneChatPanel = () => {
       setIsLoading(true);
       abortRef.current = false;
       scrollToBottom();
-
       setDroppedFiles([]);
 
       let fileContexts: FileContext[] = [];
@@ -947,43 +458,15 @@ const StandaloneChatPanel = () => {
       if (filesToRead.length > 0) {
         setIsReadingFile(true);
         try {
-          // Detect file comparison intent when exactly 2 files
-          if (
-            filesToRead.length === 2 &&
-            !filesToRead[0].is_dir &&
-            !filesToRead[1].is_dir &&
-            isCompareIntent(text, 2)
-          ) {
-            const compResult = await performFileComparison(
-              filesToRead[0].path,
-              filesToRead[1].path,
-            );
-            if (compResult.success) {
-              compareContext = compResult.contextForAI;
-            }
-          }
+          const result = await buildFileContext(filesToRead, text);
+          fileContexts = result.fileContexts;
+          compareContext = result.compareContext;
 
-          fileContexts =
-            filesToRead.length === 1 && !filesToRead[0].is_dir
-              ? [await readFileForAIContext(filesToRead[0])]
-              : await readMultipleFilesForAIContext(filesToRead);
-
-          // Build image thumbnail data for the user message
-          for (const fc of fileContexts) {
-            if (fc.imageBase64 && fc.imageMimeType) {
-              imageContextsForMsg.push({
-                name: fc.name,
-                path: fc.path,
-                dataUrl: `data:${fc.imageMimeType};base64,${fc.imageBase64}`,
-              });
-            }
-          }
-
-          // Attach image contexts to the user message if any
-          if (imageContextsForMsg.length > 0) {
+          // Attach image contexts to the user message if available
+          if (result.imageContexts.length > 0) {
             const updatedUserMsg: ChatMessage = {
               ...userMsg,
-              imageContexts: imageContextsForMsg,
+              imageContexts: result.imageContexts,
             };
             const updatedMessages = [...messages, updatedUserMsg];
             setMessages(updatedMessages);
@@ -996,32 +479,10 @@ const StandaloneChatPanel = () => {
         }
       }
 
-      const historyMsgs = newMessages
-        .filter((m) => !m.isContextInjection || m.isCommandResult)
-        .map((m) => ({ role: m.role, content: m.content }));
-
-      // Inject file comparison context if detected
-      if (compareContext) {
-        historyMsgs.push({
-          role: 'user',
-          content: `[File comparison data]\n${compareContext}`,
-        });
-      }
-
-      // Inject marketplace extension suggestions if relevant
-      {
-        const marketplaceHint = buildMarketplaceSuggestionText(text);
-        if (marketplaceHint) {
-          historyMsgs.push({
-            role: 'user',
-            content: `[Marketplace extension info]\n${marketplaceHint}`,
-          });
-        }
-      }
+      const historyMsgs = buildHistoryMessages(newMessages, text, compareContext);
 
       // Start audit session for this agent interaction
       startSession();
-
       await runAgentLoop(historyMsgs, xState, fileContexts, newMessages);
 
       // End audit session and show summary if meaningful actions were performed
@@ -1037,12 +498,12 @@ const StandaloneChatPanel = () => {
       setIsLoading(false);
       scrollToBottom();
     },
-
     [
       input,
       isLoading,
       messages,
       droppedFiles,
+      currentPath,
       scrollToBottom,
       runAgentLoop,
       exportChatHtml,
@@ -1051,7 +512,6 @@ const StandaloneChatPanel = () => {
       currentConversationId,
     ],
   );
-
   const stopAgent = useCallback(() => {
     abortRef.current = true;
     setIsLoading(false);
@@ -1090,9 +550,7 @@ const StandaloneChatPanel = () => {
     [currentConversationId, clearChat],
   );
 
-  // ---------------------------------------------------------------------------
   // File path click handler — navigate to file in Xplorer
-  // ---------------------------------------------------------------------------
 
   const navigateToFile = useCallback((filePath: string) => {
     const xState = (
@@ -1111,9 +569,7 @@ const StandaloneChatPanel = () => {
     [navigateToFile],
   );
 
-  // ---------------------------------------------------------------------------
   // Keyboard shortcuts (Ctrl+L clear, Escape cancel/close)
-  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1137,9 +593,7 @@ const StandaloneChatPanel = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [clearChat, isLoading, stopAgent]);
 
-  // ---------------------------------------------------------------------------
   // Drag & drop handlers
-  // ---------------------------------------------------------------------------
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -1158,48 +612,7 @@ const StandaloneChatPanel = () => {
     e.stopPropagation();
     setIsDragOver(false);
 
-    let files: Array<{ name: string; path: string; is_dir: boolean }> = [];
-
-    // Xplorer internal drag format
-    const xplorerData = e.dataTransfer.getData('application/xplorer-files');
-    if (xplorerData) {
-      try {
-        const parsed: unknown = JSON.parse(xplorerData);
-        if (Array.isArray(parsed)) {
-          files = parsed.map((f: { name?: string; path?: string; is_dir?: boolean }) => ({
-            name: String(f.name ?? basename(String(f.path ?? ''))),
-            path: String(f.path ?? ''),
-            is_dir: Boolean(f.is_dir),
-          }));
-        }
-      } catch {
-        // Invalid JSON
-      }
-    }
-
-    // Fallback: text/plain with file paths
-    if (files.length === 0) {
-      const textData = e.dataTransfer.getData('text/plain');
-      if (textData) {
-        const paths = textData
-          .split('\n')
-          .map((p) => p.trim())
-          .filter((p) => p.startsWith('/') || /^[A-Z]:\\/i.test(p));
-        if (paths.length > 0) {
-          files = paths.map((p) => ({ name: basename(p), path: p, is_dir: false }));
-        }
-      }
-    }
-
-    // Fallback: browser File API (OS file drag into Tauri)
-    if (files.length === 0 && e.dataTransfer.files.length > 0) {
-      for (let i = 0; i < e.dataTransfer.files.length; i++) {
-        const file = e.dataTransfer.files[i];
-        const filePath = (file as unknown as { path?: string }).path ?? file.name;
-        files.push({ name: file.name, path: filePath, is_dir: false });
-      }
-    }
-
+    const files = buildDroppedFiles(e);
     if (files.length > 0) {
       setDroppedFiles((prev) => {
         const existing = new Set(prev.map((f) => f.path));
@@ -1213,9 +626,7 @@ const StandaloneChatPanel = () => {
     setDroppedFiles((prev) => prev.filter((f) => f.path !== path));
   }, []);
 
-  // ---------------------------------------------------------------------------
   // Proactive suggestion action
-  // ---------------------------------------------------------------------------
 
   const handleProactiveSuggestionAction = useCallback(
     (prompt: string) => {
@@ -1225,9 +636,7 @@ const StandaloneChatPanel = () => {
     [dismissProactiveSuggestion, sendMessage],
   );
 
-  // ---------------------------------------------------------------------------
   // Quick actions
-  // ---------------------------------------------------------------------------
 
   const handleQuickAction = useCallback(
     (action: QuickAction) => {
@@ -1257,9 +666,7 @@ const StandaloneChatPanel = () => {
     [selectedFiles.length, currentPath, hasSelectedImages],
   );
 
-  // ---------------------------------------------------------------------------
   // Render: History view
-  // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
   // Virtual scrolling for long chat histories
@@ -1326,9 +733,7 @@ const StandaloneChatPanel = () => {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // Render: Main chat view
-  // ---------------------------------------------------------------------------
 
   return (
     <div

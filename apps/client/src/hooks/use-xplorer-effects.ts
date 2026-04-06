@@ -810,6 +810,26 @@ export const useXplorerEffects = (deps: XplorerEffectsDeps) => {
     [splitLayoutRef],
   );
 
+  // ── AI Chat request bridge ───────────────────────────────────────────────
+  // When a component (e.g. code preview AI actions) dispatches
+  // xplorer-ai-chat-request, open the chat panel and store the prompt
+  // so the chat panel can pick it up on its next render cycle.
+  useWindowEvent(
+    'xplorer-ai-chat-request',
+    (e: Event) => {
+      const prompt = (e as CustomEvent<{ prompt: string }>).detail?.prompt;
+      if (prompt) {
+        setRightSidebarCollapsed(false);
+        setRightPanelTab('chat');
+        // Store the pending prompt for the chat panel to pick up
+        (window as unknown as Record<string, unknown>).__xplorer_pending_ai_prompt__ = prompt;
+        // Dispatch a follow-up event the chat panel can listen for
+        window.dispatchEvent(new CustomEvent('xplorer-chat-inject-prompt', { detail: { prompt } }));
+      }
+    },
+    [setRightSidebarCollapsed, setRightPanelTab],
+  );
+
   // ── Spring-loaded folder navigation ──────────────────────────────────────
   // When DragDropContext fires 'spring-load-folder' (a folder hovered for
   // 500ms while dragging), navigate into that folder automatically.

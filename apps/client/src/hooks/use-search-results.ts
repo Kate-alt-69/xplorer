@@ -81,11 +81,26 @@ export const useAiSearch = (basePath: string) => {
             const raw = localStorage.getItem(STORAGE_KEYS.SETTINGS);
             if (raw) {
               const s = JSON.parse(raw) as Record<string, unknown>;
+
+              // If explicit search provider is set, use it
               if (s.aiSearchProvider && s.aiSearchProvider !== 'auto') {
                 searchProvider = s.aiSearchProvider as string;
+                if (s.aiSearchModel) searchModel = s.aiSearchModel as string;
+                if (s.aiSearchApiKey) searchApiKey = s.aiSearchApiKey as string;
+              } else {
+                // Fall back to the AI service mode settings
+                const mode = (s.aiServiceMode as string) || 'cloud';
+                if (mode === 'cloud') {
+                  searchProvider = 'openrouter';
+                  searchModel = (s.aiCloudModel as string) || 'anthropic/claude-sonnet-4';
+                  // No API key — backend uses its own
+                } else if (mode === 'custom') {
+                  const cp = (s.aiCustomProvider as string) || 'ollama';
+                  searchProvider = cp;
+                  if (s.aiCustomModel) searchModel = s.aiCustomModel as string;
+                  if (s.aiCustomApiKey) searchApiKey = s.aiCustomApiKey as string;
+                }
               }
-              if (s.aiSearchModel) searchModel = s.aiSearchModel as string;
-              if (s.aiSearchApiKey) searchApiKey = s.aiSearchApiKey as string;
             }
           } catch {
             /* ignore parse errors */

@@ -179,6 +179,20 @@ describe('isDangerousCommand', () => {
     expect(isDangerousCommand('echo hello')).toBeUndefined();
   });
 
+  it('exempts 2>/dev/null and 2>&1 from dangerous check', () => {
+    expect(isDangerousCommand('git log main..HEAD --oneline 2>/dev/null')).toBeUndefined();
+    expect(isDangerousCommand('ls -la 2>/dev/null')).toBeUndefined();
+    expect(isDangerousCommand('cat file.txt 2>&1')).toBeUndefined();
+    expect(isDangerousCommand('grep pattern file 2>/dev/null')).toBeUndefined();
+    expect(isDangerousCommand('du -sh . >/dev/null')).toBeUndefined();
+  });
+
+  it('still detects dangerous commands even with safe redirects', () => {
+    expect(isDangerousCommand('sudo rm -rf / 2>/dev/null')).toBeDefined();
+    expect(isDangerousCommand('rm -rf / 2>&1')).toBeDefined();
+    expect(isDangerousCommand('shutdown -h now 2>/dev/null')).toBeDefined();
+  });
+
   it('returns the reason string when dangerous', () => {
     const reason = isDangerousCommand('sudo rm -rf /');
     expect(typeof reason).toBe('string');

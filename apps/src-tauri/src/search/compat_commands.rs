@@ -621,6 +621,7 @@ pub async fn smart_search(
                     "claude" => "claude-haiku-4-5-20251001".to_string(),
                     "openai" => "gpt-4o-mini".to_string(),
                     "ollama" => "llama3".to_string(),
+                    "openrouter" => "anthropic/claude-sonnet-4".to_string(),
                     _ => "llama3".to_string(),
                 }),
             ))

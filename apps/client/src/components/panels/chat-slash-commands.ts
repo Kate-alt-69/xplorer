@@ -134,6 +134,32 @@ export const SLASH_COMMANDS: SlashCommand[] = [
     toPrompt: (_args) => '__SHOW_SECURITY__',
   },
   {
+    name: '/duplicates',
+    description: 'Find duplicate files in the current folder',
+    toPrompt: (_args) => '__FIND_DUPLICATES__',
+  },
+  {
+    name: '/rename-pattern',
+    description: 'Detect filename patterns and suggest batch rename',
+    toPrompt: (_args) => '__RENAME_PATTERN__',
+  },
+  {
+    name: '/organize-folder',
+    description: 'Analyze folder and suggest file organization by type',
+    toPrompt: (_args) => '__ORGANIZE_FOLDER__',
+  },
+  {
+    name: '/find',
+    description: 'AI-enhanced search across filenames and content',
+    hasArgs: true,
+    toPrompt: (args) => (args ? `__AI_SEARCH__${args}` : '__AI_SEARCH__'),
+  },
+  {
+    name: '/summarize-folder',
+    description: 'Summarize all documents in the current folder',
+    toPrompt: (_args) => '__SUMMARIZE_FOLDER__',
+  },
+  {
     name: '/help',
     description: 'Show available commands',
     toPrompt: (_args) => '__SHOW_HELP__',

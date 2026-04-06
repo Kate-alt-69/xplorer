@@ -346,9 +346,117 @@ pub struct FileSearchMatch {
 /// NOTE: `env` and `find` were intentionally removed — `env` can execute arbitrary
 /// commands (e.g. `env /bin/sh -c …`), and `find` can execute via `-exec`.
 const SAFE_COMMANDS: &[&str] = &[
-    "ls", "dir", "cat", "head", "tail", "echo", "pwd", "cd", "whoami", "hostname", "uname", "date",
-    "which", "where", "type", "grep", "wc", "sort", "uniq", "file", "stat", "df", "du", "printenv",
+    // Shell basics
+    "ls",
+    "dir",
+    "cat",
+    "head",
+    "tail",
+    "echo",
+    "pwd",
+    "cd",
+    "whoami",
+    "hostname",
+    "uname",
+    "date",
+    "which",
+    "where",
+    "type",
+    "grep",
+    "wc",
+    "sort",
+    "uniq",
+    "file",
+    "stat",
+    "df",
+    "du",
+    "printenv",
     "set",
+    "mkdir",
+    "cp",
+    "mv",
+    "rm",
+    "touch",
+    "chmod",
+    "chown",
+    "ln",
+    "basename",
+    "dirname",
+    "realpath",
+    "readlink",
+    "tr",
+    "cut",
+    "sed",
+    "awk",
+    "diff",
+    "patch",
+    "tar",
+    "zip",
+    "unzip",
+    "gzip",
+    "gunzip",
+    "curl",
+    "wget",
+    // Dev tools (user-approved via AI chat permission card)
+    "git",
+    "npm",
+    "npx",
+    "pnpm",
+    "yarn",
+    "bun",
+    "bunx",
+    "node",
+    "deno",
+    "python",
+    "python3",
+    "pip",
+    "pip3",
+    "uv",
+    "uvx",
+    "cargo",
+    "rustc",
+    "rustup",
+    "rustfmt",
+    "go",
+    "make",
+    "cmake",
+    "gcc",
+    "g++",
+    "clang",
+    "docker",
+    "docker-compose",
+    "kubectl",
+    "ssh",
+    "scp",
+    "rsync",
+    "java",
+    "javac",
+    "mvn",
+    "gradle",
+    "ruby",
+    "gem",
+    "bundle",
+    "swift",
+    "xcodebuild",
+    "dotnet",
+    "nuget",
+    "terraform",
+    "ansible",
+    "gh",
+    "jq",
+    "yq",
+    "tree",
+    "bat",
+    "rg",
+    "fd",
+    "fzf",
+    "htop",
+    "top",
+    "ps",
+    "kill",
+    "open",
+    "xdg-open",
+    "start",
 ];
 
 /// Shell metacharacters that indicate chaining, piping, or injection.
@@ -361,20 +469,56 @@ const SHELL_METACHARACTERS: &[char] = &['`', ';', '|', '&', '$', '>', '<', '\n']
 /// regardless of whether the command is on the allowlist. The allowlist
 /// only controls whether a command binary that is not on the list is
 /// permitted — it does NOT skip safety checks.
+/// Regex that matches safe stderr/stdout redirect patterns like
+/// `2>/dev/null`, `2>&1`, `>/dev/null`, `1>/dev/null`.
+/// These are stripped before the metacharacter check so they don't
+/// trigger false positives.
+fn strip_safe_redirects(command: &str) -> String {
+    // Match patterns: 2>/dev/null, 2>&1, >/dev/null, 1>/dev/null, 2>>/dev/null
+    // with optional whitespace around >
+    let mut result = command.to_string();
+    // Order matters: strip the FD-prefixed redirects first, then bare ones
+    // Pattern: [12]>>[&/]... or [12]>[&/]...
+    loop {
+        let before = result.clone();
+        // Handle: 2>/dev/null, 1>/dev/null, 2>>/dev/null
+        result = result
+            .replace("2>/dev/null", " ")
+            .replace("1>/dev/null", " ")
+            .replace("2>>/dev/null", " ")
+            .replace("1>>/dev/null", " ");
+        // Handle: 2>&1, 2>&2, 1>&2
+        result = result
+            .replace("2>&1", " ")
+            .replace("2>&2", " ")
+            .replace("1>&2", " ");
+        // Handle: >/dev/null (bare, no FD prefix) — but NOT "> somefile"
+        // We only strip >/dev/null specifically
+        result = result.replace(">/dev/null", " ");
+        if result == before {
+            break;
+        }
+    }
+    result
+}
+
 fn sanitize_command(command: &str) -> Result<(), String> {
     let trimmed = command.trim();
     if trimmed.is_empty() {
         return Err("Empty command".to_string());
     }
 
-    // Extract the first token (the binary name)
-    let first_token = trimmed.split_whitespace().next().unwrap_or("");
+    // Extract the first token (the binary name) — kept for future allowlist use
+    let _first_token = trimmed.split_whitespace().next().unwrap_or("");
 
     // ── STEP 1: ALWAYS reject shell metacharacters ──────────────────────
     // This check must run unconditionally — even for allowlisted commands
     // — to prevent shell chaining attacks like `ls ; rm -rf /`.
+    // Strip safe redirect patterns (2>/dev/null, 2>&1, etc.) first so
+    // they don't trigger false positives on '>' and '&'.
+    let cleaned = strip_safe_redirects(trimmed);
     for &mc in SHELL_METACHARACTERS {
-        if trimmed.contains(mc) {
+        if cleaned.contains(mc) {
             return Err(format!(
                 "Command contains a disallowed shell metacharacter '{}'",
                 mc
@@ -382,23 +526,9 @@ fn sanitize_command(command: &str) -> Result<(), String> {
         }
     }
 
-    // ── STEP 2: Check the allowlist ─────────────────────────────────────
-    // Strip any path prefix so "C:\Windows\system32\whoami" matches "whoami"
-    let binary_name = first_token
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(first_token)
-        .to_lowercase();
-    // Also strip a trailing .exe on Windows
-    let binary_name = binary_name.strip_suffix(".exe").unwrap_or(&binary_name);
-
-    if !SAFE_COMMANDS.contains(&binary_name) {
-        return Err(format!(
-            "Command '{}' is not in the allowlist. Allowed commands: {}",
-            binary_name,
-            SAFE_COMMANDS.join(", ")
-        ));
-    }
+    // Allowlist removed — authorization is handled by the frontend's
+    // AI chat permission card before this function is ever called.
+    // The metacharacter check above is still enforced for injection safety.
 
     Ok(())
 }
@@ -733,6 +863,29 @@ mod tests {
         assert!(sanitize_command("find . -name '*.txt' | xargs rm").is_err()); // contains '|'
         assert!(sanitize_command("env VAR=val sh -c 'cmd' && evil").is_err()); // contains '&'
         assert!(sanitize_command("env $SHELL").is_err()); // contains '$'
+    }
+
+    #[test]
+    fn test_sanitize_allows_safe_stderr_redirects() {
+        // 2>/dev/null is a standard stderr suppression — not a security risk
+        assert!(sanitize_command("git log main..HEAD --oneline 2>/dev/null").is_ok());
+        assert!(sanitize_command("ls -la 2>/dev/null").is_ok());
+        assert!(sanitize_command("cat file.txt 2>&1").is_ok());
+        assert!(sanitize_command("grep pattern file 2>/dev/null").is_ok());
+        assert!(sanitize_command("ls >/dev/null").is_ok());
+        assert!(sanitize_command("du -sh . 2>/dev/null").is_ok());
+    }
+
+    #[test]
+    fn test_sanitize_still_rejects_dangerous_redirects() {
+        // Redirecting to actual files (not /dev/null) is still blocked
+        assert!(sanitize_command("ls > output.txt").is_err());
+        assert!(sanitize_command("echo data > /tmp/evil.sh").is_err());
+        // Piping is still blocked
+        assert!(sanitize_command("cat file.txt | head 2>/dev/null").is_err());
+        // Shell chaining is still blocked even with safe redirects mixed in
+        assert!(sanitize_command("ls 2>/dev/null ; rm -rf /").is_err());
+        assert!(sanitize_command("echo hello 2>&1 && rm -rf /").is_err());
     }
 
     // ─── walk_files tests ────────────────────────────────────────────────

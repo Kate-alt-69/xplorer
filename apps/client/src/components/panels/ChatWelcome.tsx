@@ -4,6 +4,7 @@
  * based on the current workspace context (project type, git status, etc.).
  */
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderGit2, Package, GitBranch, FileCode2, Sparkles, Loader2 } from 'lucide-react';
 import { type WorkspaceContext, detectWorkspaceContext } from './chat-workspace-awareness';
 
@@ -143,6 +144,7 @@ const ChatWelcome = ({
   onSendMessage,
   isLoading,
 }: ChatWelcomeProps) => {
+  const { t } = useTranslation();
   const [workspace, setWorkspace] = useState<WorkspaceContext | null>(null);
   const [detecting, setDetecting] = useState(false);
 
@@ -204,7 +206,7 @@ const ChatWelcome = ({
           }}
         >
           <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-          Analyzing workspace...
+          {t('aiChat.welcome.analyzingWorkspace')}
         </div>
       ) : (
         <>
@@ -213,7 +215,7 @@ const ChatWelcome = ({
               {headline}
             </span>
           ) : (
-            <span>Ask anything about your files</span>
+            <span>{t('aiChat.welcome.askAnything')}</span>
           )}
 
           {workspace?.project?.details && (
@@ -256,7 +258,7 @@ const ChatWelcome = ({
                     }}
                   >
                     <FolderGit2 size={10} />
-                    {workspace.git.uncommittedCount} uncommitted
+                    {t('aiChat.welcome.uncommitted', { count: workspace.git.uncommittedCount })}
                   </span>
                 )}
               {workspace.topExtensions.length > 0 && (
@@ -339,8 +341,7 @@ const ChatWelcome = ({
                 textAlign: 'center',
               }}
             >
-              I can browse directories, search files, create, edit, move, rename, and organize your
-              files.
+              {t('aiChat.welcome.capabilities')}
             </span>
           )}
         </>
@@ -348,7 +349,7 @@ const ChatWelcome = ({
 
       {selectedFileCount > 0 && (
         <span style={{ fontSize: '11px', color: 'var(--xp-text-muted)' }}>
-          {selectedFileCount} file{selectedFileCount !== 1 ? 's' : ''} in context
+          {t('aiChat.context.filesInContext', { count: selectedFileCount })}
         </span>
       )}
 
@@ -360,7 +361,7 @@ const ChatWelcome = ({
           opacity: 0.7,
         }}
       >
-        Drag files here or type / for commands
+        {t('aiChat.welcome.dragOrType')}
       </span>
     </div>
   );

@@ -5,8 +5,9 @@
  * - FileActionCard: Single action with allow/reject/undo buttons + diff preview
  * - BatchActionCard: Batch permission card for multi-step operations
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
+  AlertTriangle,
   FileText,
   FolderOpen,
   FilePlus2,
@@ -25,6 +26,8 @@ import {
   Undo2,
   Terminal,
   Puzzle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import ChatDiffPreview from './ChatDiffPreview';
 import ChatErrorBoundary from './ChatErrorBoundary';
@@ -36,6 +39,7 @@ import {
   isReadOnlyAction,
   canUndoAction,
 } from './chat-file-actions';
+import { scanContentForSecrets, type ScanResult } from './chat-content-scanner';
 
 // ---------------------------------------------------------------------------
 // Labels & icons
@@ -108,6 +112,27 @@ interface FileActionCardProps {
   onUndo?: () => void;
 }
 
+/** Build a one-line summary for a completed file action */
+const fileActionSummary = (pendingAction: PendingFileAction): string => {
+  const { action, status } = pendingAction;
+  const name = basename(action.path);
+  const label = ACTION_LABELS[action.action];
+
+  if (status === 'rejected') return `${label} ${name} — rejected`;
+  if (status === 'error') return `${label} ${name} — ${pendingAction.error ?? 'failed'}`;
+
+  // For successful read-only actions, extract a brief result summary
+  if (pendingAction.result) {
+    const firstLine = pendingAction.result.split('\n')[0]?.trim() ?? '';
+    const summary = firstLine.length > 60 ? `${firstLine.slice(0, 57)}...` : firstLine;
+    return `${label} — ${summary}`;
+  }
+
+  if (action.action === 'delete_file') return `${label} ${name} — moved to trash`;
+  if (pendingAction.undone) return `${label} ${name} — undone`;
+  return `${label} ${name} — done`;
+};
+
 export const FileActionCard = ({
   pendingAction,
   onAllow,
@@ -122,6 +147,21 @@ export const FileActionCard = ({
   const hasDestination = action.destination != null;
   const [undoing, setUndoing] = useState(false);
   const showUndo = canUndoAction(pendingAction) && onUndo;
+
+  const isCompleted = status === 'success' || status === 'rejected' || status === 'error';
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Scan content for potential secrets (for create_file/edit_file with content)
+  const secretScan: ScanResult = useMemo(() => {
+    if (
+      (action.action === 'create_file' || action.action === 'edit_file') &&
+      action.content &&
+      status === 'pending'
+    ) {
+      return scanContentForSecrets(action.content);
+    }
+    return { hasSecrets: false, warnings: [] };
+  }, [action.action, action.content, status]);
 
   // Load current file content for diff preview on edit_file actions
   const [existingContent, setExistingContent] = useState<string | null>(null);
@@ -160,6 +200,89 @@ export const FileActionCard = ({
     onUndo();
   };
 
+  // Collapsed view for completed actions
+  if (isCompleted && !isExpanded) {
+    const isSuccess = status === 'success';
+    const isRejected = status === 'rejected';
+
+    return (
+      <div
+        role="region"
+        aria-label={`File action: ${ACTION_LABELS[action.action]} ${fileName}`}
+        onClick={() => setIsExpanded(true)}
+        style={{
+          margin: '4px 0',
+          border: '1px solid var(--xp-border)',
+          borderRadius: '6px',
+          background: 'var(--xp-surface)',
+          padding: '6px 10px',
+          fontSize: '12px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          opacity: isRejected ? 0.6 : 1,
+        }}
+        title="Click to expand"
+      >
+        {isSuccess ? (
+          pendingAction.undone ? (
+            <Undo2 size={13} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+          ) : (
+            <CheckCircle2 size={13} style={{ flexShrink: 0, color: 'var(--xp-green, #9ece6a)' }} />
+          )
+        ) : isRejected ? (
+          <XCircle size={13} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+        ) : (
+          <XCircle size={13} style={{ flexShrink: 0, color: 'var(--xp-red, #f7768e)' }} />
+        )}
+        <ActionIcon action={action.action} />
+        <span
+          style={{
+            fontFamily: 'monospace',
+            fontSize: '11px',
+            color: 'var(--xp-text-muted)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+          }}
+        >
+          {fileActionSummary(pendingAction)}
+        </span>
+        {showUndo && !pendingAction.undone && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleUndo();
+            }}
+            disabled={undoing}
+            aria-label={`Undo ${ACTION_LABELS[action.action].toLowerCase()} ${fileName}`}
+            style={{
+              padding: '2px 6px',
+              borderRadius: '4px',
+              border: '1px solid var(--xp-border)',
+              background: 'transparent',
+              color: 'var(--xp-text-muted)',
+              cursor: undoing ? 'not-allowed' : 'pointer',
+              fontSize: '10px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '3px',
+              opacity: undoing ? 0.5 : 1,
+              flexShrink: 0,
+            }}
+            title="Undo this action"
+          >
+            <Undo2 size={10} />
+            {undoing ? '...' : 'Undo'}
+          </button>
+        )}
+        <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+      </div>
+    );
+  }
+
   return (
     <div
       role="region"
@@ -182,15 +305,19 @@ export const FileActionCard = ({
           padding: '10px 12px',
           borderBottom: '1px solid var(--xp-border)',
           background: isReadOnly ? 'var(--xp-surface)' : 'var(--xp-surface-light)',
+          cursor: isCompleted ? 'pointer' : undefined,
         }}
+        onClick={isCompleted ? () => setIsExpanded(false) : undefined}
       >
         <ActionIcon action={action.action} />
         <span style={{ fontWeight: 600, color: 'var(--xp-text)' }}>
           {isReadOnly
             ? ACTION_LABELS[action.action]
-            : `AI wants to ${ACTION_LABELS[action.action].toLowerCase()}`}
+            : isCompleted
+              ? ACTION_LABELS[action.action]
+              : `AI wants to ${ACTION_LABELS[action.action].toLowerCase()}`}
         </span>
-        {isReadOnly && (
+        {isReadOnly && !isCompleted && (
           <span
             style={{
               fontSize: '10px',
@@ -203,6 +330,12 @@ export const FileActionCard = ({
           >
             auto
           </span>
+        )}
+        {isCompleted && (
+          <ChevronUp
+            size={14}
+            style={{ marginLeft: 'auto', color: 'var(--xp-text-muted)', cursor: 'pointer' }}
+          />
         )}
       </div>
 
@@ -343,6 +476,51 @@ export const FileActionCard = ({
                 ? `${action.content.slice(0, 500)}\n... (${action.content.length} chars total)`
                 : action.content}
             </pre>
+          </div>
+        )}
+
+        {/* Secret detection warning */}
+        {secretScan.hasSecrets && status === 'pending' && (
+          <div
+            style={{
+              marginTop: '6px',
+              padding: '8px 10px',
+              borderRadius: '6px',
+              background: 'rgba(255, 183, 77, 0.12)',
+              border: '1px solid rgba(255, 183, 77, 0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '4px',
+            }}
+            role="alert"
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 600,
+                fontSize: '12px',
+                color: 'var(--xp-yellow, #e0af68)',
+              }}
+            >
+              <AlertTriangle size={13} />
+              This content may contain secrets
+            </div>
+            {secretScan.warnings.map((w) => (
+              <div
+                key={w.label}
+                style={{
+                  fontSize: '11px',
+                  color: 'var(--xp-text-muted)',
+                  fontFamily: 'monospace',
+                  paddingLeft: '19px',
+                }}
+              >
+                {w.label}
+                {w.line != null ? ` (line ${w.line})` : ''}: {w.redactedMatch}
+              </div>
+            ))}
           </div>
         )}
 
