@@ -184,7 +184,9 @@ const CompactMessageView = ({
                   marginRight: '6px',
                 }}
               >
-                {isUser ? 'You' : 'Agent'}
+                {isUser
+                  ? t('agentManager.conversation.roleYou')
+                  : t('agentManager.conversation.roleAgent')}
               </span>
               <span
                 style={{
@@ -256,7 +258,7 @@ const CompactMessageView = ({
                   fontWeight: 600,
                 }}
               >
-                Allow
+                {t('agentManager.conversation.allow')}
               </button>
             )}
             {onReject && (
@@ -273,7 +275,7 @@ const CompactMessageView = ({
                   fontWeight: 600,
                 }}
               >
-                Deny
+                {t('agentManager.conversation.deny')}
               </button>
             )}
           </div>

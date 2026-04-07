@@ -12,7 +12,16 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Plus, Lightbulb } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Lightbulb,
+  LayoutGrid,
+  DollarSign,
+  FolderTree,
+  FileEdit,
+} from 'lucide-react';
 import ActiveAgents, { type AgentTask } from './agent-manager/ActiveAgents';
 import TaskQueue, { type QueuedTask } from './agent-manager/TaskQueue';
 import QuickActions from './agent-manager/QuickActions';
@@ -23,7 +32,13 @@ import NewAgentForm from './agent-manager/NewAgentForm';
 import SessionHistory from './agent-manager/SessionHistory';
 import SharedDiscoveriesBadge from './agent-manager/SharedDiscoveriesBadge';
 import AgentNotifications from './agent-manager/AgentNotifications';
+import CostTracker from './agent-manager/CostTracker';
+import AgentTemplates from './agent-manager/AgentTemplates';
+import CrossDirectoryView from './agent-manager/CrossDirectoryView';
+import FileChangeTracker from './agent-manager/FileChangeTracker';
 import { useSessionHistory } from './agent-manager/use-session-history';
+import useCostTracking from './agent-manager/use-cost-tracking';
+import { useFileChanges } from './agent-manager/use-file-changes';
 import useAgentSessions from '@/hooks/use-agent-sessions';
 import { subscribeToDiscoveries, getDiscoveryCount } from './agent-manager/agent-shared-context';
 import type { CreateSessionParams } from '@/lib/tauri-api-types';
@@ -75,9 +90,26 @@ const AgentManagerPanel = () => {
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const [discoveriesExpanded, setDiscoveriesExpanded] = useState(false);
   const [discoveryCount, setDiscoveryCount] = useState(getDiscoveryCount);
+  const [templatesExpanded, setTemplatesExpanded] = useState(false);
+  const [costExpanded, setCostExpanded] = useState(false);
+  const [crossDirExpanded, setCrossDirExpanded] = useState(false);
+  const [fileChangesExpanded, setFileChangesExpanded] = useState(false);
 
   // Multi-session agent state from Rust backend
   const { sessions, createSession, stopSession, removeSession } = useAgentSessions();
+
+  // Cost tracking — per-session and daily totals
+  const {
+    sessionCosts,
+    todayTotalCost,
+    todayTotalTokensIn,
+    todayTotalTokensOut,
+    formatCost,
+    formatTokens,
+  } = useCostTracking();
+
+  // File change tracking — per-agent file modifications
+  const { changesByAgent, totalChangeCount } = useFileChanges(sessions);
 
   // Session history — persists completed sessions
   const {
@@ -183,6 +215,16 @@ const AgentManagerPanel = () => {
     async (params: CreateSessionParams) => {
       await createSession(params);
       setShowNewAgentForm(false);
+    },
+    [createSession],
+  );
+
+  // Launch from template — create session with template params
+  const handleSelectTemplate = useCallback(
+    (params: CreateSessionParams) => {
+      createSession(params).catch((err: unknown) => {
+        console.error('[AgentManager] Failed to create session from template:', err);
+      });
     },
     [createSession],
   );
@@ -391,6 +433,137 @@ const AgentManagerPanel = () => {
           {quickActionsExpanded && (
             <div style={{ padding: '0 8px 8px' }}>
               <QuickActions onAction={handleQuickAction} disabled={hasActiveAgent} />
+            </div>
+          )}
+        </div>
+
+        {/* Agent Templates Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setTemplatesExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={templatesExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setTemplatesExpanded((v) => !v);
+            }}
+          >
+            {templatesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <LayoutGrid size={12} />
+            {t('agentManager.sections.templates')}
+          </div>
+          {templatesExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <AgentTemplates onSelectTemplate={handleSelectTemplate} disabled={hasActiveAgent} />
+            </div>
+          )}
+        </div>
+
+        {/* Cost Tracker Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setCostExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={costExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setCostExpanded((v) => !v);
+            }}
+          >
+            {costExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <DollarSign size={12} />
+            {t('agentManager.sections.costTracker')}
+            {todayTotalCost > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  fontSize: '10px',
+                  color: 'var(--xp-text-muted)',
+                }}
+              >
+                {formatCost(todayTotalCost)}
+              </span>
+            )}
+          </div>
+          {costExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <CostTracker
+                todayTotalCost={todayTotalCost}
+                todayTotalTokensIn={todayTotalTokensIn}
+                todayTotalTokensOut={todayTotalTokensOut}
+                sessionCosts={sessionCosts}
+                formatCost={formatCost}
+                formatTokens={formatTokens}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* File Changes Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setFileChangesExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={fileChangesExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setFileChangesExpanded((v) => !v);
+            }}
+          >
+            {fileChangesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <FileEdit size={12} />
+            {t('agentManager.sections.fileChanges')}
+            {totalChangeCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  background: 'var(--xp-warning, #e0af68)',
+                  color: '#fff',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: '8px',
+                }}
+              >
+                {totalChangeCount}
+              </span>
+            )}
+          </div>
+          {fileChangesExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <FileChangeTracker changesByAgent={changesByAgent} />
+            </div>
+          )}
+        </div>
+
+        {/* Cross-Directory View Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setCrossDirExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={crossDirExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setCrossDirExpanded((v) => !v);
+            }}
+          >
+            {crossDirExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <FolderTree size={12} />
+            {t('agentManager.sections.crossDirectory')}
+          </div>
+          {crossDirExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <CrossDirectoryView
+                sessions={sessions}
+                sessionCosts={sessionCosts}
+                formatCost={formatCost}
+                onStopSession={stopSession}
+                onRemoveSession={removeSession}
+              />
             </div>
           )}
         </div>

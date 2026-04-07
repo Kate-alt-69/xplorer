@@ -2117,7 +2117,8 @@
       "templates": "Templates",
       "sessionHistory": "Session History",
       "sharedDiscoveries": "Shared Discoveries",
-      "skillsBrowser": "Skills Marketplace"
+      "skillsBrowser": "Skills Marketplace",
+      "crossDirectory": "Cross-Directory"
     },
     "discoveries": {
       "empty": "No shared discoveries yet",
@@ -2199,7 +2200,8 @@
       "proactiveMode": "Proactive suggestions mode",
       "proactive": "Proactive",
       "autoAllow": "Auto-allow file operations",
-      "autoAllowLabel": "Auto Allow"
+      "autoAllowLabel": "Auto Allow",
+      "notConfigured": "Not configured"
     },
     "externalAgents": {
       "title": "External Agents",
@@ -2239,7 +2241,14 @@
         "deleteFile": "Delete file",
         "searchFiles": "Search files",
         "listDirectory": "List directory"
-      }
+      },
+      "roleYou": "You",
+      "roleAgent": "Agent",
+      "allow": "Allow",
+      "deny": "Deny",
+      "approved": "Approved",
+      "rejected": "Rejected",
+      "thinking": "Thinking..."
     },
     "launcher": {
       "placeholder": "Describe what you want the agent to do...",
@@ -2309,7 +2318,9 @@
       "noChanges": "No file changes to review",
       "filesChanged": "{{count}} file(s) changed",
       "accepted": "Accepted",
-      "rejected": "Rejected"
+      "rejected": "Rejected",
+      "pending": "pending",
+      "hiddenLines": "{{count}} unchanged lines hidden - click to expand"
     },
     "crossDirectory": {
       "noSessions": "No agent sessions across directories",
@@ -2361,6 +2372,12 @@
       "useSkill": "Use Skill",
       "viewDetails": "View details",
       "perRun": "run"
+    },
+    "timeAgo": {
+      "justNow": "just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
     }
   },
   "aiChat": {

@@ -2117,7 +2117,8 @@
       "templates": "テンプレート",
       "sessionHistory": "セッション履歴",
       "sharedDiscoveries": "共有発見",
-      "skillsBrowser": "スキルマーケットプレイス"
+      "skillsBrowser": "スキルマーケットプレイス",
+      "crossDirectory": "クロスディレクトリ"
     },
     "discoveries": {
       "empty": "共有された発見はまだありません",
@@ -2199,7 +2200,8 @@
       "proactiveMode": "プロアクティブ提案モード",
       "proactive": "プロアクティブ",
       "autoAllow": "ファイル操作を自動許可",
-      "autoAllowLabel": "自動許可"
+      "autoAllowLabel": "自動許可",
+      "notConfigured": "未設定"
     },
     "externalAgents": {
       "title": "外部エージェント",
@@ -2239,7 +2241,14 @@
         "deleteFile": "ファイルを削除",
         "searchFiles": "ファイルを検索",
         "listDirectory": "ディレクトリを一覧"
-      }
+      },
+      "roleYou": "あなた",
+      "roleAgent": "エージェント",
+      "allow": "許可",
+      "deny": "拒否",
+      "approved": "承認済み",
+      "rejected": "拒否済み",
+      "thinking": "考え中..."
     },
     "launcher": {
       "placeholder": "エージェントに実行させたいタスクを記述してください...",
@@ -2309,7 +2318,9 @@
       "noChanges": "レビューするファイル変更はありません",
       "filesChanged": "{{count}} ファイルが変更されました",
       "accepted": "承認済み",
-      "rejected": "拒否済み"
+      "rejected": "拒否済み",
+      "pending": "保留中",
+      "hiddenLines": "{{count}} 行の変更なしが非表示 - クリックで展開"
     },
     "crossDirectory": {
       "noSessions": "ディレクトリ間のエージェントセッションがありません",
@@ -2342,6 +2353,12 @@
       "useSkill": "スキルを使用",
       "viewDetails": "詳細を見る",
       "perRun": "実行"
+    },
+    "timeAgo": {
+      "justNow": "たった今",
+      "minutesAgo": "{{count}}分前",
+      "hoursAgo": "{{count}}時間前",
+      "daysAgo": "{{count}}日前"
     }
   },
   "aiChat": {

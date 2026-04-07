@@ -2117,7 +2117,8 @@
       "templates": "Template",
       "sessionHistory": "Riwayat Sesi",
       "sharedDiscoveries": "Penemuan Bersama",
-      "skillsBrowser": "Marketplace Skill"
+      "skillsBrowser": "Marketplace Skill",
+      "crossDirectory": "Lintas Direktori"
     },
     "discoveries": {
       "empty": "Belum ada penemuan bersama",
@@ -2199,7 +2200,8 @@
       "proactiveMode": "Mode saran proaktif",
       "proactive": "Proaktif",
       "autoAllow": "Izinkan otomatis operasi file",
-      "autoAllowLabel": "Izin Otomatis"
+      "autoAllowLabel": "Izin Otomatis",
+      "notConfigured": "Belum dikonfigurasi"
     },
     "externalAgents": {
       "title": "Agen Eksternal",
@@ -2239,7 +2241,14 @@
         "deleteFile": "Hapus file",
         "searchFiles": "Cari file",
         "listDirectory": "Daftar direktori"
-      }
+      },
+      "roleYou": "Anda",
+      "roleAgent": "Agen",
+      "allow": "Izinkan",
+      "deny": "Tolak",
+      "approved": "Disetujui",
+      "rejected": "Ditolak",
+      "thinking": "Berpikir..."
     },
     "launcher": {
       "placeholder": "Jelaskan apa yang ingin Anda lakukan agen...",
@@ -2309,7 +2318,9 @@
       "noChanges": "Tidak ada perubahan file untuk ditinjau",
       "filesChanged": "{{count}} file berubah",
       "accepted": "Diterima",
-      "rejected": "Ditolak"
+      "rejected": "Ditolak",
+      "pending": "tertunda",
+      "hiddenLines": "{{count}} baris tidak berubah tersembunyi - klik untuk membuka"
     },
     "crossDirectory": {
       "noSessions": "Tidak ada sesi agen lintas direktori",
@@ -2342,6 +2353,12 @@
       "useSkill": "Gunakan Skill",
       "viewDetails": "Lihat detail",
       "perRun": "eksekusi"
+    },
+    "timeAgo": {
+      "justNow": "baru saja",
+      "minutesAgo": "{{count}}m lalu",
+      "hoursAgo": "{{count}}j lalu",
+      "daysAgo": "{{count}}h lalu"
     }
   },
   "aiChat": {

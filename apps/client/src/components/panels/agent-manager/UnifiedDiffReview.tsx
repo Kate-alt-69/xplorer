@@ -416,7 +416,9 @@ const FileDiffSection = ({
               }}
               onClick={() => setExpanded(true)}
             >
-              {diff.length - visibleDiff.length} unchanged lines hidden — click to expand
+              {t('agentManager.diffReview.hiddenLines', {
+                count: diff.length - visibleDiff.length,
+              })}
             </div>
           )}
         </div>
@@ -574,7 +576,7 @@ const UnifiedDiffReview = ({
         >
           {pendingCount > 0 && (
             <span style={{ fontSize: '9px', color: 'var(--xp-text-muted)' }}>
-              {pendingCount} pending
+              {pendingCount} {t('agentManager.diffReview.pending')}
             </span>
           )}
           {acceptedCount > 0 && (

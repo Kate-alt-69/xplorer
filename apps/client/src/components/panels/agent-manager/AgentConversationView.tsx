@@ -188,6 +188,7 @@ const ApprovalCard = ({
   onApprove?: () => void;
   onReject?: () => void;
 }) => {
+  const { t } = useTranslation();
   const isPending = approval.status === 'pending';
 
   return (
@@ -247,7 +248,7 @@ const ApprovalCard = ({
                 fontWeight: 600,
               }}
             >
-              Allow
+              {t('agentManager.conversation.allow')}
             </button>
           )}
           {onReject && (
@@ -265,19 +266,21 @@ const ApprovalCard = ({
                 fontWeight: 600,
               }}
             >
-              Reject
+              {t('agentManager.conversation.deny')}
             </button>
           )}
         </div>
       )}
       {approval.status === 'approved' && (
         <div style={{ fontSize: '10px', color: 'var(--xp-green, #73daca)', marginTop: '4px' }}>
-          <CheckCircle2 size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> Approved
+          <CheckCircle2 size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />{' '}
+          {t('agentManager.conversation.approved')}
         </div>
       )}
       {approval.status === 'rejected' && (
         <div style={{ fontSize: '10px', color: 'var(--xp-red, #f7768e)', marginTop: '4px' }}>
-          <XCircle size={10} style={{ display: 'inline', verticalAlign: 'middle' }} /> Rejected
+          <XCircle size={10} style={{ display: 'inline', verticalAlign: 'middle' }} />{' '}
+          {t('agentManager.conversation.rejected')}
         </div>
       )}
     </div>
@@ -295,6 +298,7 @@ const MessageBubble = ({
   onApprove?: (id: string) => void;
   onReject?: (id: string) => void;
 }) => {
+  const { t } = useTranslation();
   const isUser = message.role === 'user';
   const isSystem = message.role === 'system';
   const RoleIcon = isUser ? User : Bot;
@@ -323,7 +327,11 @@ const MessageBubble = ({
         }}
       >
         <RoleIcon size={12} />
-        <span>{isUser ? 'You' : 'Agent'}</span>
+        <span>
+          {isUser
+            ? t('agentManager.conversation.roleYou')
+            : t('agentManager.conversation.roleAgent')}
+        </span>
         <span
           style={{
             fontSize: '9px',
@@ -371,7 +379,7 @@ const MessageBubble = ({
           }}
         >
           <Loader2 size={10} style={{ animation: 'spin 1s linear infinite' }} />
-          <span>Thinking...</span>
+          <span>{t('agentManager.conversation.thinking')}</span>
         </div>
       )}
 
