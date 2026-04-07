@@ -2,20 +2,26 @@
  * Agent Manager Panel — mission control for AI operations.
  *
  * Sections:
- * 1. Active Agents — currently running AI tasks
- * 2. Task Queue — pending tasks with drag-to-reorder
- * 3. Quick Actions — one-click common AI tasks
- * 4. Recent Actions — scrollable audit log
- * 5. Agent Settings — bottom bar with toggles
+ * 1. Active Agents — currently running AI tasks (from Rust backend + legacy events)
+ * 2. New Agent — spawn a new agent session with prompt + model
+ * 3. External Agents — terminal-based agent detection
+ * 4. Task Queue — pending tasks with drag-to-reorder
+ * 5. Quick Actions — one-click common AI tasks
+ * 6. Recent Actions — scrollable audit log
+ * 7. Agent Settings — bottom bar with toggles
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 import ActiveAgents, { type AgentTask } from './agent-manager/ActiveAgents';
 import TaskQueue, { type QueuedTask } from './agent-manager/TaskQueue';
 import QuickActions from './agent-manager/QuickActions';
 import RecentActions from './agent-manager/RecentActions';
 import AgentSettingsBar from './agent-manager/AgentSettingsBar';
+import TerminalAgentDetector from './agent-manager/TerminalAgentDetector';
+import NewAgentForm from './agent-manager/NewAgentForm';
+import useAgentSessions from '@/hooks/use-agent-sessions';
+import type { CreateSessionParams } from '@/lib/tauri-api-types';
 
 // ---------------------------------------------------------------------------
 // Section header style (consistent with PerformanceDashboard)
@@ -56,11 +62,16 @@ const AgentManagerPanel = () => {
 
   // Section collapse state
   const [activeExpanded, setActiveExpanded] = useState(true);
+  const [externalExpanded, setExternalExpanded] = useState(true);
   const [queueExpanded, setQueueExpanded] = useState(true);
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(true);
   const [recentExpanded, setRecentExpanded] = useState(true);
+  const [showNewAgentForm, setShowNewAgentForm] = useState(false);
 
-  // Active agents — synced from the chat panel's agent loop
+  // Multi-session agent state from Rust backend
+  const { sessions, createSession, stopSession, removeSession } = useAgentSessions();
+
+  // Active agents — synced from the chat panel's agent loop (legacy)
   const [activeAgents, setActiveAgents] = useState<AgentTask[]>([]);
 
   // Task queue — stored in component state, persisted per session
@@ -144,8 +155,31 @@ const AgentManagerPanel = () => {
     dispatchChatPrompt(prompt);
   }, []);
 
+  // Create new agent session
+  const handleCreateSession = useCallback(
+    async (params: CreateSessionParams) => {
+      await createSession(params);
+      setShowNewAgentForm(false);
+    },
+    [createSession],
+  );
+
+  // Count active items (both legacy + multi-session)
+  const totalActiveCount = useMemo(
+    () =>
+      activeAgents.length +
+      sessions.filter(
+        (s) =>
+          s.status === 'thinking' ||
+          s.status === 'executing' ||
+          s.status === 'waiting_approval' ||
+          s.status === 'idle',
+      ).length,
+    [activeAgents, sessions],
+  );
+
   // Check if any agent is actively running (disable quick actions)
-  const hasActiveAgent = useMemo(() => activeAgents.length > 0, [activeAgents]);
+  const hasActiveAgent = useMemo(() => totalActiveCount > 0, [totalActiveCount]);
 
   return (
     <div
@@ -169,36 +203,97 @@ const AgentManagerPanel = () => {
         {/* Active Agents Section */}
         <div>
           <div
-            style={sectionHeaderStyle}
-            onClick={() => setActiveExpanded((v) => !v)}
-            role="button"
-            tabIndex={0}
-            aria-expanded={activeExpanded}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') setActiveExpanded((v) => !v);
+            style={{
+              ...sectionHeaderStyle,
+              justifyContent: 'space-between',
             }}
           >
-            {activeExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            {t('agentManager.sections.activeAgents')}
-            {activeAgents.length > 0 && (
-              <span
-                style={{
-                  marginLeft: 'auto',
-                  background: 'var(--xp-green, #73daca)',
-                  color: '#fff',
-                  fontSize: '9px',
-                  fontWeight: 700,
-                  padding: '1px 5px',
-                  borderRadius: '8px',
-                }}
-              >
-                {activeAgents.length}
-              </span>
-            )}
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1 }}
+              onClick={() => setActiveExpanded((v) => !v)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') setActiveExpanded((v) => !v);
+              }}
+            >
+              {activeExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+              {t('agentManager.sections.activeAgents')}
+              {totalActiveCount > 0 && (
+                <span
+                  style={{
+                    background: 'var(--xp-green, #73daca)',
+                    color: '#fff',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    padding: '1px 5px',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {totalActiveCount}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => setShowNewAgentForm((v) => !v)}
+              title={t('agentManager.newAgent.title')}
+              aria-label={t('agentManager.newAgent.title')}
+              style={{
+                background: 'none',
+                border: '1px solid var(--xp-border)',
+                borderRadius: '4px',
+                padding: '2px 6px',
+                cursor: 'pointer',
+                color: 'var(--xp-text-muted)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                fontSize: '10px',
+              }}
+            >
+              <Plus size={10} />
+              {t('agentManager.newAgent.button')}
+            </button>
           </div>
           {activeExpanded && (
             <div style={{ padding: '0 8px 8px' }}>
-              <ActiveAgents agents={activeAgents} onStop={handleStopAgent} />
+              {showNewAgentForm && (
+                <div style={{ marginBottom: '8px' }}>
+                  <NewAgentForm
+                    onSubmit={handleCreateSession}
+                    onCancel={() => setShowNewAgentForm(false)}
+                  />
+                </div>
+              )}
+              <ActiveAgents
+                agents={activeAgents}
+                onStop={handleStopAgent}
+                sessions={sessions}
+                onStopSession={stopSession}
+                onRemoveSession={removeSession}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* External Agents Section (Terminal Detection) */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setExternalExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={externalExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setExternalExpanded((v) => !v);
+            }}
+          >
+            {externalExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {t('agentManager.sections.externalAgents')}
+          </div>
+          {externalExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <TerminalAgentDetector />
             </div>
           )}
         </div>

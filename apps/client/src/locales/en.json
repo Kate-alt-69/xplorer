@@ -2107,6 +2107,7 @@
   "agentManager": {
     "sections": {
       "activeAgents": "Active Agents",
+      "externalAgents": "External Agents",
       "taskQueue": "Task Queue",
       "quickActions": "Quick Actions",
       "recentActions": "Recent Actions"
@@ -2119,8 +2120,32 @@
     "activeAgents": {
       "noActive": "No active agents",
       "stop": "Stop",
+      "remove": "Remove",
       "stepProgress": "Step {{current}} of {{total}}",
       "processingFiles": "Processing files:"
+    },
+    "sessionStatus": {
+      "idle": "Idle",
+      "thinking": "Thinking...",
+      "executing": "Executing...",
+      "waitingApproval": "Waiting for approval",
+      "done": "Completed",
+      "error": "Error",
+      "cancelled": "Cancelled"
+    },
+    "sessionDetail": {
+      "prompt": "Prompt",
+      "directory": "Directory",
+      "toolCalls": "Tool calls",
+      "fileChanges": "File changes"
+    },
+    "newAgent": {
+      "title": "New Agent",
+      "button": "New",
+      "namePlaceholder": "Agent name (optional)",
+      "promptPlaceholder": "What should this agent do?",
+      "cancel": "Cancel",
+      "start": "Start Agent"
     },
     "taskQueue": {
       "empty": "No queued tasks",
@@ -2156,6 +2181,32 @@
       "proactive": "Proactive",
       "autoAllow": "Auto-allow file operations",
       "autoAllowLabel": "Auto Allow"
+    },
+    "externalAgents": {
+      "title": "External Agents",
+      "noDetected": "No external agents detected",
+      "monitoringOff": "Terminal monitoring disabled",
+      "enableMonitoring": "Enable terminal monitoring",
+      "disableMonitoring": "Disable terminal monitoring",
+      "dismiss": "Dismiss",
+      "filesChanged": "{{count}} file(s) touched",
+      "status": {
+        "active": "Active",
+        "idle": "Idle",
+        "exited": "Exited"
+      }
+    },
+    "launcher": {
+      "placeholder": "Describe what you want the agent to do...",
+      "modelLabel": "Model",
+      "scopeLabel": "Scope",
+      "scopeCurrentDir": "Current directory",
+      "scopeSelectedFiles": "Selected files",
+      "scopeBrowse": "Browse...",
+      "launch": "Launch Agent",
+      "recentPrompts": "Recent prompts",
+      "noRecentPrompts": "No recent prompts",
+      "shortcutHint": "Press Esc to close"
     }
   },
   "aiChat": {

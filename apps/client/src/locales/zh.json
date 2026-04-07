@@ -2107,6 +2107,7 @@
   "agentManager": {
     "sections": {
       "activeAgents": "活跃代理",
+      "externalAgents": "外部代理",
       "taskQueue": "任务队列",
       "quickActions": "快捷操作",
       "recentActions": "最近操作"
@@ -2119,8 +2120,32 @@
     "activeAgents": {
       "noActive": "没有活跃的代理",
       "stop": "停止",
+      "remove": "移除",
       "stepProgress": "第 {{current}} 步，共 {{total}} 步",
       "processingFiles": "正在处理文件："
+    },
+    "sessionStatus": {
+      "idle": "空闲",
+      "thinking": "思考中...",
+      "executing": "执行中...",
+      "waitingApproval": "等待审批",
+      "done": "已完成",
+      "error": "错误",
+      "cancelled": "已取消"
+    },
+    "sessionDetail": {
+      "prompt": "提示",
+      "directory": "目录",
+      "toolCalls": "工具调用",
+      "fileChanges": "文件更改"
+    },
+    "newAgent": {
+      "title": "新建代理",
+      "button": "新建",
+      "namePlaceholder": "代理名称（可选）",
+      "promptPlaceholder": "这个代理应该做什么？",
+      "cancel": "取消",
+      "start": "启动代理"
     },
     "taskQueue": {
       "empty": "没有排队的任务",
@@ -2156,6 +2181,32 @@
       "proactive": "主动",
       "autoAllow": "自动允许文件操作",
       "autoAllowLabel": "自动允许"
+    },
+    "externalAgents": {
+      "title": "外部代理",
+      "noDetected": "未检测到外部代理",
+      "monitoringOff": "终端监控已禁用",
+      "enableMonitoring": "启用终端监控",
+      "disableMonitoring": "禁用终端监控",
+      "dismiss": "关闭",
+      "filesChanged": "{{count}} 个文件已变更",
+      "status": {
+        "active": "活跃",
+        "idle": "空闲",
+        "exited": "已退出"
+      }
+    },
+    "launcher": {
+      "placeholder": "描述你希望代理执行的任务...",
+      "modelLabel": "模型",
+      "scopeLabel": "范围",
+      "scopeCurrentDir": "当前目录",
+      "scopeSelectedFiles": "选中的文件",
+      "scopeBrowse": "浏览...",
+      "launch": "启动代理",
+      "recentPrompts": "最近的提示",
+      "noRecentPrompts": "没有最近的提示",
+      "shortcutHint": "按 Esc 关闭"
     }
   },
   "aiChat": {

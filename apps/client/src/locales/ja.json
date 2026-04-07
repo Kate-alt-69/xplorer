@@ -2107,6 +2107,7 @@
   "agentManager": {
     "sections": {
       "activeAgents": "アクティブエージェント",
+      "externalAgents": "外部エージェント",
       "taskQueue": "タスクキュー",
       "quickActions": "クイックアクション",
       "recentActions": "最近のアクション"
@@ -2119,8 +2120,32 @@
     "activeAgents": {
       "noActive": "アクティブなエージェントはありません",
       "stop": "停止",
+      "remove": "削除",
       "stepProgress": "ステップ {{current}} / {{total}}",
       "processingFiles": "処理中のファイル："
+    },
+    "sessionStatus": {
+      "idle": "アイドル",
+      "thinking": "思考中...",
+      "executing": "実行中...",
+      "waitingApproval": "承認待ち",
+      "done": "完了",
+      "error": "エラー",
+      "cancelled": "キャンセル済み"
+    },
+    "sessionDetail": {
+      "prompt": "プロンプト",
+      "directory": "ディレクトリ",
+      "toolCalls": "ツール呼び出し",
+      "fileChanges": "ファイル変更"
+    },
+    "newAgent": {
+      "title": "新規エージェント",
+      "button": "新規",
+      "namePlaceholder": "エージェント名（任意）",
+      "promptPlaceholder": "このエージェントに何をさせますか？",
+      "cancel": "キャンセル",
+      "start": "エージェント起動"
     },
     "taskQueue": {
       "empty": "キューにタスクはありません",
@@ -2156,6 +2181,32 @@
       "proactive": "プロアクティブ",
       "autoAllow": "ファイル操作を自動許可",
       "autoAllowLabel": "自動許可"
+    },
+    "externalAgents": {
+      "title": "外部エージェント",
+      "noDetected": "外部エージェントは検出されていません",
+      "monitoringOff": "ターミナル監視が無効です",
+      "enableMonitoring": "ターミナル監視を有効にする",
+      "disableMonitoring": "ターミナル監視を無効にする",
+      "dismiss": "閉じる",
+      "filesChanged": "{{count}} ファイルが変更されました",
+      "status": {
+        "active": "アクティブ",
+        "idle": "アイドル",
+        "exited": "終了"
+      }
+    },
+    "launcher": {
+      "placeholder": "エージェントに実行させたいタスクを記述してください...",
+      "modelLabel": "モデル",
+      "scopeLabel": "スコープ",
+      "scopeCurrentDir": "現在のディレクトリ",
+      "scopeSelectedFiles": "選択したファイル",
+      "scopeBrowse": "参照...",
+      "launch": "エージェントを起動",
+      "recentPrompts": "最近のプロンプト",
+      "noRecentPrompts": "最近のプロンプトはありません",
+      "shortcutHint": "Esc で閉じる"
     }
   },
   "aiChat": {

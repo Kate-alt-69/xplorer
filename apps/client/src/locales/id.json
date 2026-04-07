@@ -2107,6 +2107,7 @@
   "agentManager": {
     "sections": {
       "activeAgents": "Agen Aktif",
+      "externalAgents": "Agen Eksternal",
       "taskQueue": "Antrean Tugas",
       "quickActions": "Aksi Cepat",
       "recentActions": "Aksi Terbaru"
@@ -2119,8 +2120,32 @@
     "activeAgents": {
       "noActive": "Tidak ada agen aktif",
       "stop": "Hentikan",
+      "remove": "Hapus",
       "stepProgress": "Langkah {{current}} dari {{total}}",
       "processingFiles": "Memproses file:"
+    },
+    "sessionStatus": {
+      "idle": "Diam",
+      "thinking": "Berpikir...",
+      "executing": "Mengeksekusi...",
+      "waitingApproval": "Menunggu persetujuan",
+      "done": "Selesai",
+      "error": "Kesalahan",
+      "cancelled": "Dibatalkan"
+    },
+    "sessionDetail": {
+      "prompt": "Prompt",
+      "directory": "Direktori",
+      "toolCalls": "Panggilan alat",
+      "fileChanges": "Perubahan file"
+    },
+    "newAgent": {
+      "title": "Agen Baru",
+      "button": "Baru",
+      "namePlaceholder": "Nama agen (opsional)",
+      "promptPlaceholder": "Apa yang harus dilakukan agen ini?",
+      "cancel": "Batal",
+      "start": "Mulai Agen"
     },
     "taskQueue": {
       "empty": "Tidak ada tugas dalam antrean",
@@ -2156,6 +2181,32 @@
       "proactive": "Proaktif",
       "autoAllow": "Izinkan otomatis operasi file",
       "autoAllowLabel": "Izin Otomatis"
+    },
+    "externalAgents": {
+      "title": "Agen Eksternal",
+      "noDetected": "Tidak ada agen eksternal terdeteksi",
+      "monitoringOff": "Pemantauan terminal dinonaktifkan",
+      "enableMonitoring": "Aktifkan pemantauan terminal",
+      "disableMonitoring": "Nonaktifkan pemantauan terminal",
+      "dismiss": "Tutup",
+      "filesChanged": "{{count}} file tersentuh",
+      "status": {
+        "active": "Aktif",
+        "idle": "Idle",
+        "exited": "Keluar"
+      }
+    },
+    "launcher": {
+      "placeholder": "Jelaskan apa yang ingin Anda lakukan agen...",
+      "modelLabel": "Model",
+      "scopeLabel": "Cakupan",
+      "scopeCurrentDir": "Direktori saat ini",
+      "scopeSelectedFiles": "File terpilih",
+      "scopeBrowse": "Jelajahi...",
+      "launch": "Luncurkan Agen",
+      "recentPrompts": "Prompt terbaru",
+      "noRecentPrompts": "Tidak ada prompt terbaru",
+      "shortcutHint": "Tekan Esc untuk menutup"
     }
   },
   "aiChat": {
