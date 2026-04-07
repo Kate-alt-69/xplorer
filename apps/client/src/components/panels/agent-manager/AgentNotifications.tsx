@@ -167,7 +167,7 @@ const AgentNotifications = ({
 
       toast({
         title: t('agentManager.notifications.agentCompleted', {
-          name: detail.description ?? 'Agent',
+          name: detail.description ?? t('agentManager.conversation.roleAgent'),
         }),
       });
     };

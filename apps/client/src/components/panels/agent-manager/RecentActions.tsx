@@ -51,15 +51,18 @@ const ACTION_LABELS: Record<string, string> = {
   run_command: 'agentManager.recentActions.actionCommand',
 };
 
-const formatTimeAgo = (timestamp: number): string => {
+const formatTimeAgo = (
+  timestamp: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string => {
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
-  if (seconds < 60) return 'just now';
+  if (seconds < 60) return t('agentManager.timeAgo.justNow');
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t('agentManager.timeAgo.minutesAgo', { count: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t('agentManager.timeAgo.hoursAgo', { count: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t('agentManager.timeAgo.daysAgo', { count: days });
 };
 
 const shortenPath = (path: string, maxLen = 30): string => {
@@ -170,7 +173,7 @@ const RecentActions = ({ maxItems = 30, onUndo }: RecentActionsProps) => {
               }}
               title={t(RESULT_LABEL_KEY[entry.result])}
             >
-              {formatTimeAgo(entry.timestamp)}
+              {formatTimeAgo(entry.timestamp, t)}
             </span>
 
             {/* Undo button (only for successful actions) */}
