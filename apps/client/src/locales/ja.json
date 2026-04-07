@@ -2116,7 +2116,8 @@
       "costTracker": "コストと使用量",
       "templates": "テンプレート",
       "sessionHistory": "セッション履歴",
-      "sharedDiscoveries": "共有発見"
+      "sharedDiscoveries": "共有発見",
+      "skillsBrowser": "スキルマーケットプレイス"
     },
     "discoveries": {
       "empty": "共有された発見はまだありません",
@@ -2329,6 +2330,18 @@
       "enableCompleted": "完了",
       "enableApproval": "承認が必要",
       "enableError": "エラー"
+    },
+    "skillsBrowser": {
+      "searchPlaceholder": "スキルを検索...",
+      "installedBadge": "インストール済み",
+      "refresh": "マーケットプレイスを更新",
+      "resultsCount": "{{count}} 件のスキルが利用可能",
+      "noResults": "検索に一致するスキルが見つかりません",
+      "install": "インストール",
+      "installing": "インストール中...",
+      "useSkill": "スキルを使用",
+      "viewDetails": "詳細を見る",
+      "perRun": "実行"
     }
   },
   "aiChat": {

@@ -2116,7 +2116,8 @@
       "costTracker": "Cost & Usage",
       "templates": "Templates",
       "sessionHistory": "Session History",
-      "sharedDiscoveries": "Shared Discoveries"
+      "sharedDiscoveries": "Shared Discoveries",
+      "skillsBrowser": "Skills Marketplace"
     },
     "discoveries": {
       "empty": "No shared discoveries yet",
@@ -2348,6 +2349,18 @@
       "noAgents": "No agent sessions",
       "selectAgent": "Select an agent...",
       "openWorkspace": "Open full workspace"
+    },
+    "skillsBrowser": {
+      "searchPlaceholder": "Search skills...",
+      "installedBadge": "installed",
+      "refresh": "Refresh marketplace",
+      "resultsCount": "{{count}} skill(s) available",
+      "noResults": "No skills found matching your search",
+      "install": "Install",
+      "installing": "Installing...",
+      "useSkill": "Use Skill",
+      "viewDetails": "View details",
+      "perRun": "run"
     }
   },
   "aiChat": {

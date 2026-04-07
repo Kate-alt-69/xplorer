@@ -2116,7 +2116,8 @@
       "costTracker": "Biaya & Penggunaan",
       "templates": "Template",
       "sessionHistory": "Riwayat Sesi",
-      "sharedDiscoveries": "Penemuan Bersama"
+      "sharedDiscoveries": "Penemuan Bersama",
+      "skillsBrowser": "Marketplace Skill"
     },
     "discoveries": {
       "empty": "Belum ada penemuan bersama",
@@ -2329,6 +2330,18 @@
       "enableCompleted": "Selesai",
       "enableApproval": "Perlu persetujuan",
       "enableError": "Kesalahan"
+    },
+    "skillsBrowser": {
+      "searchPlaceholder": "Cari skill...",
+      "installedBadge": "terinstal",
+      "refresh": "Segarkan marketplace",
+      "resultsCount": "{{count}} skill tersedia",
+      "noResults": "Tidak ada skill yang cocok dengan pencarian Anda",
+      "install": "Instal",
+      "installing": "Menginstal...",
+      "useSkill": "Gunakan Skill",
+      "viewDetails": "Lihat detail",
+      "perRun": "eksekusi"
     }
   },
   "aiChat": {
