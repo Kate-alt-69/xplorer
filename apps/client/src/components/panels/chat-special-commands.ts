@@ -25,6 +25,7 @@ import {
 import { handleCommitMessageCommand } from './ai-git-helpers';
 import { handleWorkflowSlashCommand, type WorkflowCommandResult } from './chat-workflow-templates';
 import { TauriAPI } from '@/lib/tauri-api';
+import { formatDiscoveriesDisplay } from './agent-manager/agent-shared-context';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -209,6 +210,11 @@ export const handleSpecialSlashCommand = (
       type: 'redirect',
       redirectPrompt: `List the current directory and identify all document files (text, PDF, office docs, markdown, etc.). For each document, read the first portion and provide a concise summary. Then give an overall summary of what this folder's documents contain. Focus on key information, purpose, and any patterns across the documents.`,
     };
+  }
+
+  // /discoveries -- list shared discoveries from all agent sessions
+  if (prompt === '__LIST_DISCOVERIES__') {
+    return { type: 'handled', responseText: formatDiscoveriesDisplay() };
   }
 
   // /workflows, /run-workflow, /save-workflow, /delete-workflow

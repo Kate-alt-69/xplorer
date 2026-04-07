@@ -45,6 +45,11 @@ export const EXTRA_SLASH_COMMANDS: SlashCommand[] = [
     hasArgs: true,
     toPrompt: (args) => `__DELETE_WORKFLOW__${args}`,
   },
+  {
+    name: '/discoveries',
+    description: 'List shared discoveries from all agent sessions',
+    toPrompt: (_args) => '__LIST_DISCOVERIES__',
+  },
 ];
 
 /**
