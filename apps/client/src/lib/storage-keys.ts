@@ -102,6 +102,9 @@ export const STORAGE_KEYS = {
   // AI Chat onboarding
   AI_ONBOARDING_DONE: 'xplorer:ai-onboarding-done',
 
+  // Agent launcher recent prompts
+  AGENT_LAUNCHER_RECENT: 'xplorer:agent-launcher-recent',
+
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
 } as const;

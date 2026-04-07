@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { FileEntry, FolderSizeInfo, ConflictFileInfo } from '@/lib/tauri-api';
 import {
   getFileIcon,
@@ -38,6 +38,8 @@ import SplitContainer from '@/components/split-view/SplitContainer';
 import { DragDropProvider } from '@/contexts/DragDropContext';
 import { CrossTabSelectionProvider } from '@/contexts/CrossTabSelectionContext';
 import { ExplorerProvider, type ExplorerContextValue } from '@/contexts/ExplorerContext';
+
+const AgentLauncher = React.lazy(() => import('@/components/panels/AgentLauncher'));
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,6 +311,29 @@ const MainLayout = (props: MainLayoutProps) => {
   } = props;
 
   const activeTabObj = activeGroup.tabs.find((t: TabItem) => t.id === activeGroup.activeTabId);
+
+  // ── Agent Launcher (Cmd+K) ──────────────────────────────────────────────
+  const [agentLauncherOpen, setAgentLauncherOpen] = useState(false);
+
+  const handleCloseAgentLauncher = useCallback(() => {
+    setAgentLauncherOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const handleAgentLauncherKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'k') {
+        const target = e.target as HTMLElement;
+        const isInput =
+          target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+        if (isInput) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setAgentLauncherOpen((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', handleAgentLauncherKey, true);
+    return () => document.removeEventListener('keydown', handleAgentLauncherKey, true);
+  }, []);
 
   // ── Build ExplorerContext value ───────────────────────────────────────────
   const explorerContextValue: ExplorerContextValue = React.useMemo(
@@ -676,6 +701,18 @@ const MainLayout = (props: MainLayoutProps) => {
             onCloseCollectionEditor={handleCloseCollectionEditor}
             editingCollection={editingCollection}
           />
+
+          {/* Agent Launcher (Cmd+K) */}
+          {agentLauncherOpen && (
+            <React.Suspense fallback={null}>
+              <AgentLauncher
+                isOpen={agentLauncherOpen}
+                onClose={handleCloseAgentLauncher}
+                currentPath={currentPath}
+                selectedFileCount={selectedFiles.size}
+              />
+            </React.Suspense>
+          )}
         </div>
       </CrossTabSelectionProvider>
     </DragDropProvider>
