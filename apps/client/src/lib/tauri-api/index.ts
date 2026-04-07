@@ -9,6 +9,7 @@ import * as search from './search';
 import * as git from './git';
 import * as extensions from './extensions';
 import * as ai from './ai';
+import * as agentSessions from './agent-sessions';
 import * as storage from './storage';
 import * as system from './system';
 import * as pty from './pty';
@@ -22,6 +23,7 @@ export * from './search';
 export * from './git';
 export * from './extensions';
 export * from './ai';
+export * from './agent-sessions';
 export * from './storage';
 export * from './system';
 export * from './pty';
@@ -215,6 +217,13 @@ export class TauriAPI {
   static getAgentSettings = ai.getAgentSettings;
   static updateAgentSettings = ai.updateAgentSettings;
   static updateAgentApiKeys = ai.updateAgentApiKeys;
+
+  // ── Agent Sessions ──────────────────────────────────────────────────────
+  static createAgentSession = agentSessions.createAgentSession;
+  static listAgentSessions = agentSessions.listAgentSessions;
+  static getAgentSession = agentSessions.getAgentSession;
+  static stopAgentSession = agentSessions.stopAgentSession;
+  static removeAgentSession = agentSessions.removeAgentSession;
 
   // ── Storage ─────────────────────────────────────────────────────────────
   static getBookmarks = storage.getBookmarks;

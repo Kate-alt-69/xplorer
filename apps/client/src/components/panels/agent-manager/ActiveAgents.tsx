@@ -1,10 +1,14 @@
 /**
- * Active Agents section — shows currently running AI operations
- * with status, elapsed time, progress, and stop controls.
+ * Active Agents section — shows currently running AI agent sessions
+ * with status, elapsed time, model, file changes, and stop/remove controls.
+ *
+ * Supports both legacy event-driven AgentTask entries and the new
+ * multi-session AgentSessionSummary entries from the Rust backend.
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Square, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Square, Loader2, Trash2, AlertCircle } from 'lucide-react';
+import type { AgentSessionSummary, AgentSessionStatus } from '@/lib/tauri-api-types';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,6 +34,12 @@ export interface AgentTask {
 interface ActiveAgentsProps {
   agents: AgentTask[];
   onStop: (id: string) => void;
+  /** Multi-session agent sessions from the Rust backend */
+  sessions?: AgentSessionSummary[];
+  /** Stop a multi-session agent */
+  onStopSession?: (sessionId: string) => void;
+  /** Remove a completed/errored/cancelled session */
+  onRemoveSession?: (sessionId: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +58,26 @@ const STATUS_LABELS: Record<AgentTask['status'], string> = {
   'waiting-approval': 'agentManager.status.waitingApproval',
 };
 
+const SESSION_STATUS_COLORS: Record<AgentSessionStatus, string> = {
+  idle: 'var(--xp-text-muted, #888)',
+  thinking: 'var(--xp-green, #73daca)',
+  executing: 'var(--xp-green, #73daca)',
+  waiting_approval: 'var(--xp-warning, #e0af68)',
+  done: 'var(--xp-blue, #7aa2f7)',
+  error: 'var(--xp-red, #f7768e)',
+  cancelled: 'var(--xp-text-muted, #888)',
+};
+
+const SESSION_STATUS_LABELS: Record<AgentSessionStatus, string> = {
+  idle: 'agentManager.sessionStatus.idle',
+  thinking: 'agentManager.sessionStatus.thinking',
+  executing: 'agentManager.sessionStatus.executing',
+  waiting_approval: 'agentManager.sessionStatus.waitingApproval',
+  done: 'agentManager.sessionStatus.done',
+  error: 'agentManager.sessionStatus.error',
+  cancelled: 'agentManager.sessionStatus.cancelled',
+};
+
 const formatElapsed = (startedAt: number): string => {
   const seconds = Math.floor((Date.now() - startedAt) / 1000);
   if (seconds < 60) return `${seconds}s`;
@@ -56,21 +86,38 @@ const formatElapsed = (startedAt: number): string => {
   return `${minutes}m ${remainingSeconds}s`;
 };
 
+const isSessionActive = (status: AgentSessionStatus): boolean =>
+  status === 'thinking' ||
+  status === 'executing' ||
+  status === 'waiting_approval' ||
+  status === 'idle';
+
+const isSessionTerminal = (status: AgentSessionStatus): boolean =>
+  status === 'done' || status === 'error' || status === 'cancelled';
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-const ActiveAgents = ({ agents, onStop }: ActiveAgentsProps) => {
+const ActiveAgents = ({
+  agents,
+  onStop,
+  sessions = [],
+  onStopSession,
+  onRemoveSession,
+}: ActiveAgentsProps) => {
   const { t } = useTranslation();
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
   // Force re-render every second to update elapsed time
   const [, setTick] = useState(0);
 
+  const hasAny = agents.length > 0 || sessions.length > 0;
+
   useEffect(() => {
-    if (agents.length === 0) return;
+    if (!hasAny) return;
     const interval = setInterval(() => setTick((v) => v + 1), 1000);
     return () => clearInterval(interval);
-  }, [agents.length]);
+  }, [hasAny]);
 
   const toggleExpand = (id: string) => {
     setExpandedAgents((prev) => {
@@ -81,7 +128,7 @@ const ActiveAgents = ({ agents, onStop }: ActiveAgentsProps) => {
     });
   };
 
-  if (agents.length === 0) {
+  if (!hasAny) {
     return (
       <div
         style={{
@@ -98,6 +145,211 @@ const ActiveAgents = ({ agents, onStop }: ActiveAgentsProps) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+      {/* Multi-session agents from Rust backend */}
+      {sessions.map((session) => {
+        const isExpanded = expandedAgents.has(session.id);
+        const statusColor = SESSION_STATUS_COLORS[session.status];
+        const active = isSessionActive(session.status);
+        const terminal = isSessionTerminal(session.status);
+
+        return (
+          <div
+            key={session.id}
+            style={{
+              border: '1px solid var(--xp-border)',
+              borderRadius: '6px',
+              padding: '8px',
+              background: 'var(--xp-surface)',
+              opacity: terminal ? 0.7 : 1,
+            }}
+          >
+            {/* Header row */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+              }}
+              onClick={() => toggleExpand(session.id)}
+            >
+              {isExpanded ? (
+                <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+              ) : (
+                <ChevronRight size={12} style={{ flexShrink: 0, color: 'var(--xp-text-muted)' }} />
+              )}
+
+              {/* Status dot */}
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: statusColor,
+                  flexShrink: 0,
+                  animation: active ? 'pulse 2s infinite' : undefined,
+                }}
+              />
+
+              <span
+                style={{
+                  flex: 1,
+                  fontSize: '12px',
+                  color: 'var(--xp-text)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {session.name}
+              </span>
+
+              <span
+                style={{
+                  fontSize: '10px',
+                  color: 'var(--xp-text-muted)',
+                  flexShrink: 0,
+                }}
+              >
+                {formatElapsed(session.created_at)}
+              </span>
+
+              {/* Stop button — only for active sessions */}
+              {active && onStopSession && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onStopSession(session.id);
+                  }}
+                  title={t('agentManager.activeAgents.stop')}
+                  aria-label={t('agentManager.activeAgents.stop')}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--xp-border)',
+                    borderRadius: '4px',
+                    padding: '2px 4px',
+                    cursor: 'pointer',
+                    color: 'var(--xp-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Square size={10} />
+                </button>
+              )}
+
+              {/* Remove button — only for terminal sessions */}
+              {terminal && onRemoveSession && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveSession(session.id);
+                  }}
+                  title={t('agentManager.activeAgents.remove')}
+                  aria-label={t('agentManager.activeAgents.remove')}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--xp-border)',
+                    borderRadius: '4px',
+                    padding: '2px 4px',
+                    cursor: 'pointer',
+                    color: 'var(--xp-text-muted)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Trash2 size={10} />
+                </button>
+              )}
+            </div>
+
+            {/* Status label + model */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                marginTop: '4px',
+                fontSize: '10px',
+                color: statusColor,
+              }}
+            >
+              {active && session.status !== 'waiting_approval' && (
+                <Loader2
+                  size={10}
+                  style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }}
+                />
+              )}
+              {session.status === 'error' && <AlertCircle size={10} style={{ flexShrink: 0 }} />}
+              {t(SESSION_STATUS_LABELS[session.status])}
+              <span style={{ color: 'var(--xp-text-muted)', marginLeft: 'auto' }}>
+                {session.model}
+              </span>
+            </div>
+
+            {/* Error message */}
+            {session.error_message && (
+              <div
+                style={{
+                  marginTop: '4px',
+                  fontSize: '10px',
+                  color: 'var(--xp-red, #f7768e)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {session.error_message}
+              </div>
+            )}
+
+            {/* Expanded details */}
+            {isExpanded && (
+              <div
+                style={{
+                  marginTop: '6px',
+                  paddingTop: '6px',
+                  borderTop: '1px solid var(--xp-border)',
+                  fontSize: '10px',
+                  color: 'var(--xp-text-muted)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: 500 }}>
+                    {t('agentManager.sessionDetail.prompt')}:{' '}
+                  </span>
+                  {session.prompt}
+                </div>
+                <div>
+                  <span style={{ fontWeight: 500 }}>
+                    {t('agentManager.sessionDetail.directory')}:{' '}
+                  </span>
+                  {session.working_directory}
+                </div>
+                <div>
+                  <span style={{ fontWeight: 500 }}>
+                    {t('agentManager.sessionDetail.toolCalls')}:{' '}
+                  </span>
+                  {session.tool_calls_count}
+                </div>
+                <div>
+                  <span style={{ fontWeight: 500 }}>
+                    {t('agentManager.sessionDetail.fileChanges')}:{' '}
+                  </span>
+                  {session.file_changes_count}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Legacy event-driven agents */}
       {agents.map((agent) => {
         const isExpanded = expandedAgents.has(agent.id);
         const statusColor = STATUS_COLORS[agent.status];

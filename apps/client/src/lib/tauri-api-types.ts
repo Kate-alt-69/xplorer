@@ -261,6 +261,40 @@ export interface OperationPlan {
   total_steps: number;
 }
 
+// ── Agent Session types ──────────────────────────────────────────────────────
+
+export type AgentSessionStatus =
+  | 'idle'
+  | 'thinking'
+  | 'executing'
+  | 'waiting_approval'
+  | 'done'
+  | 'error'
+  | 'cancelled';
+
+export interface AgentSessionSummary {
+  id: string;
+  name: string;
+  prompt: string;
+  model: string;
+  provider: string;
+  status: AgentSessionStatus;
+  working_directory: string;
+  created_at: number;
+  updated_at: number;
+  file_changes_count: number;
+  tool_calls_count: number;
+  turns_completed: number;
+  error_message: string | null;
+}
+
+export interface CreateSessionParams {
+  name: string;
+  prompt: string;
+  model: string;
+  working_directory: string;
+}
+
 // ── Bulk rename types ────────────────────────────────────────────────────────
 
 export interface BulkRenameResult {
