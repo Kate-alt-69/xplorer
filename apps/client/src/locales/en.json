@@ -2104,6 +2104,60 @@
     "aiSearchTerms": "Search terms",
     "aiMatchedItems": "Matched from folder"
   },
+  "agentManager": {
+    "sections": {
+      "activeAgents": "Active Agents",
+      "taskQueue": "Task Queue",
+      "quickActions": "Quick Actions",
+      "recentActions": "Recent Actions"
+    },
+    "status": {
+      "thinking": "Thinking...",
+      "executing": "Executing...",
+      "waitingApproval": "Waiting for approval"
+    },
+    "activeAgents": {
+      "noActive": "No active agents",
+      "stop": "Stop",
+      "stepProgress": "Step {{current}} of {{total}}",
+      "processingFiles": "Processing files:"
+    },
+    "taskQueue": {
+      "empty": "No queued tasks",
+      "start": "Start",
+      "remove": "Remove"
+    },
+    "quickActions": {
+      "organize": "Organize Folder",
+      "findDuplicates": "Find Duplicates",
+      "generateReadme": "Generate README",
+      "smartRename": "Smart Rename",
+      "summarize": "Summarize Folder",
+      "cleanup": "Clean Up"
+    },
+    "recentActions": {
+      "empty": "No recent actions",
+      "undo": "Undo",
+      "success": "Success",
+      "rejected": "Rejected",
+      "failed": "Failed",
+      "blocked": "Blocked",
+      "actionCreate": "Create",
+      "actionEdit": "Edit",
+      "actionDelete": "Delete",
+      "actionMove": "Move",
+      "actionCopy": "Copy",
+      "actionRename": "Rename",
+      "actionCreateDir": "Create folder",
+      "actionCommand": "Run command"
+    },
+    "settings": {
+      "proactiveMode": "Proactive suggestions mode",
+      "proactive": "Proactive",
+      "autoAllow": "Auto-allow file operations",
+      "autoAllowLabel": "Auto Allow"
+    }
+  },
   "aiChat": {
     "input": {
       "placeholder": "Ask about your files... (type / for commands)",

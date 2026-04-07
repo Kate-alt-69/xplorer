@@ -1,7 +1,16 @@
 import React, { useMemo, useSyncExternalStore } from 'react';
 import { useLocation } from 'wouter';
 import { extensionHost } from '@/lib/extension-host';
-import { Eye, Search, MessageSquare, Puzzle, ShoppingCart, Settings, Activity } from 'lucide-react';
+import {
+  Eye,
+  Search,
+  MessageSquare,
+  Bot,
+  Puzzle,
+  ShoppingCart,
+  Settings,
+  Activity,
+} from 'lucide-react';
 
 interface VerticalExtensionsBarProps {
   rightPanelTab: string;
@@ -42,6 +51,7 @@ const VerticalExtensionsBar = ({
     { id: 'preview', icon: <Eye size={18} />, label: 'File Preview' },
     { id: 'tokenizer', icon: <Search size={18} />, label: 'Content Search' },
     { id: 'chat', icon: <MessageSquare size={18} />, label: 'AI Chat' },
+    { id: 'agent-manager', icon: <Bot size={18} />, label: 'Agent Manager' },
   ];
 
   // System panels (always shown, not extension-managed)

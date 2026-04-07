@@ -2104,6 +2104,60 @@
     "aiSearchTerms": "Kata kunci pencarian",
     "aiMatchedItems": "Cocok dari folder"
   },
+  "agentManager": {
+    "sections": {
+      "activeAgents": "Agen Aktif",
+      "taskQueue": "Antrean Tugas",
+      "quickActions": "Aksi Cepat",
+      "recentActions": "Aksi Terbaru"
+    },
+    "status": {
+      "thinking": "Berpikir...",
+      "executing": "Mengeksekusi...",
+      "waitingApproval": "Menunggu persetujuan"
+    },
+    "activeAgents": {
+      "noActive": "Tidak ada agen aktif",
+      "stop": "Hentikan",
+      "stepProgress": "Langkah {{current}} dari {{total}}",
+      "processingFiles": "Memproses file:"
+    },
+    "taskQueue": {
+      "empty": "Tidak ada tugas dalam antrean",
+      "start": "Mulai",
+      "remove": "Hapus"
+    },
+    "quickActions": {
+      "organize": "Atur Folder",
+      "findDuplicates": "Cari Duplikat",
+      "generateReadme": "Buat README",
+      "smartRename": "Rename Cerdas",
+      "summarize": "Rangkum Folder",
+      "cleanup": "Bersihkan"
+    },
+    "recentActions": {
+      "empty": "Tidak ada aksi terbaru",
+      "undo": "Batalkan",
+      "success": "Berhasil",
+      "rejected": "Ditolak",
+      "failed": "Gagal",
+      "blocked": "Diblokir",
+      "actionCreate": "Buat",
+      "actionEdit": "Edit",
+      "actionDelete": "Hapus",
+      "actionMove": "Pindah",
+      "actionCopy": "Salin",
+      "actionRename": "Ganti nama",
+      "actionCreateDir": "Buat folder",
+      "actionCommand": "Jalankan perintah"
+    },
+    "settings": {
+      "proactiveMode": "Mode saran proaktif",
+      "proactive": "Proaktif",
+      "autoAllow": "Izinkan otomatis operasi file",
+      "autoAllowLabel": "Izin Otomatis"
+    }
+  },
   "aiChat": {
     "input": {
       "placeholder": "Tanyakan tentang file Anda... (ketik / untuk perintah)",

@@ -2104,6 +2104,60 @@
     "aiSearchTerms": "検索キーワード",
     "aiMatchedItems": "フォルダ一致"
   },
+  "agentManager": {
+    "sections": {
+      "activeAgents": "アクティブエージェント",
+      "taskQueue": "タスクキュー",
+      "quickActions": "クイックアクション",
+      "recentActions": "最近のアクション"
+    },
+    "status": {
+      "thinking": "考え中...",
+      "executing": "実行中...",
+      "waitingApproval": "承認待ち"
+    },
+    "activeAgents": {
+      "noActive": "アクティブなエージェントはありません",
+      "stop": "停止",
+      "stepProgress": "ステップ {{current}} / {{total}}",
+      "processingFiles": "処理中のファイル："
+    },
+    "taskQueue": {
+      "empty": "キューにタスクはありません",
+      "start": "開始",
+      "remove": "削除"
+    },
+    "quickActions": {
+      "organize": "フォルダを整理",
+      "findDuplicates": "重複を検索",
+      "generateReadme": "README を生成",
+      "smartRename": "スマートリネーム",
+      "summarize": "フォルダを要約",
+      "cleanup": "クリーンアップ"
+    },
+    "recentActions": {
+      "empty": "最近のアクションはありません",
+      "undo": "元に戻す",
+      "success": "成功",
+      "rejected": "拒否",
+      "failed": "失敗",
+      "blocked": "ブロック",
+      "actionCreate": "作成",
+      "actionEdit": "編集",
+      "actionDelete": "削除",
+      "actionMove": "移動",
+      "actionCopy": "コピー",
+      "actionRename": "名前変更",
+      "actionCreateDir": "フォルダ作成",
+      "actionCommand": "コマンド実行"
+    },
+    "settings": {
+      "proactiveMode": "プロアクティブ提案モード",
+      "proactive": "プロアクティブ",
+      "autoAllow": "ファイル操作を自動許可",
+      "autoAllowLabel": "自動許可"
+    }
+  },
   "aiChat": {
     "input": {
       "placeholder": "ファイルについて質問...（/ でコマンド一覧）",

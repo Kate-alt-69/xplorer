@@ -2104,6 +2104,60 @@
     "aiSearchTerms": "搜索词",
     "aiMatchedItems": "文件夹匹配"
   },
+  "agentManager": {
+    "sections": {
+      "activeAgents": "活跃代理",
+      "taskQueue": "任务队列",
+      "quickActions": "快捷操作",
+      "recentActions": "最近操作"
+    },
+    "status": {
+      "thinking": "思考中...",
+      "executing": "执行中...",
+      "waitingApproval": "等待审批"
+    },
+    "activeAgents": {
+      "noActive": "没有活跃的代理",
+      "stop": "停止",
+      "stepProgress": "第 {{current}} 步，共 {{total}} 步",
+      "processingFiles": "正在处理文件："
+    },
+    "taskQueue": {
+      "empty": "没有排队的任务",
+      "start": "开始",
+      "remove": "移除"
+    },
+    "quickActions": {
+      "organize": "整理文件夹",
+      "findDuplicates": "查找重复文件",
+      "generateReadme": "生成 README",
+      "smartRename": "智能重命名",
+      "summarize": "总结文件夹",
+      "cleanup": "清理"
+    },
+    "recentActions": {
+      "empty": "没有最近的操作",
+      "undo": "撤销",
+      "success": "成功",
+      "rejected": "已拒绝",
+      "failed": "失败",
+      "blocked": "已阻止",
+      "actionCreate": "创建",
+      "actionEdit": "编辑",
+      "actionDelete": "删除",
+      "actionMove": "移动",
+      "actionCopy": "复制",
+      "actionRename": "重命名",
+      "actionCreateDir": "创建文件夹",
+      "actionCommand": "执行命令"
+    },
+    "settings": {
+      "proactiveMode": "主动建议模式",
+      "proactive": "主动",
+      "autoAllow": "自动允许文件操作",
+      "autoAllowLabel": "自动允许"
+    }
+  },
   "aiChat": {
     "input": {
       "placeholder": "询问关于您的文件...（输入 / 查看命令）",
