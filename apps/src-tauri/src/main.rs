@@ -8,6 +8,7 @@ use tauri::{Emitter, Listener, Manager, WindowEvent};
 use xplorer::agent;
 use xplorer::agent_sessions;
 use xplorer::ai;
+use xplorer::mcp_host;
 use xplorer::duplicate_finder;
 use xplorer::extensions;
 use xplorer::file_organizer;
@@ -447,6 +448,9 @@ fn main() {
             agent::delete_agent_memory,
             agent::get_agent_permissions,
             agent::update_agent_permissions,
+            // MCP Host — tool provider for external AI clients
+            mcp_host::mcp_list_tools,
+            mcp_host::mcp_call_tool,
             // Agent session management
             agent_sessions::create_agent_session,
             agent_sessions::list_agent_sessions,
