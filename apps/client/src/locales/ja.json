@@ -2159,13 +2159,39 @@
       "toolCalls": "ツール呼び出し",
       "fileChanges": "ファイル変更"
     },
+    "scope": {
+      "configure": "スコープ",
+      "directory": "ディレクトリ",
+      "fileScope": "ファイル",
+      "fileScope_all": "すべてのファイル",
+      "fileScope_selected": "選択のみ",
+      "fileScope_glob": "グロブパターン",
+      "depth": "深さ",
+      "depth_folder": "このフォルダのみ",
+      "depth_subfolders": "サブフォルダ含む",
+      "depth_project": "プロジェクト全体",
+      "gitFilter": "Git",
+      "gitFilter_all": "すべてのファイル",
+      "gitFilter_modified": "変更済み",
+      "gitFilter_staged": "ステージ済み",
+      "filesSelected": "ファイル選択中",
+      "contextDetected": "コンテキスト検出済み"
+    },
     "newAgent": {
       "title": "新規エージェント",
       "button": "新規",
       "namePlaceholder": "エージェント名（任意）",
       "promptPlaceholder": "このエージェントに何をさせますか？",
+      "promptPlaceholderCli": "初期プロンプト（任意）",
+      "commandPlaceholder": "実行するコマンド（例: aider, goose）",
       "cancel": "キャンセル",
-      "start": "エージェント起動"
+      "start": "エージェント起動",
+      "launch": "起動",
+      "launching": "起動中...",
+      "typeCloud": "Xplorer クラウド",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "カスタム CLI"
     },
     "taskQueue": {
       "empty": "キューにタスクはありません",

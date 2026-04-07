@@ -2159,13 +2159,39 @@
       "toolCalls": "Panggilan alat",
       "fileChanges": "Perubahan file"
     },
+    "scope": {
+      "configure": "Cakupan",
+      "directory": "Direktori",
+      "fileScope": "File",
+      "fileScope_all": "Semua file",
+      "fileScope_selected": "Hanya terpilih",
+      "fileScope_glob": "Pola glob",
+      "depth": "Kedalaman",
+      "depth_folder": "Folder ini saja",
+      "depth_subfolders": "Termasuk subfolder",
+      "depth_project": "Seluruh proyek",
+      "gitFilter": "Git",
+      "gitFilter_all": "Semua file",
+      "gitFilter_modified": "Diubah",
+      "gitFilter_staged": "Ditahapkan",
+      "filesSelected": "file terpilih",
+      "contextDetected": "konteks terdeteksi"
+    },
     "newAgent": {
       "title": "Agen Baru",
       "button": "Baru",
       "namePlaceholder": "Nama agen (opsional)",
       "promptPlaceholder": "Apa yang harus dilakukan agen ini?",
+      "promptPlaceholderCli": "Prompt awal (opsional)",
+      "commandPlaceholder": "Perintah untuk dijalankan (mis. aider, goose)",
       "cancel": "Batal",
-      "start": "Mulai Agen"
+      "start": "Mulai Agen",
+      "launch": "Luncurkan",
+      "launching": "Meluncurkan...",
+      "typeCloud": "Xplorer Cloud",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "CLI Kustom"
     },
     "taskQueue": {
       "empty": "Tidak ada tugas dalam antrean",

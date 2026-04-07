@@ -2159,13 +2159,39 @@
       "toolCalls": "工具调用",
       "fileChanges": "文件更改"
     },
+    "scope": {
+      "configure": "范围",
+      "directory": "目录",
+      "fileScope": "文件",
+      "fileScope_all": "所有文件",
+      "fileScope_selected": "仅选中文件",
+      "fileScope_glob": "通配符模式",
+      "depth": "深度",
+      "depth_folder": "仅此文件夹",
+      "depth_subfolders": "包含子文件夹",
+      "depth_project": "整个项目",
+      "gitFilter": "Git",
+      "gitFilter_all": "所有文件",
+      "gitFilter_modified": "已修改",
+      "gitFilter_staged": "已暂存",
+      "filesSelected": "个文件已选中",
+      "contextDetected": "已检测到上下文"
+    },
     "newAgent": {
       "title": "新建代理",
       "button": "新建",
       "namePlaceholder": "代理名称（可选）",
       "promptPlaceholder": "这个代理应该做什么？",
+      "promptPlaceholderCli": "初始提示（可选）",
+      "commandPlaceholder": "要运行的命令（例如 aider、goose）",
       "cancel": "取消",
-      "start": "启动代理"
+      "start": "启动代理",
+      "launch": "启动",
+      "launching": "启动中...",
+      "typeCloud": "Xplorer 云端",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "自定义 CLI"
     },
     "taskQueue": {
       "empty": "没有排队的任务",

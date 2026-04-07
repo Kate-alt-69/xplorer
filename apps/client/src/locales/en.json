@@ -2159,13 +2159,39 @@
       "toolCalls": "Tool calls",
       "fileChanges": "File changes"
     },
+    "scope": {
+      "configure": "Scope",
+      "directory": "Dir",
+      "fileScope": "Files",
+      "fileScope_all": "All files",
+      "fileScope_selected": "Selected only",
+      "fileScope_glob": "Glob pattern",
+      "depth": "Depth",
+      "depth_folder": "This folder",
+      "depth_subfolders": "Subfolders",
+      "depth_project": "Entire project",
+      "gitFilter": "Git",
+      "gitFilter_all": "All files",
+      "gitFilter_modified": "Modified",
+      "gitFilter_staged": "Staged",
+      "filesSelected": "files selected",
+      "contextDetected": "context detected"
+    },
     "newAgent": {
       "title": "New Agent",
       "button": "New",
       "namePlaceholder": "Agent name (optional)",
       "promptPlaceholder": "What should this agent do?",
+      "promptPlaceholderCli": "Initial prompt (optional)",
+      "commandPlaceholder": "Command to run (e.g. aider, goose)",
       "cancel": "Cancel",
-      "start": "Start Agent"
+      "start": "Start Agent",
+      "launch": "Launch",
+      "launching": "Launching...",
+      "typeCloud": "Xplorer Cloud",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "Custom CLI"
     },
     "taskQueue": {
       "empty": "No queued tasks",
