@@ -2110,7 +2110,10 @@
       "externalAgents": "Agen Eksternal",
       "taskQueue": "Antrean Tugas",
       "quickActions": "Aksi Cepat",
-      "recentActions": "Aksi Terbaru"
+      "recentActions": "Aksi Terbaru",
+      "fileChanges": "Perubahan File",
+      "costTracker": "Biaya & Penggunaan",
+      "templates": "Template"
     },
     "status": {
       "thinking": "Berpikir...",
@@ -2196,6 +2199,32 @@
         "exited": "Keluar"
       }
     },
+    "fileChanges": {
+      "created": "Dibuat",
+      "modified": "Diubah",
+      "deleted": "Dihapus",
+      "goToFile": "Buka file",
+      "viewDiff": "Lihat perbedaan",
+      "diff": "Diff",
+      "clear": "Hapus perubahan",
+      "noChanges": "Belum ada perubahan file",
+      "empty": "Tidak ada perubahan file yang terlacak"
+    },
+    "conversation": {
+      "back": "Kembali ke daftar agen",
+      "sendMessage": "Kirim pesan",
+      "inputPlaceholder": "Pesan ke agen ini...",
+      "noMessages": "Belum ada pesan. Kirim prompt untuk memulai.",
+      "toolCall": {
+        "readFile": "Baca file",
+        "editFile": "Edit file",
+        "runCommand": "Jalankan",
+        "createFile": "Buat file",
+        "deleteFile": "Hapus file",
+        "searchFiles": "Cari file",
+        "listDirectory": "Daftar direktori"
+      }
+    },
     "launcher": {
       "placeholder": "Jelaskan apa yang ingin Anda lakukan agen...",
       "modelLabel": "Model",
@@ -2207,6 +2236,36 @@
       "recentPrompts": "Prompt terbaru",
       "noRecentPrompts": "Tidak ada prompt terbaru",
       "shortcutHint": "Tekan Esc untuk menutup"
+    },
+    "costTracker": {
+      "noUsage": "Tidak ada penggunaan API tercatat hari ini",
+      "todayTotal": "Total hari ini",
+      "tokensIn": "masuk",
+      "tokensOut": "keluar",
+      "perSession": "Per sesi",
+      "totalTokens": "{{count}} token total",
+      "sessionCount": "{{count}} sesi"
+    },
+    "templates": {
+      "title": "Template",
+      "useTemplate": "Gunakan Template",
+      "estimatedCost": "Perkiraan biaya",
+      "codeReviewer": "Peninjau Kode",
+      "codeReviewerDesc": "Meninjau kode di direktori saat ini, menemukan masalah dan saran perbaikan",
+      "testWriter": "Penulis Tes",
+      "testWriterDesc": "Menulis tes untuk file yang belum diuji, meningkatkan cakupan",
+      "bugFixer": "Perbaikan Bug",
+      "bugFixerDesc": "Membaca log kesalahan, menemukan dan memperbaiki bug",
+      "docWriter": "Penulis Dokumentasi",
+      "docWriterDesc": "Menghasilkan README, JSDoc, dan komentar inline",
+      "refactorer": "Refaktor",
+      "refactorerDesc": "Menyarankan dan menerapkan perbaikan refaktor",
+      "securityAuditor": "Auditor Keamanan",
+      "securityAuditorDesc": "Memindai kerentanan dan masalah keamanan",
+      "perfOptimizer": "Pengoptimal Performa",
+      "perfOptimizerDesc": "Memprofilkan dan mengoptimalkan jalur kode yang lambat",
+      "projectSetup": "Pengaturan Proyek",
+      "projectSetupDesc": "Membuat proyek baru dengan boilerplate dan konfigurasi"
     }
   },
   "aiChat": {

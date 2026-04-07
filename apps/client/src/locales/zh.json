@@ -2110,7 +2110,10 @@
       "externalAgents": "外部代理",
       "taskQueue": "任务队列",
       "quickActions": "快捷操作",
-      "recentActions": "最近操作"
+      "recentActions": "最近操作",
+      "fileChanges": "文件变更",
+      "costTracker": "费用与用量",
+      "templates": "模板"
     },
     "status": {
       "thinking": "思考中...",
@@ -2196,6 +2199,32 @@
         "exited": "已退出"
       }
     },
+    "fileChanges": {
+      "created": "已创建",
+      "modified": "已修改",
+      "deleted": "已删除",
+      "goToFile": "跳转到文件",
+      "viewDiff": "查看差异",
+      "diff": "差异",
+      "clear": "清除变更",
+      "noChanges": "暂无文件变更",
+      "empty": "未跟踪到文件变更"
+    },
+    "conversation": {
+      "back": "返回代理列表",
+      "sendMessage": "发送消息",
+      "inputPlaceholder": "向此代理发送消息...",
+      "noMessages": "暂无消息。发送提示以开始。",
+      "toolCall": {
+        "readFile": "读取文件",
+        "editFile": "编辑文件",
+        "runCommand": "运行",
+        "createFile": "创建文件",
+        "deleteFile": "删除文件",
+        "searchFiles": "搜索文件",
+        "listDirectory": "列出目录"
+      }
+    },
     "launcher": {
       "placeholder": "描述你希望代理执行的任务...",
       "modelLabel": "模型",
@@ -2207,6 +2236,36 @@
       "recentPrompts": "最近的提示",
       "noRecentPrompts": "没有最近的提示",
       "shortcutHint": "按 Esc 关闭"
+    },
+    "costTracker": {
+      "noUsage": "今天没有 API 使用记录",
+      "todayTotal": "今日总计",
+      "tokensIn": "输入",
+      "tokensOut": "输出",
+      "perSession": "按会话",
+      "totalTokens": "{{count}} 个令牌总计",
+      "sessionCount": "{{count}} 个会话"
+    },
+    "templates": {
+      "title": "模板",
+      "useTemplate": "使用模板",
+      "estimatedCost": "预估费用",
+      "codeReviewer": "代码审查者",
+      "codeReviewerDesc": "审查当前目录中的代码，发现问题并提出改进建议",
+      "testWriter": "测试编写者",
+      "testWriterDesc": "为未测试的文件编写测试，提高覆盖率",
+      "bugFixer": "问题修复者",
+      "bugFixerDesc": "读取错误日志，查找并修复问题",
+      "docWriter": "文档编写者",
+      "docWriterDesc": "生成 README、JSDoc 和行内注释",
+      "refactorer": "重构者",
+      "refactorerDesc": "建议并应用重构改进",
+      "securityAuditor": "安全审计者",
+      "securityAuditorDesc": "扫描漏洞和安全问题",
+      "perfOptimizer": "性能优化者",
+      "perfOptimizerDesc": "分析并优化慢速代码路径",
+      "projectSetup": "项目设置",
+      "projectSetupDesc": "使用样板和配置搭建新项目"
     }
   },
   "aiChat": {

@@ -2110,7 +2110,10 @@
       "externalAgents": "External Agents",
       "taskQueue": "Task Queue",
       "quickActions": "Quick Actions",
-      "recentActions": "Recent Actions"
+      "recentActions": "Recent Actions",
+      "fileChanges": "File Changes",
+      "costTracker": "Cost & Usage",
+      "templates": "Templates"
     },
     "status": {
       "thinking": "Thinking...",
@@ -2196,6 +2199,32 @@
         "exited": "Exited"
       }
     },
+    "fileChanges": {
+      "created": "Created",
+      "modified": "Modified",
+      "deleted": "Deleted",
+      "goToFile": "Go to file",
+      "viewDiff": "View diff",
+      "diff": "Diff",
+      "clear": "Clear changes",
+      "noChanges": "No file changes yet",
+      "empty": "No file changes tracked"
+    },
+    "conversation": {
+      "back": "Back to agents",
+      "sendMessage": "Send message",
+      "inputPlaceholder": "Message this agent...",
+      "noMessages": "No messages yet. Send a prompt to start.",
+      "toolCall": {
+        "readFile": "Read file",
+        "editFile": "Edit file",
+        "runCommand": "Run",
+        "createFile": "Create file",
+        "deleteFile": "Delete file",
+        "searchFiles": "Search files",
+        "listDirectory": "List directory"
+      }
+    },
     "launcher": {
       "placeholder": "Describe what you want the agent to do...",
       "modelLabel": "Model",
@@ -2207,6 +2236,36 @@
       "recentPrompts": "Recent prompts",
       "noRecentPrompts": "No recent prompts",
       "shortcutHint": "Press Esc to close"
+    },
+    "costTracker": {
+      "noUsage": "No API usage recorded today",
+      "todayTotal": "Today's total",
+      "tokensIn": "in",
+      "tokensOut": "out",
+      "perSession": "Per session",
+      "totalTokens": "{{count}} tokens total",
+      "sessionCount": "{{count}} session(s)"
+    },
+    "templates": {
+      "title": "Templates",
+      "useTemplate": "Use Template",
+      "estimatedCost": "Est. cost",
+      "codeReviewer": "Code Reviewer",
+      "codeReviewerDesc": "Reviews code in current directory, finds issues and suggests improvements",
+      "testWriter": "Test Writer",
+      "testWriterDesc": "Writes tests for untested files, improving coverage",
+      "bugFixer": "Bug Fixer",
+      "bugFixerDesc": "Reads error logs, finds and fixes bugs",
+      "docWriter": "Documentation Writer",
+      "docWriterDesc": "Generates README, JSDoc, and inline comments",
+      "refactorer": "Refactorer",
+      "refactorerDesc": "Suggests and applies refactoring improvements",
+      "securityAuditor": "Security Auditor",
+      "securityAuditorDesc": "Scans for vulnerabilities and security issues",
+      "perfOptimizer": "Performance Optimizer",
+      "perfOptimizerDesc": "Profiles and optimizes slow code paths",
+      "projectSetup": "Project Setup",
+      "projectSetupDesc": "Scaffolds new project with boilerplate and config"
     }
   },
   "aiChat": {

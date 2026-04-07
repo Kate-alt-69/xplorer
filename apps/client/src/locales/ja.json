@@ -2110,7 +2110,10 @@
       "externalAgents": "外部エージェント",
       "taskQueue": "タスクキュー",
       "quickActions": "クイックアクション",
-      "recentActions": "最近のアクション"
+      "recentActions": "最近のアクション",
+      "fileChanges": "ファイル変更",
+      "costTracker": "コストと使用量",
+      "templates": "テンプレート"
     },
     "status": {
       "thinking": "考え中...",
@@ -2196,6 +2199,32 @@
         "exited": "終了"
       }
     },
+    "fileChanges": {
+      "created": "作成",
+      "modified": "変更",
+      "deleted": "削除",
+      "goToFile": "ファイルに移動",
+      "viewDiff": "差分を表示",
+      "diff": "差分",
+      "clear": "変更をクリア",
+      "noChanges": "ファイルの変更はまだありません",
+      "empty": "追跡されたファイルの変更はありません"
+    },
+    "conversation": {
+      "back": "エージェント一覧に戻る",
+      "sendMessage": "メッセージを送信",
+      "inputPlaceholder": "このエージェントにメッセージ...",
+      "noMessages": "メッセージはまだありません。プロンプトを送信して開始してください。",
+      "toolCall": {
+        "readFile": "ファイルを読み取り",
+        "editFile": "ファイルを編集",
+        "runCommand": "実行",
+        "createFile": "ファイルを作成",
+        "deleteFile": "ファイルを削除",
+        "searchFiles": "ファイルを検索",
+        "listDirectory": "ディレクトリを一覧"
+      }
+    },
     "launcher": {
       "placeholder": "エージェントに実行させたいタスクを記述してください...",
       "modelLabel": "モデル",
@@ -2207,6 +2236,36 @@
       "recentPrompts": "最近のプロンプト",
       "noRecentPrompts": "最近のプロンプトはありません",
       "shortcutHint": "Esc で閉じる"
+    },
+    "costTracker": {
+      "noUsage": "本日の API 使用記録はありません",
+      "todayTotal": "本日の合計",
+      "tokensIn": "入力",
+      "tokensOut": "出力",
+      "perSession": "セッション別",
+      "totalTokens": "合計 {{count}} トークン",
+      "sessionCount": "{{count}} セッション"
+    },
+    "templates": {
+      "title": "テンプレート",
+      "useTemplate": "テンプレートを使用",
+      "estimatedCost": "推定コスト",
+      "codeReviewer": "コードレビュアー",
+      "codeReviewerDesc": "現在のディレクトリのコードをレビューし、問題を発見して改善を提案します",
+      "testWriter": "テストライター",
+      "testWriterDesc": "テストされていないファイルのテストを作成し、カバレッジを向上させます",
+      "bugFixer": "バグ修正者",
+      "bugFixerDesc": "エラーログを読み、バグを発見して修正します",
+      "docWriter": "ドキュメントライター",
+      "docWriterDesc": "README、JSDoc、インラインコメントを生成します",
+      "refactorer": "リファクタラー",
+      "refactorerDesc": "リファクタリングの改善を提案し適用します",
+      "securityAuditor": "セキュリティ監査者",
+      "securityAuditorDesc": "脆弱性とセキュリティの問題をスキャンします",
+      "perfOptimizer": "パフォーマンスオプティマイザー",
+      "perfOptimizerDesc": "低速なコードパスをプロファイルして最適化します",
+      "projectSetup": "プロジェクトセットアップ",
+      "projectSetupDesc": "ボイラープレートと設定で新しいプロジェクトを構築します"
     }
   },
   "aiChat": {
