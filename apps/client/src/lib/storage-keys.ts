@@ -113,6 +113,9 @@ export const STORAGE_KEYS = {
 
   // Agent session history (completed sessions)
   AGENT_SESSION_HISTORY: 'xplorer:agent-session-history',
+
+  // Agent notification preferences (per-type enable/disable)
+  AGENT_NOTIFICATION_PREFS: 'xplorer:agent-notification-prefs',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

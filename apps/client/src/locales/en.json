@@ -1383,7 +1383,8 @@
     "changes": "Changes",
     "clipboard": "Clipboard",
     "notifications": "Notifications",
-    "properties": "Properties"
+    "properties": "Properties",
+    "agents": "Agents"
   },
   "home": {
     "goodMorning": "Good morning",
@@ -2316,6 +2317,37 @@
       "files": "Files: ",
       "navigate": "Navigate to this directory",
       "navigateShort": "Go"
+    },
+    "notifications": {
+      "agentCompleted": "{{name}} finished",
+      "agentCompletedDetail": "{{issues}} issues found",
+      "agentNeedsApproval": "{{name}} needs approval",
+      "agentNeedsApprovalDetail": "Wants to edit {{file}}",
+      "agentError": "{{name}} failed",
+      "agentErrorDetail": "{{reason}}",
+      "prefsTitle": "Agent Notifications",
+      "enableCompleted": "Completed",
+      "enableApproval": "Approval needed",
+      "enableError": "Errors"
+    },
+    "workspace": {
+      "title": "Agent Workspace",
+      "agentList": "Agents",
+      "fileChanges": "File Changes",
+      "terminalOutput": "Terminal Output",
+      "noTerminalOutput": "No terminal output",
+      "selectAgent": "Select an agent",
+      "selectAgentHint": "Choose an agent from the list to view its conversation",
+      "changes": "changes",
+      "active": "active",
+      "pause": "Pause",
+      "stop": "Stop",
+      "close": "Close"
+    },
+    "bottomPanel": {
+      "noAgents": "No agent sessions",
+      "selectAgent": "Select an agent...",
+      "openWorkspace": "Open full workspace"
     }
   },
   "aiChat": {

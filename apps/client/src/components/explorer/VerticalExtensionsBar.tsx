@@ -11,6 +11,7 @@ import {
   Settings,
   Activity,
 } from 'lucide-react';
+import AgentStatusIndicator from '@/components/panels/agent-manager/AgentStatusIndicator';
 
 interface VerticalExtensionsBarProps {
   rightPanelTab: string;
@@ -51,7 +52,15 @@ const VerticalExtensionsBar = ({
     { id: 'preview', icon: <Eye size={18} />, label: 'File Preview' },
     { id: 'tokenizer', icon: <Search size={18} />, label: 'Content Search' },
     { id: 'chat', icon: <MessageSquare size={18} />, label: 'AI Chat' },
-    { id: 'agent-manager', icon: <Bot size={18} />, label: 'Agent Manager' },
+    {
+      id: 'agent-manager',
+      icon: (
+        <AgentStatusIndicator>
+          <Bot size={18} />
+        </AgentStatusIndicator>
+      ),
+      label: 'Agent Manager',
+    },
   ];
 
   // System panels (always shown, not extension-managed)

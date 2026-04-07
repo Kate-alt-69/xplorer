@@ -1383,7 +1383,8 @@
     "changes": "更改",
     "clipboard": "剪贴板",
     "notifications": "通知",
-    "properties": "属性"
+    "properties": "属性",
+    "agents": "代理"
   },
   "home": {
     "goodMorning": "早上好",
@@ -2316,6 +2317,37 @@
       "files": "文件：",
       "navigate": "导航到此目录",
       "navigateShort": "前往"
+    },
+    "notifications": {
+      "agentCompleted": "{{name}} 已完成",
+      "agentCompletedDetail": "发现 {{issues}} 个问题",
+      "agentNeedsApproval": "{{name}} 需要批准",
+      "agentNeedsApprovalDetail": "想要编辑 {{file}}",
+      "agentError": "{{name}} 失败",
+      "agentErrorDetail": "{{reason}}",
+      "prefsTitle": "代理通知",
+      "enableCompleted": "已完成",
+      "enableApproval": "需要批准",
+      "enableError": "错误"
+    },
+    "workspace": {
+      "title": "代理工作区",
+      "agentList": "代理",
+      "fileChanges": "文件更改",
+      "terminalOutput": "终端输出",
+      "noTerminalOutput": "无终端输出",
+      "selectAgent": "选择一个代理",
+      "selectAgentHint": "从列表中选择一个代理以查看其对话",
+      "changes": "更改",
+      "active": "活跃",
+      "pause": "暂停",
+      "stop": "停止",
+      "close": "关闭"
+    },
+    "bottomPanel": {
+      "noAgents": "没有代理会话",
+      "selectAgent": "选择一个代理...",
+      "openWorkspace": "打开完整工作区"
     }
   },
   "aiChat": {

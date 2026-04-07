@@ -1383,7 +1383,8 @@
     "changes": "Perubahan",
     "clipboard": "Papan Klip",
     "notifications": "Notifikasi",
-    "properties": "Properti"
+    "properties": "Properti",
+    "agents": "Agen"
   },
   "home": {
     "goodMorning": "Selamat pagi",
@@ -2316,6 +2317,18 @@
       "files": "File: ",
       "navigate": "Navigasi ke direktori ini",
       "navigateShort": "Pergi"
+    },
+    "notifications": {
+      "agentCompleted": "{{name}} selesai",
+      "agentCompletedDetail": "{{issues}} masalah ditemukan",
+      "agentNeedsApproval": "{{name}} memerlukan persetujuan",
+      "agentNeedsApprovalDetail": "Ingin mengedit {{file}}",
+      "agentError": "{{name}} gagal",
+      "agentErrorDetail": "{{reason}}",
+      "prefsTitle": "Notifikasi Agen",
+      "enableCompleted": "Selesai",
+      "enableApproval": "Perlu persetujuan",
+      "enableError": "Kesalahan"
     }
   },
   "aiChat": {

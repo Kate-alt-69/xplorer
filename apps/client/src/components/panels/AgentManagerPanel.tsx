@@ -22,6 +22,7 @@ import TerminalAgentDetector from './agent-manager/TerminalAgentDetector';
 import NewAgentForm from './agent-manager/NewAgentForm';
 import SessionHistory from './agent-manager/SessionHistory';
 import SharedDiscoveriesBadge from './agent-manager/SharedDiscoveriesBadge';
+import AgentNotifications from './agent-manager/AgentNotifications';
 import { useSessionHistory } from './agent-manager/use-session-history';
 import useAgentSessions from '@/hooks/use-agent-sessions';
 import { subscribeToDiscoveries, getDiscoveryCount } from './agent-manager/agent-shared-context';
@@ -203,6 +204,13 @@ const AgentManagerPanel = () => {
   // Check if any agent is actively running (disable quick actions)
   const hasActiveAgent = useMemo(() => totalActiveCount > 0, [totalActiveCount]);
 
+  // Broadcast active count so the VerticalExtensionsBar status indicator stays in sync
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('xplorer-agent-active-count', { detail: { count: totalActiveCount } }),
+    );
+  }, [totalActiveCount]);
+
   return (
     <div
       style={{
@@ -213,6 +221,9 @@ const AgentManagerPanel = () => {
         overflow: 'hidden',
       }}
     >
+      {/* Invisible notification emitter — watches session transitions */}
+      <AgentNotifications sessions={sessions} />
+
       {/* Scrollable content */}
       <div
         style={{

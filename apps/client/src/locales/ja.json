@@ -1383,7 +1383,8 @@
     "changes": "変更",
     "clipboard": "クリップボード",
     "notifications": "通知",
-    "properties": "プロパティ"
+    "properties": "プロパティ",
+    "agents": "エージェント"
   },
   "home": {
     "goodMorning": "おはようございます",
@@ -2316,6 +2317,18 @@
       "files": "ファイル：",
       "navigate": "このディレクトリに移動",
       "navigateShort": "移動"
+    },
+    "notifications": {
+      "agentCompleted": "{{name}} が完了しました",
+      "agentCompletedDetail": "{{issues}} 件の問題が見つかりました",
+      "agentNeedsApproval": "{{name}} が承認を必要としています",
+      "agentNeedsApprovalDetail": "{{file}} を編集したい",
+      "agentError": "{{name}} が失敗しました",
+      "agentErrorDetail": "{{reason}}",
+      "prefsTitle": "エージェント通知",
+      "enableCompleted": "完了",
+      "enableApproval": "承認が必要",
+      "enableError": "エラー"
     }
   },
   "aiChat": {
