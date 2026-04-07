@@ -2,6 +2,7 @@ pub mod error;
 pub mod utils;
 
 pub mod agent;
+pub mod agent_sessions;
 pub mod ai;
 pub mod audit_log;
 pub mod backup;

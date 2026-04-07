@@ -6,6 +6,7 @@ use tauri::{Emitter, Listener, Manager, WindowEvent};
 // All modules are declared in lib.rs (the `xplorer` library crate).
 // Import them here so the binary can register Tauri commands.
 use xplorer::agent;
+use xplorer::agent_sessions;
 use xplorer::ai;
 use xplorer::duplicate_finder;
 use xplorer::extensions;
@@ -446,6 +447,12 @@ fn main() {
             agent::delete_agent_memory,
             agent::get_agent_permissions,
             agent::update_agent_permissions,
+            // Agent session management
+            agent_sessions::create_agent_session,
+            agent_sessions::list_agent_sessions,
+            agent_sessions::get_agent_session,
+            agent_sessions::stop_agent_session,
+            agent_sessions::remove_agent_session,
             // Recent files operations
             storage::add_recent_file,
             storage::get_recent_files,
