@@ -2113,7 +2113,21 @@
       "recentActions": "最近操作",
       "fileChanges": "文件变更",
       "costTracker": "费用与用量",
-      "templates": "模板"
+      "templates": "模板",
+      "sessionHistory": "会话历史",
+      "sharedDiscoveries": "共享发现"
+    },
+    "discoveries": {
+      "empty": "暂无共享发现",
+      "clearAll": "全部清除",
+      "remove": "移除",
+      "types": {
+        "bugFound": "发现缺陷",
+        "patternIdentified": "识别模式",
+        "configRead": "读取配置",
+        "dependencyFound": "发现依赖",
+        "testResult": "测试结果"
+      }
     },
     "status": {
       "thinking": "思考中...",
@@ -2266,6 +2280,42 @@
       "perfOptimizerDesc": "分析并优化慢速代码路径",
       "projectSetup": "项目设置",
       "projectSetupDesc": "使用样板和配置搭建新项目"
+    },
+    "sessionHistory": {
+      "empty": "暂无已完成的会话",
+      "count": "{{count}} 个会话",
+      "clearAll": "清除历史",
+      "removeEntry": "删除",
+      "statusDone": "完成",
+      "statusError": "错误",
+      "statusCancelled": "已取消",
+      "files": "文件",
+      "prompt": "提示",
+      "directory": "目录",
+      "toolCalls": "工具调用",
+      "turns": "对话轮次",
+      "error": "错误",
+      "viewChanges": "查看变更"
+    },
+    "diffReview": {
+      "title": "审查变更",
+      "acceptAll": "全部接受",
+      "rejectAll": "全部拒绝",
+      "acceptFile": "接受",
+      "rejectFile": "拒绝",
+      "editFile": "编辑",
+      "noChanges": "没有需要审查的文件变更",
+      "filesChanged": "{{count}} 个文件已更改",
+      "accepted": "已接受",
+      "rejected": "已拒绝"
+    },
+    "crossDirectory": {
+      "noSessions": "没有跨目录的代理会话",
+      "summary": "{{directories}} 个目录，{{agents}} 个代理",
+      "agents": "代理：",
+      "files": "文件：",
+      "navigate": "导航到此目录",
+      "navigateShort": "前往"
     }
   },
   "aiChat": {

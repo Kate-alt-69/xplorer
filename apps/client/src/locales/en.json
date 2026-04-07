@@ -2113,7 +2113,21 @@
       "recentActions": "Recent Actions",
       "fileChanges": "File Changes",
       "costTracker": "Cost & Usage",
-      "templates": "Templates"
+      "templates": "Templates",
+      "sessionHistory": "Session History",
+      "sharedDiscoveries": "Shared Discoveries"
+    },
+    "discoveries": {
+      "empty": "No shared discoveries yet",
+      "clearAll": "Clear all",
+      "remove": "Remove",
+      "types": {
+        "bugFound": "Bug Found",
+        "patternIdentified": "Pattern Identified",
+        "configRead": "Config Read",
+        "dependencyFound": "Dependency Found",
+        "testResult": "Test Result"
+      }
     },
     "status": {
       "thinking": "Thinking...",
@@ -2266,6 +2280,42 @@
       "perfOptimizerDesc": "Profiles and optimizes slow code paths",
       "projectSetup": "Project Setup",
       "projectSetupDesc": "Scaffolds new project with boilerplate and config"
+    },
+    "sessionHistory": {
+      "empty": "No completed sessions yet",
+      "count": "{{count}} session(s)",
+      "clearAll": "Clear History",
+      "removeEntry": "Remove",
+      "statusDone": "Done",
+      "statusError": "Error",
+      "statusCancelled": "Cancelled",
+      "files": "files",
+      "prompt": "Prompt",
+      "directory": "Directory",
+      "toolCalls": "Tool calls",
+      "turns": "Turns",
+      "error": "Error",
+      "viewChanges": "View Changes"
+    },
+    "diffReview": {
+      "title": "Review Changes",
+      "acceptAll": "Accept All",
+      "rejectAll": "Reject All",
+      "acceptFile": "Accept",
+      "rejectFile": "Reject",
+      "editFile": "Edit",
+      "noChanges": "No file changes to review",
+      "filesChanged": "{{count}} file(s) changed",
+      "accepted": "Accepted",
+      "rejected": "Rejected"
+    },
+    "crossDirectory": {
+      "noSessions": "No agent sessions across directories",
+      "summary": "{{directories}} directories, {{agents}} agents",
+      "agents": "Agents: ",
+      "files": "Files: ",
+      "navigate": "Navigate to this directory",
+      "navigateShort": "Go"
     }
   },
   "aiChat": {

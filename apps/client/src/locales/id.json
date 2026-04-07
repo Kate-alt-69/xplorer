@@ -2113,7 +2113,21 @@
       "recentActions": "Aksi Terbaru",
       "fileChanges": "Perubahan File",
       "costTracker": "Biaya & Penggunaan",
-      "templates": "Template"
+      "templates": "Template",
+      "sessionHistory": "Riwayat Sesi",
+      "sharedDiscoveries": "Penemuan Bersama"
+    },
+    "discoveries": {
+      "empty": "Belum ada penemuan bersama",
+      "clearAll": "Hapus semua",
+      "remove": "Hapus",
+      "types": {
+        "bugFound": "Bug Ditemukan",
+        "patternIdentified": "Pola Teridentifikasi",
+        "configRead": "Konfigurasi Dibaca",
+        "dependencyFound": "Dependensi Ditemukan",
+        "testResult": "Hasil Tes"
+      }
     },
     "status": {
       "thinking": "Berpikir...",
@@ -2266,6 +2280,42 @@
       "perfOptimizerDesc": "Memprofilkan dan mengoptimalkan jalur kode yang lambat",
       "projectSetup": "Pengaturan Proyek",
       "projectSetupDesc": "Membuat proyek baru dengan boilerplate dan konfigurasi"
+    },
+    "sessionHistory": {
+      "empty": "Belum ada sesi yang selesai",
+      "count": "{{count}} sesi",
+      "clearAll": "Hapus Riwayat",
+      "removeEntry": "Hapus",
+      "statusDone": "Selesai",
+      "statusError": "Error",
+      "statusCancelled": "Dibatalkan",
+      "files": "file",
+      "prompt": "Prompt",
+      "directory": "Direktori",
+      "toolCalls": "Panggilan alat",
+      "turns": "Giliran",
+      "error": "Error",
+      "viewChanges": "Lihat Perubahan"
+    },
+    "diffReview": {
+      "title": "Tinjau Perubahan",
+      "acceptAll": "Terima Semua",
+      "rejectAll": "Tolak Semua",
+      "acceptFile": "Terima",
+      "rejectFile": "Tolak",
+      "editFile": "Edit",
+      "noChanges": "Tidak ada perubahan file untuk ditinjau",
+      "filesChanged": "{{count}} file berubah",
+      "accepted": "Diterima",
+      "rejected": "Ditolak"
+    },
+    "crossDirectory": {
+      "noSessions": "Tidak ada sesi agen lintas direktori",
+      "summary": "{{directories}} direktori, {{agents}} agen",
+      "agents": "Agen: ",
+      "files": "File: ",
+      "navigate": "Navigasi ke direktori ini",
+      "navigateShort": "Pergi"
     }
   },
   "aiChat": {

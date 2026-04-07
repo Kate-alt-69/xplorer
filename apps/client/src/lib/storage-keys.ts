@@ -110,6 +110,9 @@ export const STORAGE_KEYS = {
 
   // Agent cost tracking (daily token/cost history)
   AGENT_COST_HISTORY: 'xplorer:agent-cost-history',
+
+  // Agent session history (completed sessions)
+  AGENT_SESSION_HISTORY: 'xplorer:agent-session-history',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

@@ -12,7 +12,7 @@
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus, Lightbulb } from 'lucide-react';
 import ActiveAgents, { type AgentTask } from './agent-manager/ActiveAgents';
 import TaskQueue, { type QueuedTask } from './agent-manager/TaskQueue';
 import QuickActions from './agent-manager/QuickActions';
@@ -20,7 +20,11 @@ import RecentActions from './agent-manager/RecentActions';
 import AgentSettingsBar from './agent-manager/AgentSettingsBar';
 import TerminalAgentDetector from './agent-manager/TerminalAgentDetector';
 import NewAgentForm from './agent-manager/NewAgentForm';
+import SessionHistory from './agent-manager/SessionHistory';
+import SharedDiscoveriesBadge from './agent-manager/SharedDiscoveriesBadge';
+import { useSessionHistory } from './agent-manager/use-session-history';
 import useAgentSessions from '@/hooks/use-agent-sessions';
+import { subscribeToDiscoveries, getDiscoveryCount } from './agent-manager/agent-shared-context';
 import type { CreateSessionParams } from '@/lib/tauri-api-types';
 
 // ---------------------------------------------------------------------------
@@ -67,9 +71,27 @@ const AgentManagerPanel = () => {
   const [quickActionsExpanded, setQuickActionsExpanded] = useState(true);
   const [recentExpanded, setRecentExpanded] = useState(true);
   const [showNewAgentForm, setShowNewAgentForm] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [discoveriesExpanded, setDiscoveriesExpanded] = useState(false);
+  const [discoveryCount, setDiscoveryCount] = useState(getDiscoveryCount);
 
   // Multi-session agent state from Rust backend
   const { sessions, createSession, stopSession, removeSession } = useAgentSessions();
+
+  // Session history — persists completed sessions
+  const {
+    entries: historyEntries,
+    clearAll: clearHistory,
+    removeEntry: removeHistoryEntry,
+  } = useSessionHistory(sessions);
+
+  // Subscribe to shared discoveries count changes
+  useEffect(() => {
+    const unsub = subscribeToDiscoveries(() => {
+      setDiscoveryCount(getDiscoveryCount());
+    });
+    return unsub;
+  }, []);
 
   // Active agents — synced from the chat panel's agent loop (legacy)
   const [activeAgents, setActiveAgents] = useState<AgentTask[]>([]);
@@ -380,6 +402,85 @@ const AgentManagerPanel = () => {
           {recentExpanded && (
             <div style={{ padding: '0 8px 8px' }}>
               <RecentActions maxItems={30} />
+            </div>
+          )}
+        </div>
+
+        {/* Shared Discoveries Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setDiscoveriesExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={discoveriesExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setDiscoveriesExpanded((v) => !v);
+            }}
+          >
+            {discoveriesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <Lightbulb size={12} />
+            {t('agentManager.sections.sharedDiscoveries')}
+            {discoveryCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  background: 'var(--xp-purple, #bb9af7)',
+                  color: '#fff',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: '8px',
+                }}
+              >
+                {discoveryCount}
+              </span>
+            )}
+          </div>
+          {discoveriesExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <SharedDiscoveriesBadge />
+            </div>
+          )}
+        </div>
+
+        {/* Session History Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setHistoryExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={historyExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setHistoryExpanded((v) => !v);
+            }}
+          >
+            {historyExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {t('agentManager.sections.sessionHistory')}
+            {historyEntries.length > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  background: 'var(--xp-text-muted)',
+                  color: '#fff',
+                  fontSize: '9px',
+                  fontWeight: 700,
+                  padding: '1px 5px',
+                  borderRadius: '8px',
+                }}
+              >
+                {historyEntries.length}
+              </span>
+            )}
+          </div>
+          {historyExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <SessionHistory
+                entries={historyEntries}
+                onClearAll={clearHistory}
+                onRemoveEntry={removeHistoryEntry}
+              />
             </div>
           )}
         </div>

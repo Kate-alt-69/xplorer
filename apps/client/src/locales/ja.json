@@ -2113,7 +2113,21 @@
       "recentActions": "最近のアクション",
       "fileChanges": "ファイル変更",
       "costTracker": "コストと使用量",
-      "templates": "テンプレート"
+      "templates": "テンプレート",
+      "sessionHistory": "セッション履歴",
+      "sharedDiscoveries": "共有発見"
+    },
+    "discoveries": {
+      "empty": "共有された発見はまだありません",
+      "clearAll": "すべてクリア",
+      "remove": "削除",
+      "types": {
+        "bugFound": "バグ発見",
+        "patternIdentified": "パターン特定",
+        "configRead": "設定読み取り",
+        "dependencyFound": "依存関係発見",
+        "testResult": "テスト結果"
+      }
     },
     "status": {
       "thinking": "考え中...",
@@ -2266,6 +2280,42 @@
       "perfOptimizerDesc": "低速なコードパスをプロファイルして最適化します",
       "projectSetup": "プロジェクトセットアップ",
       "projectSetupDesc": "ボイラープレートと設定で新しいプロジェクトを構築します"
+    },
+    "sessionHistory": {
+      "empty": "完了したセッションはまだありません",
+      "count": "{{count}} セッション",
+      "clearAll": "履歴をクリア",
+      "removeEntry": "削除",
+      "statusDone": "完了",
+      "statusError": "エラー",
+      "statusCancelled": "キャンセル済み",
+      "files": "ファイル",
+      "prompt": "プロンプト",
+      "directory": "ディレクトリ",
+      "toolCalls": "ツール呼び出し",
+      "turns": "ターン",
+      "error": "エラー",
+      "viewChanges": "変更を表示"
+    },
+    "diffReview": {
+      "title": "変更のレビュー",
+      "acceptAll": "すべて承認",
+      "rejectAll": "すべて拒否",
+      "acceptFile": "承認",
+      "rejectFile": "拒否",
+      "editFile": "編集",
+      "noChanges": "レビューするファイル変更はありません",
+      "filesChanged": "{{count}} ファイルが変更されました",
+      "accepted": "承認済み",
+      "rejected": "拒否済み"
+    },
+    "crossDirectory": {
+      "noSessions": "ディレクトリ間のエージェントセッションがありません",
+      "summary": "{{directories}} ディレクトリ、{{agents}} エージェント",
+      "agents": "エージェント：",
+      "files": "ファイル：",
+      "navigate": "このディレクトリに移動",
+      "navigateShort": "移動"
     }
   },
   "aiChat": {
