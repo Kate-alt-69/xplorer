@@ -40,6 +40,7 @@ import { CrossTabSelectionProvider } from '@/contexts/CrossTabSelectionContext';
 import { ExplorerProvider, type ExplorerContextValue } from '@/contexts/ExplorerContext';
 
 const AgentLauncher = React.lazy(() => import('@/components/panels/AgentLauncher'));
+const AgentWorkspace = React.lazy(() => import('@/components/panels/agent-manager/AgentWorkspace'));
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -333,6 +334,38 @@ const MainLayout = (props: MainLayoutProps) => {
     };
     document.addEventListener('keydown', handleAgentLauncherKey, true);
     return () => document.removeEventListener('keydown', handleAgentLauncherKey, true);
+  }, []);
+
+  // ── Agent Workspace (Cmd+Shift+A) ─────────────────────────────────────────
+  const [agentWorkspaceOpen, setAgentWorkspaceOpen] = useState(false);
+
+  const handleCloseAgentWorkspace = useCallback(() => {
+    setAgentWorkspaceOpen(false);
+  }, []);
+
+  useEffect(() => {
+    const handleAgentWorkspaceKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && !e.altKey && e.key.toLowerCase() === 'a') {
+        const target = e.target as HTMLElement;
+        const isInput =
+          target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+        if (isInput) return;
+        e.preventDefault();
+        e.stopPropagation();
+        setAgentWorkspaceOpen((v) => !v);
+      }
+    };
+    document.addEventListener('keydown', handleAgentWorkspaceKey, true);
+    return () => document.removeEventListener('keydown', handleAgentWorkspaceKey, true);
+  }, []);
+
+  // Listen for workspace open events (from bottom panel "expand" button)
+  useEffect(() => {
+    const handleOpenWorkspace = () => {
+      setAgentWorkspaceOpen(true);
+    };
+    window.addEventListener('xplorer-open-agent-workspace', handleOpenWorkspace);
+    return () => window.removeEventListener('xplorer-open-agent-workspace', handleOpenWorkspace);
   }, []);
 
   // ── Build ExplorerContext value ───────────────────────────────────────────
@@ -710,6 +743,20 @@ const MainLayout = (props: MainLayoutProps) => {
                 onClose={handleCloseAgentLauncher}
                 currentPath={currentPath}
                 selectedFileCount={selectedFiles.size}
+              />
+            </React.Suspense>
+          )}
+
+          {/* Agent Workspace (Cmd+Shift+A) */}
+          {agentWorkspaceOpen && (
+            <React.Suspense fallback={null}>
+              <AgentWorkspace
+                isOpen={agentWorkspaceOpen}
+                onClose={handleCloseAgentWorkspace}
+                sessions={[]}
+                onStopSession={() => {}}
+                onRemoveSession={() => {}}
+                changesByAgent={new Map()}
               />
             </React.Suspense>
           )}
