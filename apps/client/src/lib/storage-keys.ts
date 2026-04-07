@@ -107,6 +107,9 @@ export const STORAGE_KEYS = {
 
   // Extension auto-update
   AUTO_UPDATE_EXTENSIONS: 'xplorer:auto-update-extensions',
+
+  // Agent cost tracking (daily token/cost history)
+  AGENT_COST_HISTORY: 'xplorer:agent-cost-history',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];

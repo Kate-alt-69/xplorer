@@ -2243,8 +2243,8 @@
       "tokensIn": "in",
       "tokensOut": "out",
       "perSession": "Per session",
-      "totalTokens": "{{count}} tokens total",
-      "sessionCount": "{{count}} session(s)"
+      "totalTokens": "{{amount}} tokens total",
+      "sessionCount": "{{amount}} session(s)"
     },
     "templates": {
       "title": "Templates",

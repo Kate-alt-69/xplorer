@@ -2243,8 +2243,8 @@
       "tokensIn": "masuk",
       "tokensOut": "keluar",
       "perSession": "Per sesi",
-      "totalTokens": "{{count}} token total",
-      "sessionCount": "{{count}} sesi"
+      "totalTokens": "{{amount}} token total",
+      "sessionCount": "{{amount}} sesi"
     },
     "templates": {
       "title": "Template",

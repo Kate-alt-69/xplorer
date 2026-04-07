@@ -2243,8 +2243,8 @@
       "tokensIn": "输入",
       "tokensOut": "输出",
       "perSession": "按会话",
-      "totalTokens": "{{count}} 个令牌总计",
-      "sessionCount": "{{count}} 个会话"
+      "totalTokens": "{{amount}} 个令牌总计",
+      "sessionCount": "{{amount}} 个会话"
     },
     "templates": {
       "title": "模板",

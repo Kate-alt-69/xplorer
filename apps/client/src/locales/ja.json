@@ -2243,8 +2243,8 @@
       "tokensIn": "入力",
       "tokensOut": "出力",
       "perSession": "セッション別",
-      "totalTokens": "合計 {{count}} トークン",
-      "sessionCount": "{{count}} セッション"
+      "totalTokens": "合計 {{amount}} トークン",
+      "sessionCount": "{{amount}} セッション"
     },
     "templates": {
       "title": "テンプレート",
