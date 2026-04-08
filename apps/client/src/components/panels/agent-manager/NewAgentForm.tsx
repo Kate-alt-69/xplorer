@@ -90,18 +90,28 @@ const NewAgentForm = ({ onSubmit, onCancel, onCliLaunched }: NewAgentFormProps) 
   }, []);
 
   const handleSubmit = async () => {
+    if (isLaunching) return;
+
     if (agentType === 'cloud') {
       if (!prompt.trim()) return;
+      setIsLaunching(true);
       const sessionName = name.trim() || prompt.slice(0, 40);
-      onSubmit({
-        name: sessionName,
-        prompt: prompt.trim(),
-        model,
-        working_directory: workingDirectory,
-        selected_files: selectedFiles,
-        project_context: projectContext,
-        scope,
-      });
+      try {
+        onSubmit({
+          name: sessionName,
+          prompt: prompt.trim(),
+          model,
+          working_directory: workingDirectory,
+          selected_files: selectedFiles,
+          project_context: projectContext,
+          scope,
+        });
+        // Clear form after successful launch
+        setName('');
+        setPrompt('');
+      } finally {
+        setIsLaunching(false);
+      }
       return;
     }
 
@@ -123,6 +133,10 @@ const NewAgentForm = ({ onSubmit, onCancel, onCliLaunched }: NewAgentFormProps) 
         result = await launchCustomCli(workingDirectory, cmd);
       }
       onCliLaunched?.(result.sessionId, result.label);
+      // Clear form after successful launch
+      setName('');
+      setPrompt('');
+      setCustomCommand('');
     } catch (err) {
       console.error('[NewAgentForm] Failed to launch CLI agent:', err);
     } finally {
