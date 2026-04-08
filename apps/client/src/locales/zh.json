@@ -2286,7 +2286,9 @@
       "launch": "启动代理",
       "recentPrompts": "最近的提示",
       "noRecentPrompts": "没有最近的提示",
-      "shortcutHint": "按 Esc 关闭"
+      "shortcutHint": "按 Esc 关闭",
+      "changeDirectory": "更改目录",
+      "directoryLabel": "目录"
     },
     "costTracker": {
       "noUsage": "今天没有 API 使用记录",
@@ -2354,7 +2356,8 @@
       "agents": "代理：",
       "files": "文件：",
       "navigate": "导航到此目录",
-      "navigateShort": "前往"
+      "navigateShort": "前往",
+      "launchHere": "在此启动新代理"
     },
     "notifications": {
       "agentCompleted": "{{name}} 已完成",
@@ -2404,6 +2407,31 @@
       "minutesAgo": "{{count}}分钟前",
       "hoursAgo": "{{count}}小时前",
       "daysAgo": "{{count}}天前"
+    },
+    "resume": {
+      "title": "中断的会话",
+      "description": "{{count}} 个代理会话已中断",
+      "selectAll": "全选",
+      "filesChanged": "{{count}} 个文件已更改",
+      "discardAll": "全部丢弃",
+      "resumeAll": "全部恢复",
+      "resumeSelected": "恢复 ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "审查代理更改",
+      "committed": "更改已提交",
+      "committedDetail": "{{count}} 个文件已成功提交",
+      "commitMessagePlaceholder": "提交信息...",
+      "rejectAndRevert": "拒绝并还原",
+      "acceptAndCommit": "接受并提交"
+    },
+    "chaining": {
+      "title": "代理链",
+      "runChain": "运行链",
+      "step": "第 {{current}} 步，共 {{total}} 步",
+      "running": "运行中...",
+      "completed": "链已完成",
+      "failed": "链在第 {{step}} 步失败"
     }
   },
   "aiChat": {

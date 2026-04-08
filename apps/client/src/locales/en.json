@@ -2286,7 +2286,9 @@
       "launch": "Launch Agent",
       "recentPrompts": "Recent prompts",
       "noRecentPrompts": "No recent prompts",
-      "shortcutHint": "Press Esc to close"
+      "shortcutHint": "Press Esc to close",
+      "changeDirectory": "Change directory",
+      "directoryLabel": "Dir"
     },
     "costTracker": {
       "noUsage": "No API usage recorded today",
@@ -2354,7 +2356,8 @@
       "agents": "Agents: ",
       "files": "Files: ",
       "navigate": "Navigate to this directory",
-      "navigateShort": "Go"
+      "navigateShort": "Go",
+      "launchHere": "Launch new agent here"
     },
     "notifications": {
       "agentCompleted": "{{name}} finished",
@@ -2404,6 +2407,31 @@
       "minutesAgo": "{{count}}m ago",
       "hoursAgo": "{{count}}h ago",
       "daysAgo": "{{count}}d ago"
+    },
+    "resume": {
+      "title": "Interrupted Sessions",
+      "description": "{{count}} agent session(s) were interrupted",
+      "selectAll": "Select all",
+      "filesChanged": "{{count}} file(s) changed",
+      "discardAll": "Discard All",
+      "resumeAll": "Resume All",
+      "resumeSelected": "Resume ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "Review Agent Changes",
+      "committed": "Changes committed",
+      "committedDetail": "{{count}} file(s) committed successfully",
+      "commitMessagePlaceholder": "Commit message...",
+      "rejectAndRevert": "Reject & Revert",
+      "acceptAndCommit": "Accept & Commit"
+    },
+    "chaining": {
+      "title": "Agent Chains",
+      "runChain": "Run Chain",
+      "step": "Step {{current}} of {{total}}",
+      "running": "Running...",
+      "completed": "Chain completed",
+      "failed": "Chain failed at step {{step}}"
     }
   },
   "aiChat": {

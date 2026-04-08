@@ -2286,7 +2286,9 @@
       "launch": "エージェントを起動",
       "recentPrompts": "最近のプロンプト",
       "noRecentPrompts": "最近のプロンプトはありません",
-      "shortcutHint": "Esc で閉じる"
+      "shortcutHint": "Esc で閉じる",
+      "changeDirectory": "ディレクトリを変更",
+      "directoryLabel": "ディレクトリ"
     },
     "costTracker": {
       "noUsage": "本日の API 使用記録はありません",
@@ -2354,7 +2356,8 @@
       "agents": "エージェント：",
       "files": "ファイル：",
       "navigate": "このディレクトリに移動",
-      "navigateShort": "移動"
+      "navigateShort": "移動",
+      "launchHere": "ここで新しいエージェントを起動"
     },
     "notifications": {
       "agentCompleted": "{{name}} が完了しました",
@@ -2385,6 +2388,31 @@
       "minutesAgo": "{{count}}分前",
       "hoursAgo": "{{count}}時間前",
       "daysAgo": "{{count}}日前"
+    },
+    "resume": {
+      "title": "中断されたセッション",
+      "description": "{{count}} 個のエージェントセッションが中断されました",
+      "selectAll": "すべて選択",
+      "filesChanged": "{{count}} ファイル変更",
+      "discardAll": "すべて破棄",
+      "resumeAll": "すべて再開",
+      "resumeSelected": "再開 ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "エージェントの変更をレビュー",
+      "committed": "変更がコミットされました",
+      "committedDetail": "{{count}} ファイルが正常にコミットされました",
+      "commitMessagePlaceholder": "コミットメッセージ...",
+      "rejectAndRevert": "拒否して元に戻す",
+      "acceptAndCommit": "承認してコミット"
+    },
+    "chaining": {
+      "title": "エージェントチェーン",
+      "runChain": "チェーンを実行",
+      "step": "ステップ {{current}} / {{total}}",
+      "running": "実行中...",
+      "completed": "チェーン完了",
+      "failed": "ステップ {{step}} で失敗"
     }
   },
   "aiChat": {

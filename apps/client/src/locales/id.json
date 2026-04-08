@@ -2286,7 +2286,9 @@
       "launch": "Luncurkan Agen",
       "recentPrompts": "Prompt terbaru",
       "noRecentPrompts": "Tidak ada prompt terbaru",
-      "shortcutHint": "Tekan Esc untuk menutup"
+      "shortcutHint": "Tekan Esc untuk menutup",
+      "changeDirectory": "Ubah direktori",
+      "directoryLabel": "Dir"
     },
     "costTracker": {
       "noUsage": "Tidak ada penggunaan API tercatat hari ini",
@@ -2354,7 +2356,8 @@
       "agents": "Agen: ",
       "files": "File: ",
       "navigate": "Navigasi ke direktori ini",
-      "navigateShort": "Pergi"
+      "navigateShort": "Pergi",
+      "launchHere": "Luncurkan agen baru di sini"
     },
     "notifications": {
       "agentCompleted": "{{name}} selesai",
@@ -2385,6 +2388,31 @@
       "minutesAgo": "{{count}}m lalu",
       "hoursAgo": "{{count}}j lalu",
       "daysAgo": "{{count}}h lalu"
+    },
+    "resume": {
+      "title": "Sesi Terputus",
+      "description": "{{count}} sesi agen terputus",
+      "selectAll": "Pilih semua",
+      "filesChanged": "{{count}} file berubah",
+      "discardAll": "Buang Semua",
+      "resumeAll": "Lanjutkan Semua",
+      "resumeSelected": "Lanjutkan ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "Tinjau Perubahan Agen",
+      "committed": "Perubahan telah di-commit",
+      "committedDetail": "{{count}} file berhasil di-commit",
+      "commitMessagePlaceholder": "Pesan commit...",
+      "rejectAndRevert": "Tolak & Kembalikan",
+      "acceptAndCommit": "Terima & Commit"
+    },
+    "chaining": {
+      "title": "Rantai Agen",
+      "runChain": "Jalankan Rantai",
+      "step": "Langkah {{current}} dari {{total}}",
+      "running": "Berjalan...",
+      "completed": "Rantai selesai",
+      "failed": "Rantai gagal di langkah {{step}}"
     }
   },
   "aiChat": {

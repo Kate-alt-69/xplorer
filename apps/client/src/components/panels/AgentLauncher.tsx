@@ -11,7 +11,7 @@
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Rocket, ChevronDown, Clock, X, Folder } from 'lucide-react';
+import { Rocket, ChevronDown, Clock, X, Folder, FolderOpen } from 'lucide-react';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
 import { getXplorerState } from '@/components/panels/chat-context-helpers';
 import {
@@ -224,13 +224,21 @@ const AgentLauncher = ({
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState(DEFAULT_MODEL);
   const [scope, setScope] = useState<ScopeOption>('current-dir');
+  const [workingDir, setWorkingDir] = useState(currentPath);
+  const [showDirInput, setShowDirInput] = useState(false);
   const [recentPrompts, setRecentPrompts] = useState<RecentPrompt[]>([]);
+
+  // Sync working dir with currentPath prop
+  useEffect(() => {
+    setWorkingDir(currentPath);
+  }, [currentPath]);
 
   // Load recent prompts on open
   useEffect(() => {
     if (isOpen) {
       setRecentPrompts(loadRecentPrompts());
       setPrompt('');
+      setShowDirInput(false);
       // Focus after a frame so the animation plays
       requestAnimationFrame(() => {
         inputRef.current?.focus();
@@ -253,8 +261,8 @@ const AgentLauncher = ({
   }, [isOpen, onClose]);
 
   const scopeDisplay = useMemo(
-    () => getScopeDisplay(scope, currentPath, selectedFileCount, t),
-    [scope, currentPath, selectedFileCount, t],
+    () => getScopeDisplay(scope, workingDir, selectedFileCount, t),
+    [scope, workingDir, selectedFileCount, t],
   );
 
   const handleLaunch = useCallback(() => {
@@ -264,9 +272,9 @@ const AgentLauncher = ({
     // Build context-enriched prompt
     let scopeContext = '';
     if (scope === 'current-dir') {
-      scopeContext = `Working directory: ${currentPath}`;
+      scopeContext = `Working directory: ${workingDir}`;
     } else if (scope === 'selected-files') {
-      scopeContext = `Selected ${selectedFileCount} file(s) in ${currentPath}`;
+      scopeContext = `Selected ${selectedFileCount} file(s) in ${workingDir}`;
     }
 
     // Gather selected file paths from Xplorer state
@@ -277,7 +285,7 @@ const AgentLauncher = ({
     const buildAndDispatch = async () => {
       let projectCtx = '';
       try {
-        const ctx = await detectWorkspaceContext(currentPath);
+        const ctx = await detectWorkspaceContext(workingDir);
         projectCtx = buildWorkspacePrompt(ctx);
       } catch {
         // Workspace detection failed — continue without
@@ -321,7 +329,7 @@ const AgentLauncher = ({
     });
 
     onClose();
-  }, [prompt, model, scope, currentPath, selectedFileCount, recentPrompts, onClose]);
+  }, [prompt, model, scope, workingDir, selectedFileCount, recentPrompts, onClose]);
 
   const handleRecentClick = useCallback((recent: RecentPrompt) => {
     setPrompt(recent.text);
@@ -463,16 +471,57 @@ const AgentLauncher = ({
           </div>
         </div>
 
-        {/* Scope display */}
+        {/* Scope display + directory toggle */}
         <div
           style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
             padding: '0 16px 8px',
             fontSize: '10px',
             color: 'var(--xp-text-muted)',
           }}
         >
-          {scopeDisplay}
+          <span style={{ flex: 1 }}>{scopeDisplay}</span>
+          <button
+            onClick={() => setShowDirInput((v) => !v)}
+            title={t('agentManager.launcher.changeDirectory')}
+            style={{
+              background: 'none',
+              border: '1px solid var(--xp-border)',
+              borderRadius: '4px',
+              padding: '2px 6px',
+              cursor: 'pointer',
+              color: showDirInput ? 'var(--xp-blue, #7aa2f7)' : 'var(--xp-text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              fontSize: '10px',
+              flexShrink: 0,
+            }}
+          >
+            <FolderOpen size={10} />
+          </button>
         </div>
+
+        {/* Directory input (expandable) */}
+        {showDirInput && (
+          <div style={rowStyle}>
+            <span style={labelStyle}>{t('agentManager.launcher.directoryLabel')}</span>
+            <input
+              type="text"
+              value={workingDir}
+              onChange={(e) => setWorkingDir(e.target.value)}
+              style={{
+                ...selectStyle,
+                fontFamily: 'monospace',
+                fontSize: '11px',
+              }}
+              spellCheck={false}
+              placeholder="/"
+            />
+          </div>
+        )}
 
         {/* Recent prompts */}
         {recentPrompts.length > 0 && (
