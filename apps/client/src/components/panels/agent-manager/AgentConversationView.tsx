@@ -23,6 +23,7 @@ import {
   User,
 } from 'lucide-react';
 import MarkdownRenderer from '@/components/ui/MarkdownRenderer';
+import { TauriAPI } from '@/lib/tauri-api';
 import type { AgentSessionSummary } from '@/lib/tauri-api-types';
 
 // ---------------------------------------------------------------------------
@@ -401,6 +402,12 @@ const MessageBubble = ({
 // Main component
 // ---------------------------------------------------------------------------
 
+/** Payload shape emitted by the Rust `agent-session-stream` event. */
+interface StreamPayload {
+  session_id: string;
+  text: string;
+}
+
 const AgentConversationView = ({
   session,
   messages,
@@ -415,10 +422,39 @@ const AgentConversationView = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom when messages change
+  // ── Real-time streaming text ──────────────────────────────────────────
+  const [streamingText, setStreamingText] = useState('');
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+
+    TauriAPI.listenToEvent<StreamPayload>('agent-session-stream', (payload) => {
+      if (payload.session_id === session.id) {
+        setStreamingText((prev) => prev + payload.text);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    });
+
+    return () => {
+      unlisten?.();
+    };
+  }, [session.id]);
+
+  // Reset streaming text when the messages array grows (the streamed
+  // content has been committed into a full message).
+  const prevMessageCountRef = useRef(messages.length);
+  useEffect(() => {
+    if (messages.length > prevMessageCountRef.current) {
+      setStreamingText('');
+    }
+    prevMessageCountRef.current = messages.length;
+  }, [messages.length]);
+
+  // Auto-scroll to bottom when messages or streaming text changes
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingText]);
 
   // Focus input on mount
   useEffect(() => {
@@ -560,6 +596,50 @@ const AgentConversationView = ({
               />
             );
           })
+        )}
+
+        {/* Real-time streaming text from the agent */}
+        {streamingText && (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '2px',
+              padding: '8px 0',
+            }}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '10px',
+                color: 'var(--xp-green, #73daca)',
+                fontWeight: 600,
+              }}
+            >
+              <Bot size={12} />
+              <span>{t('agentManager.conversation.roleAgent')}</span>
+              <Loader2
+                size={10}
+                style={{
+                  animation: 'spin 1s linear infinite',
+                  marginLeft: 'auto',
+                  color: 'var(--xp-text-muted)',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                fontSize: '12px',
+                color: 'var(--xp-text)',
+                lineHeight: 1.5,
+                marginTop: '2px',
+              }}
+            >
+              <MarkdownRenderer content={streamingText} />
+            </div>
+          </div>
         )}
         <div ref={messagesEndRef} />
       </div>

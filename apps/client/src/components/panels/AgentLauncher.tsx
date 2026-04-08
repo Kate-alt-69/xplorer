@@ -13,6 +13,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Rocket, ChevronDown, Clock, X, Folder } from 'lucide-react';
 import { STORAGE_KEYS } from '@/lib/storage-keys';
+import { getXplorerState } from '@/components/panels/chat-context-helpers';
+import {
+  detectWorkspaceContext,
+  buildWorkspacePrompt,
+} from '@/components/panels/chat-workspace-awareness';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -257,14 +262,42 @@ const AgentLauncher = ({
     if (!trimmed) return;
 
     // Build context-enriched prompt
-    const scopeContext =
-      scope === 'current-dir'
-        ? `Working directory: ${currentPath}`
-        : scope === 'selected-files'
-          ? `Selected ${selectedFileCount} file(s) in ${currentPath}`
-          : '';
+    let scopeContext = '';
+    if (scope === 'current-dir') {
+      scopeContext = `Working directory: ${currentPath}`;
+    } else if (scope === 'selected-files') {
+      scopeContext = `Selected ${selectedFileCount} file(s) in ${currentPath}`;
+    }
 
-    const fullPrompt = scopeContext ? `[Context: ${scopeContext}]\n\n${trimmed}` : trimmed;
+    // Gather selected file paths from Xplorer state
+    const xState = getXplorerState();
+    const selectedPaths = xState?.selectedFiles?.map((f) => f.path) ?? [];
+
+    // Detect workspace context asynchronously then dispatch
+    const buildAndDispatch = async () => {
+      let projectCtx = '';
+      try {
+        const ctx = await detectWorkspaceContext(currentPath);
+        projectCtx = buildWorkspacePrompt(ctx);
+      } catch {
+        // Workspace detection failed — continue without
+      }
+
+      const contextParts: string[] = [];
+      if (scopeContext) contextParts.push(scopeContext);
+      if (selectedPaths.length > 0) {
+        contextParts.push(`Selected files: ${selectedPaths.join(', ')}`);
+      }
+      if (projectCtx) {
+        contextParts.push(projectCtx);
+      }
+
+      const contextBlock =
+        contextParts.length > 0 ? `[Agent Context]\n${contextParts.join('\n')}\n\n` : '';
+      const fullPrompt = `${contextBlock}${trimmed}`;
+
+      dispatchChatPrompt(fullPrompt);
+    };
 
     // Save to recent
     const newRecent: RecentPrompt = {
@@ -280,8 +313,12 @@ const AgentLauncher = ({
     setRecentPrompts(updated);
     saveRecentPrompts(updated);
 
-    // Dispatch to AI chat
-    dispatchChatPrompt(fullPrompt);
+    // Fire and forget — launch the context detection + dispatch
+    buildAndDispatch().catch(() => {
+      // Fallback: dispatch without project context
+      const fallbackPrompt = scopeContext ? `[Context: ${scopeContext}]\n\n${trimmed}` : trimmed;
+      dispatchChatPrompt(fallbackPrompt);
+    });
 
     onClose();
   }, [prompt, model, scope, currentPath, selectedFileCount, recentPrompts, onClose]);
