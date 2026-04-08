@@ -2116,7 +2116,9 @@
       "costTracker": "コストと使用量",
       "templates": "テンプレート",
       "sessionHistory": "セッション履歴",
-      "sharedDiscoveries": "共有発見"
+      "sharedDiscoveries": "共有発見",
+      "skillsBrowser": "スキルマーケットプレイス",
+      "crossDirectory": "クロスディレクトリ"
     },
     "discoveries": {
       "empty": "共有された発見はまだありません",
@@ -2157,13 +2159,39 @@
       "toolCalls": "ツール呼び出し",
       "fileChanges": "ファイル変更"
     },
+    "scope": {
+      "configure": "スコープ",
+      "directory": "ディレクトリ",
+      "fileScope": "ファイル",
+      "fileScope_all": "すべてのファイル",
+      "fileScope_selected": "選択のみ",
+      "fileScope_glob": "グロブパターン",
+      "depth": "深さ",
+      "depth_folder": "このフォルダのみ",
+      "depth_subfolders": "サブフォルダ含む",
+      "depth_project": "プロジェクト全体",
+      "gitFilter": "Git",
+      "gitFilter_all": "すべてのファイル",
+      "gitFilter_modified": "変更済み",
+      "gitFilter_staged": "ステージ済み",
+      "filesSelected": "ファイル選択中",
+      "contextDetected": "コンテキスト検出済み"
+    },
     "newAgent": {
       "title": "新規エージェント",
       "button": "新規",
       "namePlaceholder": "エージェント名（任意）",
       "promptPlaceholder": "このエージェントに何をさせますか？",
+      "promptPlaceholderCli": "初期プロンプト（任意）",
+      "commandPlaceholder": "実行するコマンド（例: aider, goose）",
       "cancel": "キャンセル",
-      "start": "エージェント起動"
+      "start": "エージェント起動",
+      "launch": "起動",
+      "launching": "起動中...",
+      "typeCloud": "Xplorer クラウド",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "カスタム CLI"
     },
     "taskQueue": {
       "empty": "キューにタスクはありません",
@@ -2198,7 +2226,8 @@
       "proactiveMode": "プロアクティブ提案モード",
       "proactive": "プロアクティブ",
       "autoAllow": "ファイル操作を自動許可",
-      "autoAllowLabel": "自動許可"
+      "autoAllowLabel": "自動許可",
+      "notConfigured": "未設定"
     },
     "externalAgents": {
       "title": "外部エージェント",
@@ -2238,7 +2267,14 @@
         "deleteFile": "ファイルを削除",
         "searchFiles": "ファイルを検索",
         "listDirectory": "ディレクトリを一覧"
-      }
+      },
+      "roleYou": "あなた",
+      "roleAgent": "エージェント",
+      "allow": "許可",
+      "deny": "拒否",
+      "approved": "承認済み",
+      "rejected": "拒否済み",
+      "thinking": "考え中..."
     },
     "launcher": {
       "placeholder": "エージェントに実行させたいタスクを記述してください...",
@@ -2250,7 +2286,9 @@
       "launch": "エージェントを起動",
       "recentPrompts": "最近のプロンプト",
       "noRecentPrompts": "最近のプロンプトはありません",
-      "shortcutHint": "Esc で閉じる"
+      "shortcutHint": "Esc で閉じる",
+      "changeDirectory": "ディレクトリを変更",
+      "directoryLabel": "ディレクトリ"
     },
     "costTracker": {
       "noUsage": "本日の API 使用記録はありません",
@@ -2308,7 +2346,9 @@
       "noChanges": "レビューするファイル変更はありません",
       "filesChanged": "{{count}} ファイルが変更されました",
       "accepted": "承認済み",
-      "rejected": "拒否済み"
+      "rejected": "拒否済み",
+      "pending": "保留中",
+      "hiddenLines": "{{count}} 行の変更なしが非表示 - クリックで展開"
     },
     "crossDirectory": {
       "noSessions": "ディレクトリ間のエージェントセッションがありません",
@@ -2316,7 +2356,8 @@
       "agents": "エージェント：",
       "files": "ファイル：",
       "navigate": "このディレクトリに移動",
-      "navigateShort": "移動"
+      "navigateShort": "移動",
+      "launchHere": "ここで新しいエージェントを起動"
     },
     "notifications": {
       "agentCompleted": "{{name}} が完了しました",
@@ -2329,6 +2370,49 @@
       "enableCompleted": "完了",
       "enableApproval": "承認が必要",
       "enableError": "エラー"
+    },
+    "skillsBrowser": {
+      "searchPlaceholder": "スキルを検索...",
+      "installedBadge": "インストール済み",
+      "refresh": "マーケットプレイスを更新",
+      "resultsCount": "{{count}} 件のスキルが利用可能",
+      "noResults": "検索に一致するスキルが見つかりません",
+      "install": "インストール",
+      "installing": "インストール中...",
+      "useSkill": "スキルを使用",
+      "viewDetails": "詳細を見る",
+      "perRun": "実行"
+    },
+    "timeAgo": {
+      "justNow": "たった今",
+      "minutesAgo": "{{count}}分前",
+      "hoursAgo": "{{count}}時間前",
+      "daysAgo": "{{count}}日前"
+    },
+    "resume": {
+      "title": "中断されたセッション",
+      "description": "{{count}} 個のエージェントセッションが中断されました",
+      "selectAll": "すべて選択",
+      "filesChanged": "{{count}} ファイル変更",
+      "discardAll": "すべて破棄",
+      "resumeAll": "すべて再開",
+      "resumeSelected": "再開 ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "エージェントの変更をレビュー",
+      "committed": "変更がコミットされました",
+      "committedDetail": "{{count}} ファイルが正常にコミットされました",
+      "commitMessagePlaceholder": "コミットメッセージ...",
+      "rejectAndRevert": "拒否して元に戻す",
+      "acceptAndCommit": "承認してコミット"
+    },
+    "chaining": {
+      "title": "エージェントチェーン",
+      "runChain": "チェーンを実行",
+      "step": "ステップ {{current}} / {{total}}",
+      "running": "実行中...",
+      "completed": "チェーン完了",
+      "failed": "ステップ {{step}} で失敗"
     }
   },
   "aiChat": {

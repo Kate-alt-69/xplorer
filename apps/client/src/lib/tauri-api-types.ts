@@ -272,6 +272,17 @@ export type AgentSessionStatus =
   | 'error'
   | 'cancelled';
 
+export interface AgentScopeConfig {
+  /** "all" | "selected" | "glob" */
+  file_scope: string;
+  /** Glob pattern when file_scope === "glob" */
+  glob_pattern?: string;
+  /** "folder" | "subfolders" | "project" */
+  depth: string;
+  /** "all" | "modified" | "staged" */
+  git_filter: string;
+}
+
 export interface AgentSessionSummary {
   id: string;
   name: string;
@@ -280,6 +291,9 @@ export interface AgentSessionSummary {
   provider: string;
   status: AgentSessionStatus;
   working_directory: string;
+  selected_files: string[];
+  project_context: string | null;
+  scope: AgentScopeConfig | null;
   created_at: number;
   updated_at: number;
   file_changes_count: number;
@@ -293,6 +307,9 @@ export interface CreateSessionParams {
   prompt: string;
   model: string;
   working_directory: string;
+  selected_files?: string[];
+  project_context?: string;
+  scope?: AgentScopeConfig;
 }
 
 // ── Bulk rename types ────────────────────────────────────────────────────────

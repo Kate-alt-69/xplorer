@@ -2116,7 +2116,9 @@
       "costTracker": "费用与用量",
       "templates": "模板",
       "sessionHistory": "会话历史",
-      "sharedDiscoveries": "共享发现"
+      "sharedDiscoveries": "共享发现",
+      "skillsBrowser": "技能市场",
+      "crossDirectory": "跨目录"
     },
     "discoveries": {
       "empty": "暂无共享发现",
@@ -2157,13 +2159,39 @@
       "toolCalls": "工具调用",
       "fileChanges": "文件更改"
     },
+    "scope": {
+      "configure": "范围",
+      "directory": "目录",
+      "fileScope": "文件",
+      "fileScope_all": "所有文件",
+      "fileScope_selected": "仅选中文件",
+      "fileScope_glob": "通配符模式",
+      "depth": "深度",
+      "depth_folder": "仅此文件夹",
+      "depth_subfolders": "包含子文件夹",
+      "depth_project": "整个项目",
+      "gitFilter": "Git",
+      "gitFilter_all": "所有文件",
+      "gitFilter_modified": "已修改",
+      "gitFilter_staged": "已暂存",
+      "filesSelected": "个文件已选中",
+      "contextDetected": "已检测到上下文"
+    },
     "newAgent": {
       "title": "新建代理",
       "button": "新建",
       "namePlaceholder": "代理名称（可选）",
       "promptPlaceholder": "这个代理应该做什么？",
+      "promptPlaceholderCli": "初始提示（可选）",
+      "commandPlaceholder": "要运行的命令（例如 aider、goose）",
       "cancel": "取消",
-      "start": "启动代理"
+      "start": "启动代理",
+      "launch": "启动",
+      "launching": "启动中...",
+      "typeCloud": "Xplorer 云端",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "自定义 CLI"
     },
     "taskQueue": {
       "empty": "没有排队的任务",
@@ -2198,7 +2226,8 @@
       "proactiveMode": "主动建议模式",
       "proactive": "主动",
       "autoAllow": "自动允许文件操作",
-      "autoAllowLabel": "自动允许"
+      "autoAllowLabel": "自动允许",
+      "notConfigured": "未配置"
     },
     "externalAgents": {
       "title": "外部代理",
@@ -2238,7 +2267,14 @@
         "deleteFile": "删除文件",
         "searchFiles": "搜索文件",
         "listDirectory": "列出目录"
-      }
+      },
+      "roleYou": "你",
+      "roleAgent": "代理",
+      "allow": "允许",
+      "deny": "拒绝",
+      "approved": "已批准",
+      "rejected": "已拒绝",
+      "thinking": "思考中..."
     },
     "launcher": {
       "placeholder": "描述你希望代理执行的任务...",
@@ -2250,7 +2286,9 @@
       "launch": "启动代理",
       "recentPrompts": "最近的提示",
       "noRecentPrompts": "没有最近的提示",
-      "shortcutHint": "按 Esc 关闭"
+      "shortcutHint": "按 Esc 关闭",
+      "changeDirectory": "更改目录",
+      "directoryLabel": "目录"
     },
     "costTracker": {
       "noUsage": "今天没有 API 使用记录",
@@ -2308,7 +2346,9 @@
       "noChanges": "没有需要审查的文件变更",
       "filesChanged": "{{count}} 个文件已更改",
       "accepted": "已接受",
-      "rejected": "已拒绝"
+      "rejected": "已拒绝",
+      "pending": "待处理",
+      "hiddenLines": "{{count}} 行未变更已隐藏 - 点击展开"
     },
     "crossDirectory": {
       "noSessions": "没有跨目录的代理会话",
@@ -2316,7 +2356,8 @@
       "agents": "代理：",
       "files": "文件：",
       "navigate": "导航到此目录",
-      "navigateShort": "前往"
+      "navigateShort": "前往",
+      "launchHere": "在此启动新代理"
     },
     "notifications": {
       "agentCompleted": "{{name}} 已完成",
@@ -2348,6 +2389,49 @@
       "noAgents": "没有代理会话",
       "selectAgent": "选择一个代理...",
       "openWorkspace": "打开完整工作区"
+    },
+    "skillsBrowser": {
+      "searchPlaceholder": "搜索技能...",
+      "installedBadge": "已安装",
+      "refresh": "刷新市场",
+      "resultsCount": "{{count}} 个技能可用",
+      "noResults": "没有找到匹配的技能",
+      "install": "安装",
+      "installing": "安装中...",
+      "useSkill": "使用技能",
+      "viewDetails": "查看详情",
+      "perRun": "次运行"
+    },
+    "timeAgo": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}}分钟前",
+      "hoursAgo": "{{count}}小时前",
+      "daysAgo": "{{count}}天前"
+    },
+    "resume": {
+      "title": "中断的会话",
+      "description": "{{count}} 个代理会话已中断",
+      "selectAll": "全选",
+      "filesChanged": "{{count}} 个文件已更改",
+      "discardAll": "全部丢弃",
+      "resumeAll": "全部恢复",
+      "resumeSelected": "恢复 ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "审查代理更改",
+      "committed": "更改已提交",
+      "committedDetail": "{{count}} 个文件已成功提交",
+      "commitMessagePlaceholder": "提交信息...",
+      "rejectAndRevert": "拒绝并还原",
+      "acceptAndCommit": "接受并提交"
+    },
+    "chaining": {
+      "title": "代理链",
+      "runChain": "运行链",
+      "step": "第 {{current}} 步，共 {{total}} 步",
+      "running": "运行中...",
+      "completed": "链已完成",
+      "failed": "链在第 {{step}} 步失败"
     }
   },
   "aiChat": {

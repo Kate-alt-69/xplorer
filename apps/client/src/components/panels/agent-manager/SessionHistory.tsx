@@ -60,16 +60,19 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const formatRelativeDate = (epochMs: number): string => {
+const formatRelativeDate = (
+  epochMs: number,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string => {
   const diffMs = Date.now() - epochMs;
   const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return 'just now';
+  if (diffSec < 60) return t('agentManager.timeAgo.justNow');
   const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffMin < 60) return t('agentManager.timeAgo.minutesAgo', { count: diffMin });
   const diffHours = Math.floor(diffMin / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffHours < 24) return t('agentManager.timeAgo.hoursAgo', { count: diffHours });
   const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffDays < 7) return t('agentManager.timeAgo.daysAgo', { count: diffDays });
   const d = new Date(epochMs);
   return `${d.getMonth() + 1}/${d.getDate()}`;
 };
@@ -181,7 +184,7 @@ const HistoryEntry = ({
             flexShrink: 0,
           }}
         >
-          {formatRelativeDate(entry.completedAt)}
+          {formatRelativeDate(entry.completedAt, t)}
         </span>
 
         <StatusBadge status={entry.resultStatus} />

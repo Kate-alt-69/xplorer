@@ -208,8 +208,7 @@ async fn mcp_read_file(args: Value) -> Result<McpToolResult, String> {
         if p.is_dir() {
             return Err(format!("Path is a directory, not a file: {}", path));
         }
-        std::fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read file: {}", e))
+        std::fs::read_to_string(&path).map_err(|e| format!("Failed to read file: {}", e))
     })
     .await
     .map_err(|e| e.to_string())?;
@@ -248,8 +247,7 @@ async fn mcp_write_file(args: Value) -> Result<McpToolResult, String> {
             }
         }
 
-        std::fs::write(&path, &content)
-            .map_err(|e| format!("Failed to write file: {}", e))?;
+        std::fs::write(&path, &content).map_err(|e| format!("Failed to write file: {}", e))?;
 
         let bytes_written = content.len();
         Ok(json!({
@@ -547,7 +545,11 @@ async fn mcp_get_git_status(args: Value) -> Result<McpToolResult, String> {
             }
 
             // Unstaged changes
-            if st.is_wt_modified() || st.is_wt_deleted() || st.is_wt_renamed() || st.is_wt_typechange() {
+            if st.is_wt_modified()
+                || st.is_wt_deleted()
+                || st.is_wt_renamed()
+                || st.is_wt_typechange()
+            {
                 let kind = if st.is_wt_deleted() {
                     "deleted"
                 } else if st.is_wt_renamed() {

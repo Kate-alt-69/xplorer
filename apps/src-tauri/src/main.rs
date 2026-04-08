@@ -8,13 +8,14 @@ use tauri::{Emitter, Listener, Manager, WindowEvent};
 use xplorer::agent;
 use xplorer::agent_sessions;
 use xplorer::ai;
-use xplorer::mcp_host;
 use xplorer::duplicate_finder;
 use xplorer::extensions;
 use xplorer::file_organizer;
 use xplorer::file_watcher;
 use xplorer::git;
 use xplorer::google_drive;
+use xplorer::mcp_host;
+use xplorer::mcp_server;
 use xplorer::operations;
 use xplorer::pty;
 use xplorer::shortcuts;
@@ -39,6 +40,14 @@ fn main() {
         )
         .with_target(true)
         .init();
+
+    // ── MCP Server mode ──────────────────────────────────────────────
+    // When launched with `--mcp-server`, run a headless MCP JSON-RPC
+    // server over stdio instead of the full Tauri GUI.
+    if std::env::args().any(|a| a == "--mcp-server") {
+        mcp_server::run_mcp_server();
+        return;
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())

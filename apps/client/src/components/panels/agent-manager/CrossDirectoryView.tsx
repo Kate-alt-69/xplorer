@@ -18,6 +18,7 @@ import {
   Loader2,
   AlertCircle,
   Activity,
+  Plus,
 } from 'lucide-react';
 import type { AgentSessionSummary, AgentSessionStatus } from '@/lib/tauri-api-types';
 import type { SessionCostEntry } from './use-cost-tracking';
@@ -54,6 +55,8 @@ interface CrossDirectoryViewProps {
   onStopSession?: (sessionId: string) => void;
   /** Remove a completed/errored/cancelled session */
   onRemoveSession?: (sessionId: string) => void;
+  /** Launch a new agent in a specific directory */
+  onLaunchInDirectory?: (directory: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -270,6 +273,7 @@ const CrossDirectoryView = ({
   onNavigateToDirectory,
   onStopSession,
   onRemoveSession,
+  onLaunchInDirectory,
 }: CrossDirectoryViewProps) => {
   const { t } = useTranslation();
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(() => new Set());
@@ -444,6 +448,33 @@ const CrossDirectoryView = ({
               )}
 
               {group.totalCost > 0 && <StatBadge label="" value={formatCost(group.totalCost)} />}
+
+              {/* Launch new agent in this directory */}
+              {onLaunchInDirectory && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onLaunchInDirectory(group.directory);
+                  }}
+                  title={t('agentManager.crossDirectory.launchHere')}
+                  aria-label={t('agentManager.crossDirectory.launchHere')}
+                  style={{
+                    background: 'none',
+                    border: '1px solid var(--xp-green, #73daca)',
+                    borderRadius: '4px',
+                    padding: '2px 5px',
+                    cursor: 'pointer',
+                    color: 'var(--xp-green, #73daca)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    fontSize: '9px',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Plus size={8} />
+                </button>
+              )}
 
               {/* Navigate button */}
               {onNavigateToDirectory && (

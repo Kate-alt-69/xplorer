@@ -2116,7 +2116,9 @@
       "costTracker": "Biaya & Penggunaan",
       "templates": "Template",
       "sessionHistory": "Riwayat Sesi",
-      "sharedDiscoveries": "Penemuan Bersama"
+      "sharedDiscoveries": "Penemuan Bersama",
+      "skillsBrowser": "Marketplace Skill",
+      "crossDirectory": "Lintas Direktori"
     },
     "discoveries": {
       "empty": "Belum ada penemuan bersama",
@@ -2157,13 +2159,39 @@
       "toolCalls": "Panggilan alat",
       "fileChanges": "Perubahan file"
     },
+    "scope": {
+      "configure": "Cakupan",
+      "directory": "Direktori",
+      "fileScope": "File",
+      "fileScope_all": "Semua file",
+      "fileScope_selected": "Hanya terpilih",
+      "fileScope_glob": "Pola glob",
+      "depth": "Kedalaman",
+      "depth_folder": "Folder ini saja",
+      "depth_subfolders": "Termasuk subfolder",
+      "depth_project": "Seluruh proyek",
+      "gitFilter": "Git",
+      "gitFilter_all": "Semua file",
+      "gitFilter_modified": "Diubah",
+      "gitFilter_staged": "Ditahapkan",
+      "filesSelected": "file terpilih",
+      "contextDetected": "konteks terdeteksi"
+    },
     "newAgent": {
       "title": "Agen Baru",
       "button": "Baru",
       "namePlaceholder": "Nama agen (opsional)",
       "promptPlaceholder": "Apa yang harus dilakukan agen ini?",
+      "promptPlaceholderCli": "Prompt awal (opsional)",
+      "commandPlaceholder": "Perintah untuk dijalankan (mis. aider, goose)",
       "cancel": "Batal",
-      "start": "Mulai Agen"
+      "start": "Mulai Agen",
+      "launch": "Luncurkan",
+      "launching": "Meluncurkan...",
+      "typeCloud": "Xplorer Cloud",
+      "typeClaudeCode": "Claude Code",
+      "typeCodex": "Codex",
+      "typeCustomCli": "CLI Kustom"
     },
     "taskQueue": {
       "empty": "Tidak ada tugas dalam antrean",
@@ -2198,7 +2226,8 @@
       "proactiveMode": "Mode saran proaktif",
       "proactive": "Proaktif",
       "autoAllow": "Izinkan otomatis operasi file",
-      "autoAllowLabel": "Izin Otomatis"
+      "autoAllowLabel": "Izin Otomatis",
+      "notConfigured": "Belum dikonfigurasi"
     },
     "externalAgents": {
       "title": "Agen Eksternal",
@@ -2238,7 +2267,14 @@
         "deleteFile": "Hapus file",
         "searchFiles": "Cari file",
         "listDirectory": "Daftar direktori"
-      }
+      },
+      "roleYou": "Anda",
+      "roleAgent": "Agen",
+      "allow": "Izinkan",
+      "deny": "Tolak",
+      "approved": "Disetujui",
+      "rejected": "Ditolak",
+      "thinking": "Berpikir..."
     },
     "launcher": {
       "placeholder": "Jelaskan apa yang ingin Anda lakukan agen...",
@@ -2250,7 +2286,9 @@
       "launch": "Luncurkan Agen",
       "recentPrompts": "Prompt terbaru",
       "noRecentPrompts": "Tidak ada prompt terbaru",
-      "shortcutHint": "Tekan Esc untuk menutup"
+      "shortcutHint": "Tekan Esc untuk menutup",
+      "changeDirectory": "Ubah direktori",
+      "directoryLabel": "Dir"
     },
     "costTracker": {
       "noUsage": "Tidak ada penggunaan API tercatat hari ini",
@@ -2308,7 +2346,9 @@
       "noChanges": "Tidak ada perubahan file untuk ditinjau",
       "filesChanged": "{{count}} file berubah",
       "accepted": "Diterima",
-      "rejected": "Ditolak"
+      "rejected": "Ditolak",
+      "pending": "tertunda",
+      "hiddenLines": "{{count}} baris tidak berubah tersembunyi - klik untuk membuka"
     },
     "crossDirectory": {
       "noSessions": "Tidak ada sesi agen lintas direktori",
@@ -2316,7 +2356,8 @@
       "agents": "Agen: ",
       "files": "File: ",
       "navigate": "Navigasi ke direktori ini",
-      "navigateShort": "Pergi"
+      "navigateShort": "Pergi",
+      "launchHere": "Luncurkan agen baru di sini"
     },
     "notifications": {
       "agentCompleted": "{{name}} selesai",
@@ -2329,6 +2370,49 @@
       "enableCompleted": "Selesai",
       "enableApproval": "Perlu persetujuan",
       "enableError": "Kesalahan"
+    },
+    "skillsBrowser": {
+      "searchPlaceholder": "Cari skill...",
+      "installedBadge": "terinstal",
+      "refresh": "Segarkan marketplace",
+      "resultsCount": "{{count}} skill tersedia",
+      "noResults": "Tidak ada skill yang cocok dengan pencarian Anda",
+      "install": "Instal",
+      "installing": "Menginstal...",
+      "useSkill": "Gunakan Skill",
+      "viewDetails": "Lihat detail",
+      "perRun": "eksekusi"
+    },
+    "timeAgo": {
+      "justNow": "baru saja",
+      "minutesAgo": "{{count}}m lalu",
+      "hoursAgo": "{{count}}j lalu",
+      "daysAgo": "{{count}}h lalu"
+    },
+    "resume": {
+      "title": "Sesi Terputus",
+      "description": "{{count}} sesi agen terputus",
+      "selectAll": "Pilih semua",
+      "filesChanged": "{{count}} file berubah",
+      "discardAll": "Buang Semua",
+      "resumeAll": "Lanjutkan Semua",
+      "resumeSelected": "Lanjutkan ({{count}})"
+    },
+    "diffWorkflow": {
+      "title": "Tinjau Perubahan Agen",
+      "committed": "Perubahan telah di-commit",
+      "committedDetail": "{{count}} file berhasil di-commit",
+      "commitMessagePlaceholder": "Pesan commit...",
+      "rejectAndRevert": "Tolak & Kembalikan",
+      "acceptAndCommit": "Terima & Commit"
+    },
+    "chaining": {
+      "title": "Rantai Agen",
+      "runChain": "Jalankan Rantai",
+      "step": "Langkah {{current}} dari {{total}}",
+      "running": "Berjalan...",
+      "completed": "Rantai selesai",
+      "failed": "Rantai gagal di langkah {{step}}"
     }
   },
   "aiChat": {

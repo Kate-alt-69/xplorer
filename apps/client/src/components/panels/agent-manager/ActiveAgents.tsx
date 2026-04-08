@@ -7,7 +7,15 @@
  */
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, ChevronRight, Square, Loader2, Trash2, AlertCircle } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Square,
+  Loader2,
+  Trash2,
+  AlertCircle,
+  Folder,
+} from 'lucide-react';
 import type { AgentSessionSummary, AgentSessionStatus } from '@/lib/tauri-api-types';
 
 // ---------------------------------------------------------------------------
@@ -94,6 +102,72 @@ const isSessionActive = (status: AgentSessionStatus): boolean =>
 
 const isSessionTerminal = (status: AgentSessionStatus): boolean =>
   status === 'done' || status === 'error' || status === 'cancelled';
+
+// ---------------------------------------------------------------------------
+// Context display sub-component
+// ---------------------------------------------------------------------------
+
+/** Extract a short directory name from a full path. */
+const shortDir = (dirPath: string): string => {
+  const parts = dirPath.split(/[\\/]/).filter(Boolean);
+  return parts.length > 0 ? parts[parts.length - 1] : dirPath;
+};
+
+/** Extract project type label from project_context string (first line). */
+const extractProjectLabel = (ctx: string | null): string | null => {
+  if (!ctx) return null;
+  // Look for "## Workspace: <label> project"
+  const match = ctx.match(/^## Workspace:\s*(.+?)\s*project/m);
+  return match ? match[1].trim() : null;
+};
+
+/** Extract git branch from project_context string. */
+const extractGitBranch = (ctx: string | null): string | null => {
+  if (!ctx) return null;
+  const match = ctx.match(/Current branch:\s*(\S+)/);
+  return match ? match[1] : null;
+};
+
+const SessionContextLine = ({ session }: { session: AgentSessionSummary }) => {
+  const dir = shortDir(session.working_directory);
+  const projectLabel = extractProjectLabel(session.project_context);
+  const gitBranch = extractGitBranch(session.project_context);
+
+  const parts: string[] = [dir];
+  if (projectLabel) parts.push(projectLabel);
+  if (gitBranch) parts.push(gitBranch);
+  if (session.selected_files.length > 0) {
+    parts.push(`${session.selected_files.length} files`);
+  }
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        marginTop: '2px',
+        fontSize: '10px',
+        color: 'var(--xp-text-muted)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <Folder size={9} style={{ flexShrink: 0, opacity: 0.7 }} />
+      <span
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+        title={session.working_directory}
+      >
+        {parts.join(' \u00B7 ')}
+      </span>
+    </div>
+  );
+};
 
 // ---------------------------------------------------------------------------
 // Component
@@ -264,6 +338,9 @@ const ActiveAgents = ({
                 </button>
               )}
             </div>
+
+            {/* Context line */}
+            <SessionContextLine session={session} />
 
             {/* Status label + model */}
             <div

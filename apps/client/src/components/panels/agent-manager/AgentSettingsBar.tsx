@@ -21,7 +21,7 @@ interface AgentSettingsBarProps {
 // ---------------------------------------------------------------------------
 
 const getModelDisplay = (model: string): string => {
-  if (!model) return 'Not configured';
+  if (!model) return '';
   // Strip provider prefix for display
   if (model.startsWith('openrouter:')) {
     const name = model.slice('openrouter:'.length);
@@ -139,7 +139,7 @@ const AgentSettingsBar = ({ modelOverride }: AgentSettingsBarProps) => {
           }}
           title={model}
         >
-          {getModelDisplay(model)}
+          {getModelDisplay(model) || t('agentManager.settings.notConfigured')}
         </span>
       </div>
 
