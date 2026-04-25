@@ -13,6 +13,7 @@ import {
 import { QUICK_ACTIONS, QuickActionsBar, type QuickAction } from './chat-quick-actions';
 import { type XplorerState, type FileContext, getXplorerState } from './chat-context-helpers';
 import ChatContextHeader from './ChatContextHeader';
+import ChatModelPicker from './ChatModelPicker';
 import ChatWelcome from './ChatWelcome';
 import ChatFilePathCard from './ChatFilePathCard';
 import ChatMessageBubble, { type RuntimeChatMessage } from './ChatMessageBubble';
@@ -743,6 +744,19 @@ const StandaloneChatPanel = () => {
       onDrop={handleDrop}
     >
       {isDragOver && <DragOverlay />}
+
+      {/* Inline model picker — switch models without opening Settings */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'flex-end',
+          padding: '6px 8px',
+          borderBottom: '1px solid var(--xp-border)',
+          flexShrink: 0,
+        }}
+      >
+        <ChatModelPicker currentModel={model} onModelChange={setModel} />
+      </div>
 
       <ChatContextHeader
         currentPath={currentPath}
