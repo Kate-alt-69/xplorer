@@ -49,10 +49,20 @@ const ChatModelPicker = ({ currentModel, onModelChange }: ChatModelPickerProps) 
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [customInput, setCustomInput] = useState('');
+  const [menuPosition, setMenuPosition] = useState<{ top: number; right: number } | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
+    // Compute fixed position from button rect (escapes parent stacking contexts)
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
     const handleClick = (e: MouseEvent) => {
       if (!wrapperRef.current?.contains(e.target as Node)) setIsOpen(false);
     };
@@ -91,6 +101,7 @@ const ChatModelPicker = ({ currentModel, onModelChange }: ChatModelPickerProps) 
   return (
     <div ref={wrapperRef} style={{ position: 'relative', flexShrink: 0 }}>
       <button
+        ref={buttonRef}
         onClick={() => setIsOpen((v) => !v)}
         title={t('aiChat.modelPicker.tooltip', { defaultValue: 'Choose AI model' }) as string}
         style={{
@@ -120,21 +131,23 @@ const ChatModelPicker = ({ currentModel, onModelChange }: ChatModelPickerProps) 
         <ChevronDown size={11} style={{ flexShrink: 0, opacity: 0.7 }} />
       </button>
 
-      {isOpen && (
+      {isOpen && menuPosition && (
         <div
           role="listbox"
           style={{
-            position: 'absolute',
-            top: 'calc(100% + 4px)',
-            right: 0,
-            zIndex: 100,
+            position: 'fixed',
+            top: menuPosition.top,
+            right: menuPosition.right,
+            zIndex: 9999,
             minWidth: '240px',
             maxHeight: '360px',
             overflowY: 'auto',
-            background: 'var(--xp-surface)',
+            background: 'var(--xp-popover, #1a1b2e)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             border: '1px solid var(--xp-border)',
             borderRadius: '6px',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
             padding: '4px',
           }}
         >

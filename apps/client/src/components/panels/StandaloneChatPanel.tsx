@@ -753,6 +753,8 @@ const StandaloneChatPanel = () => {
           padding: '6px 8px',
           borderBottom: '1px solid var(--xp-border)',
           flexShrink: 0,
+          position: 'relative',
+          zIndex: 50,
         }}
       >
         <ChatModelPicker currentModel={model} onModelChange={setModel} />
