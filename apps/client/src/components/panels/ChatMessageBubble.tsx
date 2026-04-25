@@ -280,6 +280,12 @@ const ChatMessageBubble = ({
             position: 'sticky',
             bottom: 0,
             zIndex: 2,
+            background: 'var(--xp-surface)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            paddingTop: '4px',
+            marginTop: '4px',
+            borderTop: '1px solid var(--xp-border)',
           }}
         >
           <BatchActionCard

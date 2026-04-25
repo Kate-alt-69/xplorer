@@ -17,6 +17,7 @@ import {
   Folder,
 } from 'lucide-react';
 import type { AgentSessionSummary, AgentSessionStatus } from '@/lib/tauri-api-types';
+import SessionEventLog from './SessionEventLog';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -420,6 +421,9 @@ const ActiveAgents = ({
                   </span>
                   {session.file_changes_count}
                 </div>
+
+                {/* Live event log: tool calls, results, and streaming text */}
+                <SessionEventLog sessionId={session.id} />
               </div>
             )}
           </div>
