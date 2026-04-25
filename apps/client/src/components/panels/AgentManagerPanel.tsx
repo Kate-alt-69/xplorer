@@ -21,6 +21,7 @@ import {
   DollarSign,
   FolderTree,
   FileEdit,
+  Calendar,
 } from 'lucide-react';
 import ActiveAgents, { type AgentTask } from './agent-manager/ActiveAgents';
 import TaskQueue, { type QueuedTask } from './agent-manager/TaskQueue';
@@ -36,6 +37,8 @@ import CostTracker from './agent-manager/CostTracker';
 import AgentTemplates from './agent-manager/AgentTemplates';
 import CrossDirectoryView from './agent-manager/CrossDirectoryView';
 import FileChangeTracker from './agent-manager/FileChangeTracker';
+import ScheduledAgents from './agent-manager/ScheduledAgents';
+import { useScheduleRunner, useSchedules } from './agent-manager/use-schedule-runner';
 import { useSessionHistory } from './agent-manager/use-session-history';
 import useCostTracking from './agent-manager/use-cost-tracking';
 import { useFileChanges } from './agent-manager/use-file-changes';
@@ -94,9 +97,18 @@ const AgentManagerPanel = () => {
   const [costExpanded, setCostExpanded] = useState(false);
   const [crossDirExpanded, setCrossDirExpanded] = useState(false);
   const [fileChangesExpanded, setFileChangesExpanded] = useState(false);
+  const [scheduledExpanded, setScheduledExpanded] = useState(false);
 
   // Multi-session agent state from Rust backend
   const { sessions, createSession, stopSession, removeSession } = useAgentSessions();
+
+  // Run the schedule timer — fires due schedules every 30s
+  useScheduleRunner();
+  const schedules = useSchedules();
+  const enabledScheduleCount = useMemo(
+    () => schedules.filter((s) => s.enabled).length,
+    [schedules],
+  );
 
   // Cost tracking — per-session and daily totals
   const {
@@ -456,6 +468,43 @@ const AgentManagerPanel = () => {
           {templatesExpanded && (
             <div style={{ padding: '0 8px 8px' }}>
               <AgentTemplates onSelectTemplate={handleSelectTemplate} disabled={hasActiveAgent} />
+            </div>
+          )}
+        </div>
+
+        {/* Scheduled Agents Section */}
+        <div style={{ borderTop: '1px solid var(--xp-border)' }}>
+          <div
+            style={sectionHeaderStyle}
+            onClick={() => setScheduledExpanded((v) => !v)}
+            role="button"
+            tabIndex={0}
+            aria-expanded={scheduledExpanded}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') setScheduledExpanded((v) => !v);
+            }}
+          >
+            {scheduledExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <Calendar size={12} />
+            {t('agentManager.sections.scheduled', { defaultValue: 'Scheduled' })}
+            {enabledScheduleCount > 0 && (
+              <span
+                style={{
+                  marginLeft: 'auto',
+                  fontSize: '10px',
+                  padding: '1px 6px',
+                  borderRadius: '8px',
+                  background: 'rgba(122, 162, 247, 0.2)',
+                  color: 'var(--xp-blue)',
+                }}
+              >
+                {enabledScheduleCount}
+              </span>
+            )}
+          </div>
+          {scheduledExpanded && (
+            <div style={{ padding: '0 8px 8px' }}>
+              <ScheduledAgents />
             </div>
           )}
         </div>

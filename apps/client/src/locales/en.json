@@ -2118,7 +2118,23 @@
       "sessionHistory": "Session History",
       "sharedDiscoveries": "Shared Discoveries",
       "skillsBrowser": "Skills Marketplace",
-      "crossDirectory": "Cross-Directory"
+      "crossDirectory": "Cross-Directory",
+      "scheduled": "Scheduled"
+    },
+    "schedule": {
+      "newTitle": "New scheduled agent",
+      "editTitle": "Edit schedule",
+      "name": "Name (optional)",
+      "prompt": "What should the agent do?",
+      "directory": "Working directory",
+      "frequency": "Frequency",
+      "cancel": "Cancel",
+      "save": "Save",
+      "create": "Create schedule",
+      "empty": "No scheduled agents yet",
+      "emptyHint": "Schedule daily cleanups, weekly reviews, etc.",
+      "add": "New scheduled agent",
+      "confirmDelete": "Delete this schedule?"
     },
     "discoveries": {
       "empty": "No shared discoveries yet",

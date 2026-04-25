@@ -116,6 +116,10 @@ export const STORAGE_KEYS = {
 
   // Agent notification preferences (per-type enable/disable)
   AGENT_NOTIFICATION_PREFS: 'xplorer:agent-notification-prefs',
+
+  // Agent scheduled tasks
+  AGENT_SCHEDULES: 'xplorer:agent-schedules',
+  AGENT_SCHEDULE_RUNS: 'xplorer:agent-schedule-runs',
 } as const;
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
