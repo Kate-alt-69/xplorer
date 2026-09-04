@@ -14,13 +14,18 @@ public sealed partial class MainWindow : Window
 {
     private readonly SettingsService _settingsService = new();
     private readonly ShellContextMenuService _shellContextMenu = new();
-    private readonly Stack<string> _backHistory = new();
-    private readonly Stack<string> _forwardHistory = new();
     private readonly nint _hwnd;
-    private string _currentPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    private readonly string _homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    private bool _suppressTabSelection;
+    private int _navigationGeneration;
 
     public ObservableCollection<FileSystemItem> Items { get; } = [];
     public ObservableCollection<DriveItem> Drives { get; } = [];
+
+    private ExplorerTabState? ActiveTabState =>
+        (Tabs.SelectedItem as TabViewItem)?.Tag as ExplorerTabState;
+
+    private string CurrentPath => ActiveTabState?.CurrentPath ?? _homePath;
 
     public MainWindow()
     {
@@ -28,69 +33,149 @@ public sealed partial class MainWindow : Window
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         ApplyTheme();
         RefreshDrives();
-        _ = NavigateAsync(_currentPath, pushHistory: false);
+        AddTab(_homePath, select: true);
+    }
+
+    private TabViewItem AddTab(string path, bool select)
+    {
+        var initialPath = Directory.Exists(path) ? Path.GetFullPath(path) : _homePath;
+        var state = new ExplorerTabState { CurrentPath = initialPath };
+        var tab = new TabViewItem
+        {
+            Header = GetTabHeader(initialPath),
+            IsClosable = true,
+            Tag = state,
+        };
+
+        Tabs.TabItems.Add(tab);
+        if (select)
+        {
+            _suppressTabSelection = true;
+            Tabs.SelectedItem = tab;
+            _suppressTabSelection = false;
+            _ = NavigateAsync(initialPath, pushHistory: false);
+        }
+
+        return tab;
     }
 
     private async Task NavigateAsync(string path, bool pushHistory = true)
     {
-        if (!Directory.Exists(path)) return;
+        var state = ActiveTabState;
+        if (state is null) return;
 
-        if (pushHistory && !string.Equals(path, _currentPath, StringComparison.OrdinalIgnoreCase))
+        string fullPath;
+        try
         {
-            _backHistory.Push(_currentPath);
-            _forwardHistory.Clear();
+            fullPath = Path.GetFullPath(path);
+        }
+        catch
+        {
+            StatusText.Text = "Invalid folder path";
+            return;
         }
 
-        _currentPath = Path.GetFullPath(path);
-        AddressBox.Text = _currentPath;
-        ActiveTab.Header = Path.GetFileName(_currentPath.TrimEnd(Path.DirectorySeparatorChar)) is { Length: > 0 } name
-            ? name
-            : _currentPath;
-
-        var settings = _settingsService.Current;
-        var entries = await Task.Run(() =>
+        if (!Directory.Exists(fullPath))
         {
-            var result = new List<FileSystemItem>();
-            try
-            {
-                foreach (var entry in Directory.EnumerateFileSystemEntries(_currentPath))
-                {
-                    try
-                    {
-                        var attributes = File.GetAttributes(entry);
-                        if (!settings.ShowHiddenFiles && attributes.HasFlag(FileAttributes.Hidden)) continue;
-                        var isDirectory = attributes.HasFlag(FileAttributes.Directory);
-                        result.Add(new FileSystemItem
-                        {
-                            FullPath = entry,
-                            Name = Path.GetFileName(entry),
-                            IsDirectory = isDirectory,
-                            ShowExtension = settings.ShowFileExtensions,
-                        });
-                    }
-                    catch
-                    {
-                        // A single inaccessible/deleted item should not break the folder view.
-                    }
-                }
-            }
-            catch
-            {
-                // Keep the current view responsive even if enumeration fails.
-            }
+            StatusText.Text = $"Folder not found: {fullPath}";
+            return;
+        }
 
-            return result
-                .OrderByDescending(item => item.IsDirectory)
-                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
-                .ToList();
-        });
+        if (pushHistory && !string.Equals(fullPath, state.CurrentPath, StringComparison.OrdinalIgnoreCase))
+        {
+            state.BackHistory.Push(state.CurrentPath);
+            state.ForwardHistory.Clear();
+        }
+
+        state.CurrentPath = fullPath;
+        AddressBox.Text = fullPath;
+        UpdateActiveTabHeader();
+        UpdateNavigationButtons();
+
+        var viewMode = _settingsService.GetViewMode(fullPath);
+        var sortMode = _settingsService.GetSortMode(fullPath);
+        var showHidden = _settingsService.Current.ShowHiddenFiles;
+        var showExtensions = _settingsService.Current.ShowFileExtensions;
+        var generation = Interlocked.Increment(ref _navigationGeneration);
+        var tabId = state.Id;
+
+        StatusText.Text = "Loading...";
+        var entries = await Task.Run(() => EnumerateFolder(fullPath, showHidden, showExtensions, sortMode));
+
+        // A slow drive/folder must never overwrite a newer tab navigation.
+        if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return;
 
         Items.Clear();
         foreach (var entry in entries) Items.Add(entry);
 
-        StatusText.Text = $"{Items.Count} items";
-        BackButton.IsEnabled = _backHistory.Count > 0;
-        ForwardButton.IsEnabled = _forwardHistory.Count > 0;
+        ApplyViewMode(viewMode);
+        UpdateStatus();
+    }
+
+    private static List<FileSystemItem> EnumerateFolder(
+        string path,
+        bool showHidden,
+        bool showExtensions,
+        string sortMode)
+    {
+        var result = new List<FileSystemItem>();
+        try
+        {
+            foreach (var entry in Directory.EnumerateFileSystemEntries(path))
+            {
+                try
+                {
+                    var attributes = File.GetAttributes(entry);
+                    if (!showHidden && attributes.HasFlag(FileAttributes.Hidden)) continue;
+
+                    var isDirectory = attributes.HasFlag(FileAttributes.Directory);
+                    var lastWriteUtc = File.GetLastWriteTimeUtc(entry);
+                    long? size = null;
+                    if (!isDirectory)
+                    {
+                        size = new FileInfo(entry).Length;
+                    }
+
+                    result.Add(new FileSystemItem
+                    {
+                        FullPath = entry,
+                        Name = Path.GetFileName(entry),
+                        IsDirectory = isDirectory,
+                        ShowExtension = showExtensions,
+                        LastWriteTimeUtc = lastWriteUtc,
+                        SizeBytes = size,
+                    });
+                }
+                catch
+                {
+                    // One inaccessible/deleted item must not break the whole folder view.
+                }
+            }
+        }
+        catch
+        {
+            // Keep the UI alive for inaccessible folders; navigation controls still work.
+        }
+
+        var directoriesFirst = result.OrderByDescending(item => item.IsDirectory);
+        return sortMode switch
+        {
+            "Date modified" => directoriesFirst
+                .ThenByDescending(item => item.LastWriteTimeUtc)
+                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList(),
+            "Type" => directoriesFirst
+                .ThenBy(item => item.TypeName, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList(),
+            "Size" => directoriesFirst
+                .ThenByDescending(item => item.SizeBytes ?? -1)
+                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList(),
+            _ => directoriesFirst
+                .ThenBy(item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList(),
+        };
     }
 
     private void RefreshDrives()
@@ -109,15 +194,98 @@ public sealed partial class MainWindow : Window
         };
     }
 
+    private void ApplyViewMode(string viewMode)
+    {
+        var selectedPath = GetSelectedItem()?.FullPath;
+        var details = string.Equals(viewMode, "Details", StringComparison.OrdinalIgnoreCase);
+        FileDetails.Visibility = details ? Visibility.Visible : Visibility.Collapsed;
+        FileGrid.Visibility = details ? Visibility.Collapsed : Visibility.Visible;
+
+        if (!details)
+        {
+            var large = string.Equals(viewMode, "Large", StringComparison.OrdinalIgnoreCase);
+            FileGrid.ItemsPanel = (ItemsPanelTemplate)Root.Resources[
+                large ? "LargeItemsPanel" : "MediumItemsPanel"];
+            FileGrid.ItemTemplate = (DataTemplate)Root.Resources[
+                large ? "LargeTileTemplate" : "MediumTileTemplate"];
+        }
+
+        if (selectedPath is not null)
+        {
+            var item = Items.FirstOrDefault(candidate =>
+                string.Equals(candidate.FullPath, selectedPath, StringComparison.OrdinalIgnoreCase));
+            if (item is not null)
+            {
+                if (details) FileDetails.SelectedItem = item;
+                else FileGrid.SelectedItem = item;
+            }
+        }
+    }
+
+    private async Task SetViewModeAsync(string viewMode)
+    {
+        await _settingsService.SetViewModeAsync(CurrentPath, viewMode);
+        ApplyViewMode(viewMode);
+        UpdateStatus();
+    }
+
+    private async Task SetSortModeAsync(string sortMode)
+    {
+        await _settingsService.SetSortModeAsync(CurrentPath, sortMode);
+        await NavigateAsync(CurrentPath, pushHistory: false);
+    }
+
+    private FileSystemItem? GetSelectedItem() =>
+        FileDetails.Visibility == Visibility.Visible
+            ? FileDetails.SelectedItem as FileSystemItem
+            : FileGrid.SelectedItem as FileSystemItem;
+
+    private int GetSelectedCount() =>
+        FileDetails.Visibility == Visibility.Visible
+            ? FileDetails.SelectedItems.Count
+            : FileGrid.SelectedItems.Count;
+
+    private void UpdateStatus()
+    {
+        var selected = GetSelectedCount();
+        var viewMode = _settingsService.GetViewMode(CurrentPath);
+        var sortMode = _settingsService.GetSortMode(CurrentPath);
+        StatusText.Text = selected > 0
+            ? $"{Items.Count} items  •  {selected} selected  •  {viewMode}  •  Sort: {sortMode}"
+            : $"{Items.Count} items  •  {viewMode}  •  Sort: {sortMode}";
+    }
+
+    private void UpdateNavigationButtons()
+    {
+        var state = ActiveTabState;
+        BackButton.IsEnabled = state is not null && state.BackHistory.Count > 0;
+        ForwardButton.IsEnabled = state is not null && state.ForwardHistory.Count > 0;
+    }
+
+    private void UpdateActiveTabHeader()
+    {
+        if (Tabs.SelectedItem is TabViewItem tab)
+        {
+            tab.Header = GetTabHeader(CurrentPath);
+        }
+    }
+
+    private static string GetTabHeader(string path)
+    {
+        var trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var name = Path.GetFileName(trimmed);
+        return string.IsNullOrWhiteSpace(name) ? path : name;
+    }
+
     private async void DriveList_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is DriveItem drive)
             await NavigateAsync(drive.RootPath);
     }
 
-    private async void FileGrid_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private async void FileList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
-        if (FileGrid.SelectedItem is not FileSystemItem item) return;
+        if (GetSelectedItem() is not FileSystemItem item) return;
 
         if (item.IsDirectory)
         {
@@ -132,54 +300,86 @@ public sealed partial class MainWindow : Window
         }
         catch
         {
-            // Native file association handling will be expanded during the shell integration pass.
+            StatusText.Text = $"Could not open {item.Name}";
         }
     }
 
-    private void FileGrid_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    private async void FileList_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if ((e.OriginalSource as FrameworkElement)?.DataContext is not FileSystemItem item) return;
         e.Handled = true;
-        _shellContextMenu.ShowForPath(_hwnd, item.FullPath);
+
+        if (sender is ListViewBase list && !list.SelectedItems.Contains(item))
+        {
+            list.SelectedItem = item;
+        }
+
+        try
+        {
+            _shellContextMenu.ShowForPath(_hwnd, item.FullPath);
+            await NavigateAsync(CurrentPath, pushHistory: false);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Shell menu error: {ex.Message}";
+        }
     }
 
-    private void FileArea_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    private async void FileArea_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (e.Handled) return;
-
-        var flyout = new MenuFlyout();
-
-        var view = new MenuFlyoutSubItem { Text = "View" };
-        view.Items.Add(new MenuFlyoutItem { Text = "Large icons" });
-        view.Items.Add(new MenuFlyoutItem { Text = "Medium icons" });
-        view.Items.Add(new MenuFlyoutItem { Text = "Details" });
-        flyout.Items.Add(view);
-
-        var sort = new MenuFlyoutSubItem { Text = "Sort by" };
-        sort.Items.Add(new MenuFlyoutItem { Text = "Name" });
-        sort.Items.Add(new MenuFlyoutItem { Text = "Date modified" });
-        sort.Items.Add(new MenuFlyoutItem { Text = "Type" });
-        sort.Items.Add(new MenuFlyoutItem { Text = "Size" });
-        flyout.Items.Add(sort);
-
-        var refresh = new MenuFlyoutItem { Text = "Refresh" };
-        refresh.Click += async (_, _) => await NavigateAsync(_currentPath, pushHistory: false);
-        flyout.Items.Add(refresh);
-        flyout.Items.Add(new MenuFlyoutSeparator());
-
-        var terminal = new MenuFlyoutItem { Text = "Open in Terminal" };
-        terminal.Click += (_, _) => OpenTerminal();
-        flyout.Items.Add(terminal);
-
-        flyout.ShowAt(FileArea, e.GetPosition(FileArea));
         e.Handled = true;
+
+        try
+        {
+            var command = _shellContextMenu.ShowForBackground(
+                _hwnd,
+                CurrentPath,
+                _settingsService.GetViewMode(CurrentPath),
+                _settingsService.GetSortMode(CurrentPath));
+
+            switch (command)
+            {
+                case BackgroundMenuCommand.ViewLarge:
+                    await SetViewModeAsync("Large");
+                    break;
+                case BackgroundMenuCommand.ViewMedium:
+                    await SetViewModeAsync("Medium");
+                    break;
+                case BackgroundMenuCommand.ViewDetails:
+                    await SetViewModeAsync("Details");
+                    break;
+                case BackgroundMenuCommand.SortName:
+                    await SetSortModeAsync("Name");
+                    break;
+                case BackgroundMenuCommand.SortDateModified:
+                    await SetSortModeAsync("Date modified");
+                    break;
+                case BackgroundMenuCommand.SortType:
+                    await SetSortModeAsync("Type");
+                    break;
+                case BackgroundMenuCommand.SortSize:
+                    await SetSortModeAsync("Size");
+                    break;
+                case BackgroundMenuCommand.Refresh:
+                case BackgroundMenuCommand.ShellCommand:
+                    await NavigateAsync(CurrentPath, pushHistory: false);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Shell menu error: {ex.Message}";
+        }
     }
 
-    private async void FileGrid_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    private async void FileList_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
         if (args.InRecycleQueue || args.Item is not FileSystemItem item || !item.TryBeginThumbnailLoad()) return;
-        item.Thumbnail = await ThumbnailService.LoadAsync(item.FullPath, item.IsDirectory, 96);
+        item.Thumbnail = await ThumbnailService.LoadAsync(item.FullPath, item.IsDirectory, 128);
     }
+
+    private void FileList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateStatus();
 
     private async void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -191,8 +391,12 @@ public sealed partial class MainWindow : Window
         if (result != ContentDialogResult.Primary) return;
 
         ApplyTheme();
-        await NavigateAsync(_currentPath, pushHistory: false);
+        await NavigateAsync(CurrentPath, pushHistory: false);
     }
+
+    private async void ViewLarge_Click(object sender, RoutedEventArgs e) => await SetViewModeAsync("Large");
+    private async void ViewMedium_Click(object sender, RoutedEventArgs e) => await SetViewModeAsync("Medium");
+    private async void ViewDetails_Click(object sender, RoutedEventArgs e) => await SetViewModeAsync("Details");
 
     private void TerminalButton_Click(object sender, RoutedEventArgs e) => OpenTerminal();
 
@@ -200,38 +404,40 @@ public sealed partial class MainWindow : Window
     {
         try
         {
-            TerminalService.Open(_currentPath, _settingsService.Current);
+            TerminalService.Open(CurrentPath, _settingsService.Current);
         }
-        catch
+        catch (Exception ex)
         {
-            // Settings UI will expose launch diagnostics in a later pass.
+            StatusText.Text = $"Terminal launch failed: {ex.Message}";
         }
     }
 
     private async void BackButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_backHistory.Count == 0) return;
-        _forwardHistory.Push(_currentPath);
-        var target = _backHistory.Pop();
+        var state = ActiveTabState;
+        if (state is null || state.BackHistory.Count == 0) return;
+        state.ForwardHistory.Push(state.CurrentPath);
+        var target = state.BackHistory.Pop();
         await NavigateAsync(target, pushHistory: false);
     }
 
     private async void ForwardButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_forwardHistory.Count == 0) return;
-        _backHistory.Push(_currentPath);
-        var target = _forwardHistory.Pop();
+        var state = ActiveTabState;
+        if (state is null || state.ForwardHistory.Count == 0) return;
+        state.BackHistory.Push(state.CurrentPath);
+        var target = state.ForwardHistory.Pop();
         await NavigateAsync(target, pushHistory: false);
     }
 
     private async void UpButton_Click(object sender, RoutedEventArgs e)
     {
-        var parent = Directory.GetParent(_currentPath)?.FullName;
+        var parent = Directory.GetParent(CurrentPath)?.FullName;
         if (!string.IsNullOrWhiteSpace(parent)) await NavigateAsync(parent);
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) =>
-        await NavigateAsync(_currentPath, pushHistory: false);
+        await NavigateAsync(CurrentPath, pushHistory: false);
 
     private async void GoButton_Click(object sender, RoutedEventArgs e) =>
         await NavigateAsync(AddressBox.Text);
@@ -243,9 +449,33 @@ public sealed partial class MainWindow : Window
         await NavigateAsync(AddressBox.Text);
     }
 
-    private void Tabs_AddTabButtonClick(TabView sender, object args)
+    private void Tabs_AddTabButtonClick(TabView sender, object args) => AddTab(CurrentPath, select: true);
+
+    private async void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        // Multi-tab state is part of the next native migration pass. Keep one real tab strip,
-        // rather than recreating the old duplicate app-level + pane-level tabs.
+        if (_suppressTabSelection || ActiveTabState is null) return;
+        await NavigateAsync(ActiveTabState.CurrentPath, pushHistory: false);
+    }
+
+    private async void Tabs_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
+    {
+        if (Tabs.TabItems.Count <= 1) return;
+
+        var closing = args.Tab;
+        var wasSelected = ReferenceEquals(Tabs.SelectedItem, closing);
+        var oldIndex = Tabs.TabItems.IndexOf(closing);
+
+        _suppressTabSelection = true;
+        Tabs.TabItems.Remove(closing);
+        if (wasSelected && Tabs.TabItems.Count > 0)
+        {
+            Tabs.SelectedIndex = Math.Clamp(oldIndex - 1, 0, Tabs.TabItems.Count - 1);
+        }
+        _suppressTabSelection = false;
+
+        if (wasSelected && ActiveTabState is not null)
+        {
+            await NavigateAsync(ActiveTabState.CurrentPath, pushHistory: false);
+        }
     }
 }

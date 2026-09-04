@@ -6,6 +6,57 @@
     Title="Xplorer">
 
     <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+        <Grid.Resources>
+            <ItemsPanelTemplate x:Key="MediumItemsPanel">
+                <ItemsWrapGrid Orientation="Horizontal" ItemWidth="116" ItemHeight="104" />
+            </ItemsPanelTemplate>
+            <ItemsPanelTemplate x:Key="LargeItemsPanel">
+                <ItemsWrapGrid Orientation="Horizontal" ItemWidth="170" ItemHeight="148" />
+            </ItemsPanelTemplate>
+
+            <DataTemplate x:Key="MediumTileTemplate">
+                <Grid Padding="4">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="68" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="60" Height="60">
+                        <FontIcon Glyph="{Binding FallbackGlyph}" FontSize="40" Opacity="0.9" />
+                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                    </Grid>
+                    <TextBlock
+                        Grid.Row="1"
+                        Text="{Binding DisplayName}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap"
+                        TextTrimming="CharacterEllipsis"
+                        MaxLines="2"
+                        FontSize="12" />
+                </Grid>
+            </DataTemplate>
+
+            <DataTemplate x:Key="LargeTileTemplate">
+                <Grid Padding="6">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="102" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="92" Height="92">
+                        <FontIcon Glyph="{Binding FallbackGlyph}" FontSize="66" Opacity="0.9" />
+                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                    </Grid>
+                    <TextBlock
+                        Grid.Row="1"
+                        Text="{Binding DisplayName}"
+                        TextAlignment="Center"
+                        TextWrapping="Wrap"
+                        TextTrimming="CharacterEllipsis"
+                        MaxLines="2"
+                        FontSize="12" />
+                </Grid>
+            </DataTemplate>
+        </Grid.Resources>
+
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -14,15 +65,17 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- One tab strip only. -->
+        <!-- One tab strip only: every tab now owns its own path + navigation history. -->
         <TabView
             x:Name="Tabs"
             Grid.Row="0"
             Height="38"
             IsAddTabButtonVisible="True"
-            AddTabButtonClick="Tabs_AddTabButtonClick">
-            <TabViewItem x:Name="ActiveTab" Header="Home" IsClosable="False" />
-        </TabView>
+            CanReorderTabs="True"
+            TabWidthMode="SizeToContent"
+            SelectionChanged="Tabs_SelectionChanged"
+            TabCloseRequested="Tabs_TabCloseRequested"
+            AddTabButtonClick="Tabs_AddTabButtonClick" />
 
         <Grid Grid.Row="1" Padding="10,6" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
@@ -43,6 +96,18 @@
             <AppBarButton Icon="Paste" Label="Paste" />
             <AppBarButton Icon="Delete" Label="Delete" />
             <AppBarSeparator />
+            <AppBarButton Label="View">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE80A;" />
+                </AppBarButton.Icon>
+                <AppBarButton.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Large icons" Click="ViewLarge_Click" />
+                        <MenuFlyoutItem Text="Medium icons" Click="ViewMedium_Click" />
+                        <MenuFlyoutItem Text="Details" Click="ViewDetails_Click" />
+                    </MenuFlyout>
+                </AppBarButton.Flyout>
+            </AppBarButton>
             <AppBarButton Label="Size Map">
                 <AppBarButton.Icon>
                     <FontIcon Glyph="&#xE9D2;" />
@@ -108,50 +173,73 @@
                 <GridView
                     x:Name="FileGrid"
                     ItemsSource="{x:Bind Items}"
+                    ItemsPanel="{StaticResource MediumItemsPanel}"
+                    ItemTemplate="{StaticResource MediumTileTemplate}"
                     SelectionMode="Extended"
                     IsMultiSelectCheckBoxEnabled="False"
-                    DoubleTapped="FileGrid_DoubleTapped"
-                    RightTapped="FileGrid_RightTapped"
-                    ContainerContentChanging="FileGrid_ContainerContentChanging">
-                    <GridView.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <ItemsWrapGrid Orientation="Horizontal" ItemWidth="142" ItemHeight="120" />
-                        </ItemsPanelTemplate>
-                    </GridView.ItemsPanel>
+                    DoubleTapped="FileList_DoubleTapped"
+                    RightTapped="FileList_RightTapped"
+                    SelectionChanged="FileList_SelectionChanged"
+                    ContainerContentChanging="FileList_ContainerContentChanging">
                     <GridView.ItemContainerStyle>
                         <Style TargetType="GridViewItem">
-                            <Setter Property="Margin" Value="2" />
-                            <Setter Property="Padding" Value="4" />
+                            <Setter Property="Margin" Value="1" />
+                            <Setter Property="Padding" Value="2" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="VerticalContentAlignment" Value="Stretch" />
                         </Style>
                     </GridView.ItemContainerStyle>
-                    <GridView.ItemTemplate>
+                </GridView>
+
+                <ListView
+                    x:Name="FileDetails"
+                    Visibility="Collapsed"
+                    ItemsSource="{x:Bind Items}"
+                    SelectionMode="Extended"
+                    DoubleTapped="FileList_DoubleTapped"
+                    RightTapped="FileList_RightTapped"
+                    SelectionChanged="FileList_SelectionChanged"
+                    ContainerContentChanging="FileList_ContainerContentChanging">
+                    <ListView.Header>
+                        <Grid Padding="12,7" ColumnSpacing="10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="32" />
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="90" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="2" Text="Type" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="3" Text="Date modified" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" />
+                        </Grid>
+                    </ListView.Header>
+                    <ListView.ItemTemplate>
                         <DataTemplate x:DataType="models:FileSystemItem">
-                            <Grid Width="130" Height="108" Padding="4">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="72" />
-                                    <RowDefinition Height="*" />
-                                </Grid.RowDefinitions>
-                                <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="68" Height="68">
-                                    <FontIcon Glyph="{x:Bind FallbackGlyph}" FontSize="46" Opacity="0.9" />
+                            <Grid MinHeight="38" Padding="8,3" ColumnSpacing="10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="32" />
+                                    <ColumnDefinition Width="2*" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="160" />
+                                    <ColumnDefinition Width="90" />
+                                </Grid.ColumnDefinitions>
+                                <Grid Width="26" Height="26" VerticalAlignment="Center">
+                                    <FontIcon Glyph="{x:Bind FallbackGlyph}" FontSize="20" />
                                     <Image Source="{x:Bind Thumbnail, Mode=OneWay}" Stretch="UniformToFill" />
                                 </Grid>
-                                <TextBlock
-                                    Grid.Row="1"
-                                    Text="{x:Bind DisplayName}"
-                                    TextAlignment="Center"
-                                    TextWrapping="Wrap"
-                                    TextTrimming="CharacterEllipsis"
-                                    MaxLines="2"
-                                    FontSize="12" />
+                                <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Text="{x:Bind TypeName}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="3" Text="{x:Bind ModifiedText}" VerticalAlignment="Center" Opacity="0.72" />
+                                <TextBlock Grid.Column="4" Text="{x:Bind SizeText}" VerticalAlignment="Center" Opacity="0.72" />
                             </Grid>
                         </DataTemplate>
-                    </GridView.ItemTemplate>
-                </GridView>
+                    </ListView.ItemTemplate>
+                </ListView>
             </Grid>
 
-            <!-- Reserved inspector rail. It owns its own column so controls cannot overlap it. -->
+            <!-- Reserved inspector rail: it owns a dedicated column, so no gear/search overlap. -->
             <StackPanel Grid.Column="2" Spacing="4" Padding="4,8">
                 <Button Width="34" Height="34" ToolTipService.ToolTip="Inspector">
                     <FontIcon Glyph="&#xE890;" />
@@ -192,7 +280,7 @@
                     </StackPanel>
                 </Button>
             </StackPanel>
-            <TextBlock x:Name="StatusText" Grid.Column="1" VerticalAlignment="Center" Margin="10,0" Opacity="0.75" />
+            <TextBlock x:Name="StatusText" Grid.Column="1" VerticalAlignment="Center" Margin="10,0" Opacity="0.75" TextTrimming="CharacterEllipsis" />
             <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Native WinUI" Opacity="0.55" FontSize="11" />
         </Grid>
     </Grid>
