@@ -102,7 +102,6 @@ public sealed partial class MainWindow : Window
         StatusText.Text = "Loading...";
         var entries = await Task.Run(() => EnumerateFolder(fullPath, showHidden, showExtensions, sortMode));
 
-        // A slow drive/folder must never overwrite a newer tab navigation.
         if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return;
 
         Items.Clear();
@@ -126,9 +125,9 @@ public sealed partial class MainWindow : Window
                 try
                 {
                     var attributes = File.GetAttributes(entry);
-                    if (!showHidden && attributes.HasFlag(FileAttributes.Hidden)) continue;
+                    if (!showHidden && attributes.HasFlag(System.IO.FileAttributes.Hidden)) continue;
 
-                    var isDirectory = attributes.HasFlag(FileAttributes.Directory);
+                    var isDirectory = attributes.HasFlag(System.IO.FileAttributes.Directory);
                     var lastWriteUtc = File.GetLastWriteTimeUtc(entry);
                     long? size = null;
                     if (!isDirectory)
