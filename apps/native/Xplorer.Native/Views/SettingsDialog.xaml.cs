@@ -21,6 +21,7 @@ public sealed partial class SettingsDialog : ContentDialog
         PerFolderViewSwitch.IsOn = settings.RememberViewPerFolder;
         TerminalCommandBox.Text = settings.TerminalCommand;
         TerminalArgumentsBox.Text = settings.TerminalArguments;
+        WindowsShellMenuSwitch.IsOn = settings.WindowsShellContextMenu;
 
         PrimaryButtonClick += OnPrimaryButtonClick;
     }
@@ -30,6 +31,7 @@ public sealed partial class SettingsDialog : ContentDialog
         var deferral = args.GetDeferral();
         try
         {
+            IntegrationStatusText.Text = string.Empty;
             var settings = _settingsService.Current;
             settings.Theme = ReadComboItem(ThemeComboBox, "System");
             settings.DefaultViewMode = ReadComboItem(ViewModeComboBox, "Medium");
@@ -39,7 +41,15 @@ public sealed partial class SettingsDialog : ContentDialog
             settings.RememberViewPerFolder = PerFolderViewSwitch.IsOn;
             settings.TerminalCommand = TerminalCommandBox.Text.Trim();
             settings.TerminalArguments = TerminalArgumentsBox.Text.Trim();
+            settings.WindowsShellContextMenu = WindowsShellMenuSwitch.IsOn;
+
+            ShellIntegrationService.Apply(settings.WindowsShellContextMenu);
             await _settingsService.SaveAsync();
+        }
+        catch (Exception ex)
+        {
+            args.Cancel = true;
+            IntegrationStatusText.Text = $"Windows integration could not be updated: {ex.Message}";
         }
         finally
         {

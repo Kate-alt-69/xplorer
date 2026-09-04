@@ -27,14 +27,31 @@ public sealed partial class MainWindow : Window
 
     private string CurrentPath => ActiveTabState?.CurrentPath ?? _homePath;
 
-    public MainWindow()
+    public MainWindow(string? initialPath = null)
     {
         InitializeComponent();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         InitializeNativeFileOperations();
         ApplyTheme();
         RefreshDrives();
-        AddTab(_homePath, select: true);
+
+        if (_settingsService.Current.WindowsShellContextMenu)
+        {
+            try
+            {
+                ShellIntegrationService.Register();
+            }
+            catch
+            {
+                // Shell registration is optional. A stale/missing registry capability must never
+                // prevent the file manager from opening.
+            }
+        }
+
+        var startPath = !string.IsNullOrWhiteSpace(initialPath) && Directory.Exists(initialPath)
+            ? Path.GetFullPath(initialPath)
+            : _homePath;
+        AddTab(startPath, select: true);
     }
 
     private TabViewItem AddTab(string path, bool select)

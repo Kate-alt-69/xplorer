@@ -10,6 +10,7 @@ public sealed class XplorerSettings
     public bool RememberViewPerFolder { get; set; }
     public string TerminalCommand { get; set; } = string.Empty;
     public string TerminalArguments { get; set; } = string.Empty;
+    public bool WindowsShellContextMenu { get; set; }
     public Dictionary<string, FolderViewSettings> FolderOverrides { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 }

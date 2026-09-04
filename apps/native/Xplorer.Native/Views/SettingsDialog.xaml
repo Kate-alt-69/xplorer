@@ -62,11 +62,20 @@
                 <StackPanel Padding="16" Spacing="12">
                     <TextBlock Text="Windows integration" FontSize="14" FontWeight="SemiBold" />
                     <TextBlock
-                        Text="Files and folders use the real Windows Shell context-menu stack. Xplorer does not inject hooks into Explorer.exe or unrelated apps."
+                        Text="Files and folders inside Xplorer use the real Windows Shell context-menu stack. Xplorer does not inject hooks into Explorer.exe or unrelated apps."
+                        TextWrapping="Wrap" />
+                    <ToggleSwitch
+                        x:Name="WindowsShellMenuSwitch"
+                        Header="Add Open in Xplorer to Windows context menus"
+                        OffContent="Off"
+                        OnContent="Enabled" />
+                    <TextBlock
+                        Text="Adds an Xplorer-owned entry for folders, drives, and folder backgrounds under your user account. Turning it off removes only registry keys carrying Xplorer's ownership marker."
+                        Opacity="0.7"
                         TextWrapping="Wrap" />
                     <TextBlock
-                        Text="Default-folder handling and Explorer integration stay separately reversible so uninstall can clean up only Xplorer-owned registry entries."
-                        Opacity="0.7"
+                        x:Name="IntegrationStatusText"
+                        Foreground="{ThemeResource SystemFillColorCriticalBrush}"
                         TextWrapping="Wrap" />
                 </StackPanel>
             </TabViewItem>
