@@ -50,11 +50,23 @@ public sealed class SettingsService
         return Current.DefaultViewMode;
     }
 
+    public string GetSortMode(string folder)
+    {
+        if (Current.RememberViewPerFolder &&
+            Current.FolderOverrides.TryGetValue(folder, out var folderSettings))
+        {
+            return folderSettings.SortMode;
+        }
+
+        return Current.DefaultSortMode;
+    }
+
     public async Task SetViewModeAsync(string folder, string viewMode)
     {
         if (Current.RememberViewPerFolder)
         {
-            Current.FolderOverrides[folder] = new FolderViewSettings { ViewMode = viewMode };
+            var folderSettings = GetOrCreateFolderOverride(folder);
+            folderSettings.ViewMode = viewMode;
         }
         else
         {
@@ -62,6 +74,34 @@ public sealed class SettingsService
         }
 
         await SaveAsync();
+    }
+
+    public async Task SetSortModeAsync(string folder, string sortMode)
+    {
+        if (Current.RememberViewPerFolder)
+        {
+            var folderSettings = GetOrCreateFolderOverride(folder);
+            folderSettings.SortMode = sortMode;
+        }
+        else
+        {
+            Current.DefaultSortMode = sortMode;
+        }
+
+        await SaveAsync();
+    }
+
+    private FolderViewSettings GetOrCreateFolderOverride(string folder)
+    {
+        if (Current.FolderOverrides.TryGetValue(folder, out var existing)) return existing;
+
+        var created = new FolderViewSettings
+        {
+            ViewMode = Current.DefaultViewMode,
+            SortMode = Current.DefaultSortMode,
+        };
+        Current.FolderOverrides[folder] = created;
+        return created;
     }
 
     public async Task SaveAsync()

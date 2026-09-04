@@ -15,6 +15,7 @@ public sealed partial class SettingsDialog : ContentDialog
         var settings = _settingsService.Current;
         SelectComboItem(ThemeComboBox, settings.Theme);
         SelectComboItem(ViewModeComboBox, settings.DefaultViewMode);
+        SelectComboItem(SortModeComboBox, settings.DefaultSortMode);
         ShowHiddenSwitch.IsOn = settings.ShowHiddenFiles;
         ShowExtensionsSwitch.IsOn = settings.ShowFileExtensions;
         PerFolderViewSwitch.IsOn = settings.RememberViewPerFolder;
@@ -32,6 +33,7 @@ public sealed partial class SettingsDialog : ContentDialog
             var settings = _settingsService.Current;
             settings.Theme = ReadComboItem(ThemeComboBox, "System");
             settings.DefaultViewMode = ReadComboItem(ViewModeComboBox, "Medium");
+            settings.DefaultSortMode = ReadComboItem(SortModeComboBox, "Name");
             settings.ShowHiddenFiles = ShowHiddenSwitch.IsOn;
             settings.ShowFileExtensions = ShowExtensionsSwitch.IsOn;
             settings.RememberViewPerFolder = PerFolderViewSwitch.IsOn;

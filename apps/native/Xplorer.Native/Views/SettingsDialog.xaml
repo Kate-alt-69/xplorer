@@ -7,12 +7,11 @@
     CloseButtonText="Cancel"
     DefaultButton="Primary">
 
-    <Grid MinWidth="620" MaxWidth="760" MinHeight="440">
+    <Grid MinWidth="560" MaxWidth="680" MinHeight="380">
         <TabView IsAddTabButtonVisible="False">
             <TabViewItem Header="General">
                 <ScrollViewer>
-                    <StackPanel Padding="18" Spacing="18">
-                        <TextBlock Text="Appearance" FontSize="14" FontWeight="SemiBold" />
+                    <StackPanel Padding="16" Spacing="14">
                         <ComboBox x:Name="ThemeComboBox" Header="Theme" SelectedIndex="0">
                             <ComboBoxItem Content="System" />
                             <ComboBoxItem Content="Dark" />
@@ -25,39 +24,49 @@
             </TabViewItem>
 
             <TabViewItem Header="Explorer">
-                <StackPanel Padding="18" Spacing="18">
+                <StackPanel Padding="16" Spacing="14">
                     <ComboBox x:Name="ViewModeComboBox" Header="Default view" SelectedIndex="0">
                         <ComboBoxItem Content="Medium" />
                         <ComboBoxItem Content="Large" />
                         <ComboBoxItem Content="Details" />
                     </ComboBox>
+                    <ComboBox x:Name="SortModeComboBox" Header="Default sort" SelectedIndex="0">
+                        <ComboBoxItem Content="Name" />
+                        <ComboBoxItem Content="Date modified" />
+                        <ComboBoxItem Content="Type" />
+                        <ComboBoxItem Content="Size" />
+                    </ComboBox>
                     <ToggleSwitch
                         x:Name="PerFolderViewSwitch"
-                        Header="Remember view per folder"
+                        Header="Remember view and sort per folder"
                         OffContent="Global"
                         OnContent="Per folder" />
                     <TextBlock
-                        Text="When this is off, view changes are global and apply everywhere."
+                        Text="Global is the default: view and sort changes apply everywhere. Turn this on only if you want folders to remember their own layout."
                         Opacity="0.7"
                         TextWrapping="Wrap" />
                 </StackPanel>
             </TabViewItem>
 
             <TabViewItem Header="Terminal">
-                <StackPanel Padding="18" Spacing="14">
+                <StackPanel Padding="16" Spacing="12">
                     <TextBlock
-                        Text="Xplorer always launches terminals through Windows Terminal (wt.exe), never a raw console window. Leave Command empty to use your Windows Terminal default profile."
+                        Text="Xplorer launches terminal sessions through Windows Terminal (wt.exe), not a raw Console Host window. Leave Command empty to use your Windows Terminal default profile."
                         TextWrapping="Wrap" />
-                    <TextBox x:Name="TerminalCommandBox" Header="Custom command" PlaceholderText="Example: wsl.exe or C:\Tools\shell.exe" />
+                    <TextBox x:Name="TerminalCommandBox" Header="Custom command" PlaceholderText="Example: wsl.exe or pwsh.exe" />
                     <TextBox x:Name="TerminalArgumentsBox" Header="Arguments" PlaceholderText="Optional arguments" />
                 </StackPanel>
             </TabViewItem>
 
             <TabViewItem Header="System">
-                <StackPanel Padding="18" Spacing="14">
-                    <TextBlock Text="Shell integration" FontSize="14" FontWeight="SemiBold" />
+                <StackPanel Padding="16" Spacing="12">
+                    <TextBlock Text="Windows integration" FontSize="14" FontWeight="SemiBold" />
                     <TextBlock
-                        Text="Native Windows context menus are used for files and folders. System-wide Explorer replacement is intentionally kept separate so uninstall can restore registry state cleanly."
+                        Text="Files and folders use the real Windows Shell context-menu stack. Xplorer does not inject hooks into Explorer.exe or unrelated apps."
+                        TextWrapping="Wrap" />
+                    <TextBlock
+                        Text="Default-folder handling and Explorer integration stay separately reversible so uninstall can clean up only Xplorer-owned registry entries."
+                        Opacity="0.7"
                         TextWrapping="Wrap" />
                 </StackPanel>
             </TabViewItem>

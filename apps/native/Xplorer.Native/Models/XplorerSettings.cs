@@ -4,6 +4,7 @@ public sealed class XplorerSettings
 {
     public string Theme { get; set; } = "System";
     public string DefaultViewMode { get; set; } = "Medium";
+    public string DefaultSortMode { get; set; } = "Name";
     public bool ShowHiddenFiles { get; set; }
     public bool ShowFileExtensions { get; set; } = true;
     public bool RememberViewPerFolder { get; set; }
@@ -16,4 +17,5 @@ public sealed class XplorerSettings
 public sealed class FolderViewSettings
 {
     public string ViewMode { get; set; } = "Medium";
+    public string SortMode { get; set; } = "Name";
 }
