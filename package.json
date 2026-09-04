@@ -1,40 +1,20 @@
 {
   "name": "xplorer",
   "version": "1.0.0-alpha.1",
-  "description": "Xplorer - A modern, AI-powered file explorer built with Tauri and React",
+  "description": "Xplorer - a fast native Windows file manager",
   "type": "module",
   "license": "AGPL-3.0",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "frontend:dev": "vite dev",
-    "frontend:build": "vite build",
-    "frontend:preview": "vite preview",
-    "docs": "pnpm --filter docs run start",
-    "dev": "concurrently \"pnpm run frontend:dev\" \"pnpm run tauri:dev\" \"pnpm run marketplace:dev\"",
-    "dev:app": "concurrently \"pnpm run frontend:dev\" \"pnpm run tauri:dev\"",
+    "native:restore": "dotnet restore apps/native/Xplorer.Native/Xplorer.Native.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64",
+    "native:build": "dotnet build apps/native/Xplorer.Native/Xplorer.Native.csproj -c Release -p:Platform=x64 -p:RuntimeIdentifier=win-x64",
+    "marketplace:dev": "pnpm --filter xplorer-web run dev",
+    "marketplace:db": "docker compose -f infra/docker-compose.yml up -d postgres",
     "extensions:build": "node scripts/build-extensions.mjs",
     "extensions:sign": "node scripts/sign-all-extensions.mjs",
     "extensions:dev": "node scripts/build-extensions.mjs --watch",
-    "marketplace:dev": "pnpm --filter xplorer-web run dev",
-    "marketplace:db": "docker compose -f infra/docker-compose.yml up -d postgres",
-    "build": "pnpm frontend:build && pnpm tauri:build",
-    "tauri": "tauri",
-    "tauri:dev": "cd apps && tauri dev",
-    "tauri:build": "cd apps && tauri build",
-    "check": "tsc",
-    "test": "vitest",
-    "test:ui": "vitest --ui",
-    "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage",
-    "test:tauri": "cd apps/src-tauri && cargo test",
-    "test:e2e": "playwright test",
-    "test:all": "pnpm test:run && pnpm test:tauri",
-    "ci:local": "npx tsc --noEmit && pnpm lint && pnpm test:run && pnpm test:tauri",
-    "test:e2e:update": "playwright test --update-snapshots",
-    "lint": "eslint .",
-    "lint:fix": "eslint --fix .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "husky"
@@ -70,84 +50,15 @@
     "tailwind-merge": "^2.6.0",
     "wouter": "^3.3.5"
   },
-  "lint-staged": {
-    "apps/client/src/**/*.{ts,tsx}": [
-      "prettier --write",
-      "eslint --fix --no-warn-ignored"
-    ],
-    "apps/client/src/**/*.css": [
-      "prettier --write"
-    ],
-    "packages/sdk/src/**/*.ts": [
-      "prettier --write"
-    ],
-    "packages/extension-sdk/src/**/*.ts": [
-      "prettier --write"
-    ],
-    "e2e/**/*.ts": [
-      "prettier --write"
-    ],
-    "*.{json,md,yml,yaml}": [
-      "prettier --write"
-    ]
-  },
   "devDependencies": {
-    "@axe-core/playwright": "^4.11.1",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.58.2",
-    "@tailwindcss/typography": "^0.5.15",
-    "@tauri-apps/cli": "^2.10.0",
-    "@testing-library/jest-dom": "^6.4.0",
-    "@testing-library/react": "^16.0.0",
-    "@testing-library/user-event": "^14.5.0",
     "@types/node": "20.16.11",
-    "@types/papaparse": "^5.3.16",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
-    "@types/react-syntax-highlighter": "^15.5.13",
     "@typescript-eslint/eslint-plugin": "^8.57.1",
     "@typescript-eslint/parser": "^8.57.1",
-    "@vitejs/plugin-react": "^4.3.2",
-    "@vitest/coverage-v8": "^2.0.0",
-    "@vitest/ui": "^2.0.0",
-    "autoprefixer": "^10.4.20",
-    "babel-plugin-react-compiler": "^1.0.0",
-    "concurrently": "^9.2.1",
     "esbuild": "^0.25.12",
     "eslint": "^10.0.3",
-    "eslint-plugin-react": "^7.37.5",
-    "eslint-plugin-react-hooks": "^7.0.1",
     "husky": "^9.1.7",
-    "jsdom": "^25.0.0",
-    "lint-staged": "^16.4.0",
-    "postcss": "^8.4.47",
     "prettier": "^3.8.1",
-    "prettier-plugin-tailwindcss": "^0.7.2",
-    "tailwindcss": "^3.4.17",
-    "tailwindcss-animate": "^1.0.7",
-    "tsx": "^4.19.1",
-    "typescript": "5.6.3",
-    "vite": "^5.4.20",
-    "vitest": "^2.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "handlebars": ">=4.7.9",
-      "glob": ">=10.5.0",
-      "minimatch@>=9.0.0 <9.0.7": ">=9.0.7",
-      "minimatch@<3.1.2": ">=3.1.2",
-      "lodash": ">=4.18.0",
-      "picomatch@>=4.0.0 <4.0.4": ">=4.0.4",
-      "flatted@<3.4.0": ">=3.4.0",
-      "brace-expansion@>=2.0.0 <2.0.3": ">=2.0.3",
-      "brace-expansion@>=4.0.0 <5.0.5": ">=5.0.5",
-      "underscore": ">=1.13.6",
-      "@xmldom/xmldom": ">=0.9.7",
-      "undici": ">=6.21.1",
-      "prismjs": ">=1.30.0",
-      "yaml@>=2.0.0 <2.8.3": ">=2.8.3",
-      "rollup": ">=4.30.0",
-      "esbuild": ">=0.25.0"
-    }
+    "prettier-plugin-tailwindcss": "^0.7.2"
   }
 }

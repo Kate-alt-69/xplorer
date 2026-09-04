@@ -1,5 +1,4 @@
 packages:
-  - 'apps/client'
   - 'apps/web'
   - 'packages/sdk'
   - 'packages/extension-sdk'
