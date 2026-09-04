@@ -1,0 +1,66 @@
+<ContentDialog
+    x:Class="Xplorer.Native.Views.SettingsDialog"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Settings"
+    PrimaryButtonText="Save"
+    CloseButtonText="Cancel"
+    DefaultButton="Primary">
+
+    <Grid MinWidth="620" MaxWidth="760" MinHeight="440">
+        <TabView IsAddTabButtonVisible="False">
+            <TabViewItem Header="General">
+                <ScrollViewer>
+                    <StackPanel Padding="18" Spacing="18">
+                        <TextBlock Text="Appearance" FontSize="14" FontWeight="SemiBold" />
+                        <ComboBox x:Name="ThemeComboBox" Header="Theme" SelectedIndex="0">
+                            <ComboBoxItem Content="System" />
+                            <ComboBoxItem Content="Dark" />
+                            <ComboBoxItem Content="Light" />
+                        </ComboBox>
+                        <ToggleSwitch x:Name="ShowHiddenSwitch" Header="Show hidden files" OnContent="On" OffContent="Off" />
+                        <ToggleSwitch x:Name="ShowExtensionsSwitch" Header="Show file extensions" OnContent="On" OffContent="Off" />
+                    </StackPanel>
+                </ScrollViewer>
+            </TabViewItem>
+
+            <TabViewItem Header="Explorer">
+                <StackPanel Padding="18" Spacing="18">
+                    <ComboBox x:Name="ViewModeComboBox" Header="Default view" SelectedIndex="0">
+                        <ComboBoxItem Content="Medium" />
+                        <ComboBoxItem Content="Large" />
+                        <ComboBoxItem Content="Details" />
+                    </ComboBox>
+                    <ToggleSwitch
+                        x:Name="PerFolderViewSwitch"
+                        Header="Remember view per folder"
+                        OffContent="Global"
+                        OnContent="Per folder" />
+                    <TextBlock
+                        Text="When this is off, view changes are global and apply everywhere."
+                        Opacity="0.7"
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </TabViewItem>
+
+            <TabViewItem Header="Terminal">
+                <StackPanel Padding="18" Spacing="14">
+                    <TextBlock
+                        Text="Xplorer always launches terminals through Windows Terminal (wt.exe), never a raw console window. Leave Command empty to use your Windows Terminal default profile."
+                        TextWrapping="Wrap" />
+                    <TextBox x:Name="TerminalCommandBox" Header="Custom command" PlaceholderText="Example: wsl.exe or C:\Tools\shell.exe" />
+                    <TextBox x:Name="TerminalArgumentsBox" Header="Arguments" PlaceholderText="Optional arguments" />
+                </StackPanel>
+            </TabViewItem>
+
+            <TabViewItem Header="System">
+                <StackPanel Padding="18" Spacing="14">
+                    <TextBlock Text="Shell integration" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock
+                        Text="Native Windows context menus are used for files and folders. System-wide Explorer replacement is intentionally kept separate so uninstall can restore registry state cleanly."
+                        TextWrapping="Wrap" />
+                </StackPanel>
+            </TabViewItem>
+        </TabView>
+    </Grid>
+</ContentDialog>
