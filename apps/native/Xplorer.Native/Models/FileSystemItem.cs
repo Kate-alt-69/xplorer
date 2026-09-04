@@ -4,17 +4,21 @@ using Microsoft.UI.Xaml.Media.Imaging;
 
 namespace Xplorer.Native.Models;
 
+/// <summary>
+/// XAML-visible file model. Properties use normal setters because WinUI's generated
+/// XamlTypeInfo must be able to construct and populate the type at runtime.
+/// </summary>
 public sealed class FileSystemItem : INotifyPropertyChanged
 {
     private BitmapImage? _thumbnail;
     private bool _thumbnailRequested;
 
-    public required string FullPath { get; init; }
-    public required string Name { get; init; }
-    public required bool IsDirectory { get; init; }
-    public required bool ShowExtension { get; init; }
-    public DateTime LastWriteTimeUtc { get; init; }
-    public long? SizeBytes { get; init; }
+    public string FullPath { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool IsDirectory { get; set; }
+    public bool ShowExtension { get; set; }
+    public DateTime LastWriteTimeUtc { get; set; }
+    public long? SizeBytes { get; set; }
 
     public string DisplayName
     {
