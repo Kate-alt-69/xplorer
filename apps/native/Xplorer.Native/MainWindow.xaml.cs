@@ -2,7 +2,7 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
+using Windows.Storage;
 using Windows.System;
 using Xplorer.Native.Models;
 using Xplorer.Native.Services;
@@ -127,7 +127,8 @@ public sealed partial class MainWindow : Window
 
         try
         {
-            await Windows.System.Launcher.LaunchUriAsync(new Uri(item.FullPath));
+            var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
+            await Launcher.LaunchFileAsync(file);
         }
         catch
         {

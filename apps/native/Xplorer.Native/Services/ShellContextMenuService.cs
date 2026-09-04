@@ -21,25 +21,30 @@ public sealed class ShellContextMenuService
         nint contextMenuPtr = 0;
         nint menu = 0;
         IShellFolder? shellFolder = null;
+        IContextMenu? contextMenu = null;
 
         try
         {
             Marshal.ThrowExceptionForHR(SHParseDisplayName(path, 0, out absolutePidl, 0, out _));
+
+            var shellFolderIid = IidShellFolder;
             Marshal.ThrowExceptionForHR(
-                SHBindToParent(absolutePidl, ref IidShellFolder, out shellFolderPtr, out var childPidl));
+                SHBindToParent(absolutePidl, ref shellFolderIid, out shellFolderPtr, out var childPidl));
 
             shellFolder = (IShellFolder)Marshal.GetObjectForIUnknown(shellFolderPtr);
             var children = new[] { childPidl };
+            var contextMenuIid = IidContextMenu;
             Marshal.ThrowExceptionForHR(
-                shellFolder.GetUIObjectOf(ownerHwnd, 1, children, ref IidContextMenu, 0, out contextMenuPtr));
+                shellFolder.GetUIObjectOf(ownerHwnd, 1, children, ref contextMenuIid, 0, out contextMenuPtr));
 
-            var contextMenu = (IContextMenu)Marshal.GetObjectForIUnknown(contextMenuPtr);
+            contextMenu = (IContextMenu)Marshal.GetObjectForIUnknown(contextMenuPtr);
             menu = CreatePopupMenu();
             if (menu == 0) return;
 
             Marshal.ThrowExceptionForHR(contextMenu.QueryContextMenu(menu, 0, 1, 0x7FFF, CmfNormal));
             if (!GetCursorPos(out var point)) return;
 
+            SetForegroundWindow(ownerHwnd);
             var command = TrackPopupMenuEx(
                 menu,
                 TpmRightButton | TpmReturnCmd,
@@ -68,12 +73,11 @@ public sealed class ShellContextMenuService
             {
                 Marshal.FreeHGlobal(invokePtr);
             }
-
-            Marshal.FinalReleaseComObject(contextMenu);
         }
         finally
         {
             if (menu != 0) DestroyMenu(menu);
+            if (contextMenu is not null) Marshal.FinalReleaseComObject(contextMenu);
             if (shellFolder is not null) Marshal.FinalReleaseComObject(shellFolder);
             if (contextMenuPtr != 0) Marshal.Release(contextMenuPtr);
             if (shellFolderPtr != 0) Marshal.Release(shellFolderPtr);
@@ -168,6 +172,9 @@ public sealed class ShellContextMenuService
 
     [DllImport("user32.dll")]
     private static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(nint hWnd);
 
     [DllImport("ole32.dll")]
     private static extern void CoTaskMemFree(nint pv);
