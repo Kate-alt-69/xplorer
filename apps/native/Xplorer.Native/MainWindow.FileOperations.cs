@@ -60,6 +60,7 @@ public sealed partial class MainWindow
             VirtualKey.N,
             VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
             CreateNewFolderAsync);
+        InitializeKeyboardShortcuts();
     }
 
     private IReadOnlyList<FileSystemItem> GetSelectedOperationItems()
