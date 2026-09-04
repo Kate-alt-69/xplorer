@@ -122,11 +122,28 @@ public sealed partial class MainWindow : Window
 
         if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return;
 
+        var searchQuery = _activeSearchQuery;
+        if (!string.IsNullOrWhiteSpace(searchQuery) &&
+            _searchBox is not null &&
+            string.Equals(searchQuery, _searchBox.Text.Trim(), StringComparison.Ordinal))
+        {
+            _searchTotalCount = entries.Count;
+            entries = entries.Where(item => MatchesSearch(item, searchQuery)).ToList();
+        }
+        else
+        {
+            searchQuery = string.Empty;
+            _searchTotalCount = 0;
+        }
+
         Items.Clear();
         foreach (var entry in entries) Items.Add(entry);
 
         ApplyViewMode(viewMode);
-        UpdateStatus();
+        if (string.IsNullOrEmpty(searchQuery))
+            UpdateStatus();
+        else
+            UpdateSearchStatus();
     }
 
     private static List<FileSystemItem> EnumerateFolder(
@@ -243,7 +260,8 @@ public sealed partial class MainWindow : Window
     {
         await _settingsService.SetViewModeAsync(CurrentPath, viewMode);
         ApplyViewMode(viewMode);
-        UpdateStatus();
+        if (string.IsNullOrEmpty(_activeSearchQuery)) UpdateStatus();
+        else UpdateSearchStatus();
     }
 
     private async Task SetSortModeAsync(string sortMode)
@@ -264,6 +282,12 @@ public sealed partial class MainWindow : Window
 
     private void UpdateStatus()
     {
+        if (!string.IsNullOrEmpty(_activeSearchQuery))
+        {
+            UpdateSearchStatus();
+            return;
+        }
+
         var selected = GetSelectedCount();
         var viewMode = _settingsService.GetViewMode(CurrentPath);
         var sortMode = _settingsService.GetSortMode(CurrentPath);
