@@ -14,6 +14,7 @@ use crate::{
 };
 
 const RECONCILE_INTERVAL: Duration = Duration::from_secs(30 * 60);
+const IDLE_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub fn run<I>(arguments: I) -> io::Result<i32>
 where
@@ -38,6 +39,10 @@ where
         return Ok(0);
     }
 
+    if arguments.iter().any(|value| value == "--idle-probe") {
+        return run_idle_probe();
+    }
+
     let service_worker = arguments.iter().any(|value| value == "--service-worker");
     let once = arguments.iter().any(|value| value == "--once" || value == "--scan-once");
     if !service_worker && !once {
@@ -45,6 +50,16 @@ where
     }
 
     run_worker(once)
+}
+
+fn run_idle_probe() -> io::Result<i32> {
+    let Some(_instance) = SingleInstanceMutex::acquire()? else {
+        return Ok(0);
+    };
+    let stop_event = StopEvent::create_for_worker()?;
+    platform::enter_background_mode();
+    let _ = stop_event.wait(IDLE_PROBE_TIMEOUT)?;
+    Ok(0)
 }
 
 fn run_worker(once: bool) -> io::Result<i32> {

@@ -50,3 +50,25 @@ jobs:
 
       - name: Build low-resource Rust worker
         run: cargo build --manifest-path apps/worker/Cargo.toml --release
+
+      - name: Measure idle worker memory
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path 'apps/worker/target/release/xplorer-worker.exe').Path
+          $process = Start-Process -FilePath $exe -ArgumentList '--idle-probe' -PassThru
+          try {
+            Start-Sleep -Milliseconds 750
+            $process.Refresh()
+            $workingSetKiB = [math]::Round($process.WorkingSet64 / 1KB, 1)
+            $privateKiB = [math]::Round($process.PrivateMemorySize64 / 1KB, 1)
+            Write-Host "Xplorer worker idle working set: $workingSetKiB KiB"
+            Write-Host "Xplorer worker idle private memory: $privateKiB KiB"
+            Write-Host "::notice title=Xplorer worker idle memory::Working set $workingSetKiB KiB; private memory $privateKiB KiB"
+          }
+          finally {
+            & $exe --stop-service-worker
+            if (-not $process.WaitForExit(5000)) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+            $process.Dispose()
+          }
