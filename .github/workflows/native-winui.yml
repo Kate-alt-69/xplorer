@@ -1,0 +1,36 @@
+name: Native WinUI
+
+on:
+  push:
+    branches:
+      - rewrite/native-winui
+    paths:
+      - 'apps/native/**'
+      - '.github/workflows/native-winui.yml'
+  pull_request:
+    paths:
+      - 'apps/native/**'
+      - '.github/workflows/native-winui.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-x64:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore native app
+        run: dotnet restore apps/native/Xplorer.Native/Xplorer.Native.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
+
+      - name: Build native app
+        run: dotnet build apps/native/Xplorer.Native/Xplorer.Native.csproj -c Release --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64
