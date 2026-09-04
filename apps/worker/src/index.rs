@@ -37,7 +37,7 @@ pub fn snapshot_path(data_dir: &Path, drive: u8) -> PathBuf {
 }
 
 pub fn scan_volume(drive: u8, data_dir: &Path) -> io::Result<ScanStats> {
-    let root = PathBuf::from(format!("{}:\\\", drive as char));
+    let root = PathBuf::from(format!("{}:{}", drive as char, std::path::MAIN_SEPARATOR));
     let final_path = snapshot_path(data_dir, drive);
     let temp_path = data_dir.join(format!("{}.xidx.tmp", drive as char));
     let file = File::create(&temp_path)?;

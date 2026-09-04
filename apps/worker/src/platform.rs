@@ -230,7 +230,7 @@ fn set_run_value(command: &OsStr) -> io::Result<()> {
 pub fn fixed_drive_letters() -> Vec<u8> {
     let mut result = Vec::with_capacity(8);
     for drive in b'A'..=b'Z' {
-        let root = format!("{}:\\\", drive as char);
+        let root = format!("{}:{}", drive as char, std::path::MAIN_SEPARATOR);
         let root_wide = wide(&root);
         if unsafe { GetDriveTypeW(root_wide.as_ptr()) } == DRIVE_FIXED {
             result.push(drive);
