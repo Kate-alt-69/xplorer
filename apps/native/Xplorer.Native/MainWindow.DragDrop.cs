@@ -232,10 +232,11 @@ public sealed partial class MainWindow
         var allowed = e.AllowedOperations;
         var canCopy = (allowed & DataPackageOperation.Copy) != 0;
         var canMove = (allowed & DataPackageOperation.Move) != 0;
+        var modifiers = (int)e.Modifiers;
 
-        if ((e.Modifiers & DragDropModifiers.Control) != 0 && canCopy)
+        if ((modifiers & (int)DragDropModifiers.Control) != 0 && canCopy)
             return DataPackageOperation.Copy;
-        if ((e.Modifiers & DragDropModifiers.Shift) != 0 && canMove)
+        if ((modifiers & (int)DragDropModifiers.Shift) != 0 && canMove)
             return DataPackageOperation.Move;
 
         var requested = e.DataView.RequestedOperation;
