@@ -90,6 +90,7 @@ unsafe extern "system" {
     fn MoveFileExW(existing_file_name: *const u16, new_file_name: *const u16, flags: u32) -> i32;
     fn GetCurrentProcess() -> Handle;
     fn SetPriorityClass(process: Handle, priority_class: u32) -> i32;
+    fn SetProcessWorkingSetSize(process: Handle, minimum: usize, maximum: usize) -> i32;
 }
 
 #[link(name = "advapi32")]
@@ -221,6 +222,15 @@ pub fn enter_background_mode() {
         if SetPriorityClass(process, PROCESS_MODE_BACKGROUND_BEGIN) == 0 {
             let _ = SetPriorityClass(process, IDLE_PRIORITY_CLASS);
         }
+    }
+}
+
+/// Tell Windows that the worker has entered a long idle period and its resident code/data pages
+/// may be reclaimed immediately. Private committed state is preserved; pages fault back only when
+/// the next journal/index pass actually needs them.
+pub fn trim_idle_working_set() {
+    unsafe {
+        let _ = SetProcessWorkingSetSize(GetCurrentProcess(), usize::MAX, usize::MAX);
     }
 }
 

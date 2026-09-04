@@ -58,6 +58,7 @@ fn run_idle_probe() -> io::Result<i32> {
     };
     let stop_event = StopEvent::create_for_worker()?;
     platform::enter_background_mode();
+    platform::trim_idle_working_set();
     let _ = stop_event.wait(IDLE_PROBE_TIMEOUT)?;
     Ok(0)
 }
@@ -78,7 +79,11 @@ fn run_worker(once: bool) -> io::Result<i32> {
         reconcile(&data_dir, &mut state);
         state.save(&cursor_path)?;
 
-        if once || stop_event.wait(RECONCILE_INTERVAL)? {
+        if once {
+            return Ok(0);
+        }
+        platform::trim_idle_working_set();
+        if stop_event.wait(RECONCILE_INTERVAL)? {
             return Ok(0);
         }
     }

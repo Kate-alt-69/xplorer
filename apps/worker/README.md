@@ -1,6 +1,6 @@
 # Xplorer Rust host / background worker
 
-`xplorer.exe` is now the public low-resource Rust process for the native Xplorer rewrite. It has no WebView, network client, AI runtime, async runtime, logging framework, or tray icon.
+`xplorer.exe` is the public low-resource Rust process for the native Xplorer rewrite. It has no WebView, network client, AI runtime, async runtime, logging framework, or tray icon.
 
 ## One executable, two modes
 
@@ -12,6 +12,8 @@
 - `--idle-probe` starts the worker primitives without scanning a drive so CI can measure the real Windows process footprint.
 
 A named Windows mutex (`Local\\Xplorer.IndexWorker.v1`) guarantees one worker instance per user session. Release builds use the Windows GUI subsystem, so startup creates neither a console window nor a tray icon. The worker asks Windows for background scheduling and falls back to the idle priority class.
+
+Before a long 30-minute wait, the worker explicitly asks Windows to trim reclaimable resident pages from its working set. That preserves its tiny committed state but avoids keeping Rust/code/DLL pages resident while the worker is asleep; pages fault back normally when the next indexing pass wakes.
 
 The WinUI build copies the release Rust host beside `Xplorer.Native.exe`. Windows Shell verbs prefer the Rust `xplorer.exe`, so shell launches and worker startup share one stable public executable while the UI remains a native WinUI process behind it.
 
@@ -41,4 +43,4 @@ The next worker pass will replay USN records into a delta log so ordinary file c
 
 ## Memory target
 
-The design keeps only the current directory traversal state, one metadata record, small buffered writes, and at most 26 volume cursors alive. CI has an idle probe that reports both total working set and private committed memory without performing a drive scan. The optimization target remains under 1 MiB of Xplorer-owned/private idle memory; mapped Windows DLL/code pages are reported separately by the working-set metric.
+The design keeps only the current directory traversal state, one metadata record, small buffered writes, and at most 26 volume cursors alive. CI measures both total working set and private committed memory without scanning a drive. Before idle trimming was added, Windows CI measured **820 KiB private memory** and **4544 KiB total working set**; the private target was already below 1 MiB. The idle-trim pass now targets the resident working set too, while preserving normal page-fault behavior when the worker wakes.
