@@ -26,35 +26,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore native app
-        run: dotnet restore apps/native/Xplorer.Native/Xplorer.Native.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-
-      - name: Build native app
-        run: dotnet build apps/native/Xplorer.Native/Xplorer.Native.csproj -c Release --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-
-  build-worker-x64:
-    runs-on: windows-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Select stable Rust
         run: rustup default stable
 
-      - name: Build low-resource Rust worker
+      - name: Build Rust host and worker mode
         run: cargo build --manifest-path apps/worker/Cargo.toml --release
 
       - name: Measure idle worker memory
         shell: pwsh
         run: |
-          $exe = (Resolve-Path 'apps/worker/target/release/xplorer-worker.exe').Path
+          $exe = (Resolve-Path 'apps/worker/target/release/xplorer.exe').Path
           $process = Start-Process -FilePath $exe -ArgumentList '--idle-probe' -PassThru
           try {
             Start-Sleep -Milliseconds 750
@@ -72,3 +53,21 @@ jobs:
             }
             $process.Dispose()
           }
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore native app
+        run: dotnet restore apps/native/Xplorer.Native/Xplorer.Native.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
+
+      - name: Build native app with Rust host
+        run: dotnet build apps/native/Xplorer.Native/Xplorer.Native.csproj -c Release --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64
+
+      - name: Verify packaged Rust host
+        shell: pwsh
+        run: |
+          $host = Get-ChildItem 'apps/native/Xplorer.Native/bin/Release' -Filter 'xplorer.exe' -Recurse | Select-Object -First 1
+          if (-not $host) { throw 'xplorer.exe was not copied beside the WinUI output' }
+          Write-Host "Packaged host: $($host.FullName)"

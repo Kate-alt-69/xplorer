@@ -4,6 +4,7 @@ This directory contains the Windows-native Xplorer file manager.
 
 ## Direction
 
+- **Public process:** `xplorer.exe` is a tiny Rust host. Normal launches forward to the sibling WinUI UI; `xplorer.exe --service-worker` stays Rust-only and never loads .NET/WinUI.
 - **UI:** WinUI 3 / Windows App SDK. No HTML, React, Tailwind, WebView, AI chat, agents, LLM providers, Ollama, or MCP in the file-manager runtime.
 - **Windows support:** Windows 10 1809+ and Windows 11.
 - **Legacy code:** the old React/Tauri file-manager implementation is intentionally removed from this rewrite branch. Git history remains available when an old non-AI idea is worth salvaging.
@@ -20,18 +21,20 @@ This directory contains the Windows-native Xplorer file manager.
 - **Tabs:** one real native tab strip. Each tab owns its current path and independent Back/Forward history.
 - **Views:** dense Medium/Large tile views plus a native Details list. View + sort choices persist globally by default.
 - **Thumbnails:** generated lazily through Windows Storage thumbnail APIs for visible items only.
-- **Background indexing:** a separate zero-UI Rust worker under `apps/worker` owns slow metadata indexing and USN journal cursors without loading WinUI/.NET in the worker process.
+- **Background indexing:** Rust worker mode owns slow metadata indexing and USN cursors with no UI/tray process.
 
 ## Build
 
+The CI/package order is Rust first, then WinUI so the Rust public host is copied into the native output:
+
 ```powershell
+cargo build --manifest-path apps/worker/Cargo.toml --release
 cd apps/native/Xplorer.Native
 dotnet restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64
 dotnet build -c Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-dotnet run -c Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64
 ```
 
-The project targets .NET 10 and Windows App SDK 2.4.0. The background worker is built separately with stable Rust from `apps/worker`.
+The UI targets .NET 10 and Windows App SDK 2.4.0. The Rust release profile uses size optimization, LTO, one codegen unit, panic abort, and stripped symbols.
 
 ## Implemented native passes
 
@@ -54,10 +57,7 @@ The project targets .NET 10 and Windows App SDK 2.4.0. The background worker is 
 17. Native current-folder filename/type search, wired to `Ctrl+F` and the Search rail button, with no AI runtime.
 18. Native file drag/drop in both directions with Windows copy-vs-move semantics and Shell-backed operations.
 19. Safe XML theme loader with strict versioned fields, size limits, no DTD/external entities, layout clamps, and hot reload.
-
-## Rust background worker
-
-The first worker pass is dependency-free Rust + direct Win32 FFI. It provides a single-instance background mode, reversible HKCU startup registration, low-priority scheduling, fixed-drive metadata snapshots, a 24 KiB/s directory budget + 488 KiB/s metadata budget, persisted NTFS USN markers, and immediate stop signaling from Settings/uninstall. See `apps/worker/README.md` for the index format and current USN behavior.
+20. Rust-owned public `xplorer.exe` with the same executable dispatching `--service-worker`, startup registration, shell launches, and the WinUI frontend.
 
 ## XML themes
 
@@ -66,7 +66,7 @@ Selecting `Custom XML` creates/uses `%LOCALAPPDATA%\\Xplorer\\Themes\\default.xm
 ## Next native passes
 
 1. Replay USN journal records into incremental index deltas instead of using the journal only as a reconciliation trigger.
-2. Connect WinUI indexed/recursive search to the Rust worker through a tiny local IPC contract.
+2. Connect indexed/recursive search to the Rust-maintained snapshots through a tiny local contract.
 3. Add capability-based removable-device eject through Windows device APIs.
 4. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
 5. Restore window size/position alongside the existing tab session.

@@ -12,6 +12,7 @@ public static class ShellIntegrationService
     private const string VerbKeyName = "Xplorer.Native";
     private const string OwnershipValueName = "XplorerOwner";
     private const string OwnershipValue = "{8F7A8759-1D96-45A1-A7A4-1F516D9DC7B8}";
+    private const string HostExecutableName = "xplorer.exe";
 
     private static readonly ShellVerb[] Verbs =
     [
@@ -28,9 +29,7 @@ public static class ShellIntegrationService
 
     public static void Register()
     {
-        var executable = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(executable))
-            throw new InvalidOperationException("Unable to determine the Xplorer executable path.");
+        var executable = ResolvePublicExecutable();
 
         foreach (var verb in Verbs)
         {
@@ -67,6 +66,16 @@ public static class ShellIntegrationService
             candidate.Close();
             parent.DeleteSubKeyTree(VerbKeyName, throwOnMissingSubKey: false);
         }
+    }
+
+    private static string ResolvePublicExecutable()
+    {
+        var host = Path.Combine(AppContext.BaseDirectory, HostExecutableName);
+        if (File.Exists(host)) return host;
+
+        return Environment.ProcessPath is { Length: > 0 } processPath
+            ? processPath
+            : throw new InvalidOperationException("Unable to determine the Xplorer executable path.");
     }
 
     private sealed record ShellVerb(string ParentPath, string TargetToken);

@@ -1,20 +1,19 @@
-# Xplorer background worker
+# Xplorer Rust host / background worker
 
-`xplorer-worker` is the low-resource Rust sidecar for the native Xplorer rewrite. It has no UI, tray icon, WebView, network client, AI runtime, async runtime, or logging framework.
+`xplorer.exe` is now the public low-resource Rust process for the native Xplorer rewrite. It has no WebView, network client, AI runtime, async runtime, logging framework, or tray icon.
 
-## Current worker contract
+## One executable, two modes
 
-- `xplorer-worker.exe --service-worker` starts the headless worker.
-- `--register-startup` creates the reversible per-user `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` entry.
-- `--unregister-startup` removes only the Xplorer-owned startup value.
-- `--stop-service-worker` signals a named Windows event so a running worker exits immediately instead of waiting for its 30-minute sleep interval.
-- a named Windows mutex (`Local\\Xplorer.IndexWorker.v1`) guarantees one worker instance per user session.
-- release builds use the Windows GUI subsystem so Registry startup does not create a console window or tray icon.
-- the process asks Windows for background scheduling and falls back to the idle priority class.
+- normal `xplorer.exe` launch forwards the original arguments to the sibling `Xplorer.Native.exe` WinUI application and exits;
+- `xplorer.exe --service-worker` stays entirely inside Rust and never loads WinUI or .NET;
+- `--register-startup` creates the reversible per-user `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` entry pointing back to the same `xplorer.exe --service-worker`;
+- `--unregister-startup` removes only the Xplorer-owned startup value;
+- `--stop-service-worker` signals a named Windows event so a running worker exits immediately instead of waiting for its 30-minute sleep interval;
+- `--idle-probe` starts the worker primitives without scanning a drive so CI can measure the real Windows process footprint.
 
-The current WinUI shell is still a .NET executable, so this first pass is a separate Rust binary. The intended end state is a Rust-owned Xplorer process host where the same executable can dispatch `xplorer.exe --service-worker` without loading WinUI/.NET for worker mode.
+A named Windows mutex (`Local\\Xplorer.IndexWorker.v1`) guarantees one worker instance per user session. Release builds use the Windows GUI subsystem, so startup creates neither a console window nor a tray icon. The worker asks Windows for background scheduling and falls back to the idle priority class.
 
-The WinUI settings layer now expects `xplorer-worker.exe` beside the installed Xplorer executable. Enabling background indexing registers the worker and starts it; disabling indexing removes the Run value and signals the running worker to exit. Cleanup also removes the known Run value directly if the worker binary was manually deleted first.
+The WinUI build copies the release Rust host beside `Xplorer.Native.exe`. Windows Shell verbs prefer the Rust `xplorer.exe`, so shell launches and worker startup share one stable public executable while the UI remains a native WinUI process behind it.
 
 ## Indexing
 
@@ -24,7 +23,7 @@ The first pass writes one compact, streaming metadata snapshot per fixed drive u
 - `cursor.bin` stores the per-volume USN journal id + `NextUsn` cursor and the last completed scan time.
 - reparse-point directories are recorded but not traversed, preventing junction/symlink loops.
 - the Xplorer index directory excludes itself from the crawl.
-- snapshots are written to a temporary file and replaced with `MoveFileExW(..., MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)` after a successful scan.
+- snapshots are written to a temporary file and atomically replaced after a successful scan.
 
 The crawler uses two logical pacing budgets:
 
@@ -32,7 +31,7 @@ The crawler uses two logical pacing budgets:
 - metadata capture: **488 KiB/s** estimated metadata work;
 - combined policy target: **512 KiB/s**.
 
-This is intentionally a logical metadata-work throttle, not a promise that every kernel cache/page read is exactly byte-limited. The worker never reads ordinary file contents while building this index.
+This is intentionally a logical metadata-work throttle, not a claim that every cached kernel read can be byte-perfectly throttled. The worker never reads ordinary file contents while building the index.
 
 ## USN behavior
 
@@ -42,4 +41,4 @@ The next worker pass will replay USN records into a delta log so ordinary file c
 
 ## Memory target
 
-The design keeps only the current directory traversal state, one metadata record, small buffered writes, and at most 26 volume cursors alive. The optimization target is **under 1 MiB of worker-owned heap/state while idle**. Actual Task Manager working set/private commit also includes the PE image, thread stack, loader structures, and mapped Windows DLL pages and must be measured on a real Windows desktop before claiming a sub-1-MiB process footprint.
+The design keeps only the current directory traversal state, one metadata record, small buffered writes, and at most 26 volume cursors alive. CI has an idle probe that reports both total working set and private committed memory without performing a drive scan. The optimization target remains under 1 MiB of Xplorer-owned/private idle memory; mapped Windows DLL/code pages are reported separately by the working-set metric.

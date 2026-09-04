@@ -11,9 +11,14 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <XplorerHostPath>$(MSBuildThisFileDirectory)..\..\worker\target\release\xplorer.exe</XplorerHostPath>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
   </ItemGroup>
+
+  <Target Name="CopyXplorerRustHost" AfterTargets="Build" Condition="Exists('$(XplorerHostPath)')">
+    <Copy SourceFiles="$(XplorerHostPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 </Project>

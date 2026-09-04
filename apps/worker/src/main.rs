@@ -1,6 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 #[cfg(windows)]
+mod host;
+#[cfg(windows)]
 mod index;
 #[cfg(windows)]
 mod platform;
@@ -11,11 +13,33 @@ mod worker;
 
 #[cfg(windows)]
 fn main() {
-    let code = worker::run(std::env::args_os().skip(1)).unwrap_or(1);
-    std::process::exit(code);
+    let arguments: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    let result = if is_worker_command(&arguments) {
+        worker::run(arguments.into_iter())
+    } else {
+        host::launch_ui(arguments)
+    };
+
+    std::process::exit(result.unwrap_or(1));
+}
+
+#[cfg(windows)]
+fn is_worker_command(arguments: &[std::ffi::OsString]) -> bool {
+    arguments.iter().any(|argument| {
+        matches!(
+            argument.to_string_lossy().as_ref(),
+            "--service-worker"
+                | "--register-startup"
+                | "--unregister-startup"
+                | "--stop-service-worker"
+                | "--scan-once"
+                | "--once"
+                | "--idle-probe"
+        )
+    })
 }
 
 #[cfg(not(windows))]
 fn main() {
-    eprintln!("xplorer-worker is Windows-only");
+    eprintln!("Xplorer is Windows-only");
 }
