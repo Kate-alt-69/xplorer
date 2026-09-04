@@ -47,6 +47,7 @@ public sealed partial class MainWindow
         InstallAsyncAccelerator(VirtualKey.V, VirtualKeyModifiers.Control, PasteFromShellClipboardAsync);
         InstallAsyncAccelerator(VirtualKey.Delete, VirtualKeyModifiers.None, DeleteSelectionAsync);
         InstallAccelerator(VirtualKey.A, VirtualKeyModifiers.Control, SelectAllFiles);
+        InstallAsyncAccelerator(VirtualKey.F2, VirtualKeyModifiers.None, RenameSelectionAsync);
     }
 
     private IReadOnlyList<FileSystemItem> GetSelectedOperationItems()
