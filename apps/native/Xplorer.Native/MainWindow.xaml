@@ -176,7 +176,7 @@
                     SelectionMode="Extended"
                     IsMultiSelectCheckBoxEnabled="False"
                     DoubleTapped="FileList_DoubleTapped"
-                    RightTapped="FileList_RightTapped"
+                    RightTapped="FileList_MultiRightTapped"
                     SelectionChanged="FileList_SelectionChanged"
                     ContainerContentChanging="FileList_ContainerContentChanging">
                     <GridView.ItemContainerStyle>
@@ -195,7 +195,7 @@
                     ItemsSource="{x:Bind Items}"
                     SelectionMode="Extended"
                     DoubleTapped="FileList_DoubleTapped"
-                    RightTapped="FileList_RightTapped"
+                    RightTapped="FileList_MultiRightTapped"
                     SelectionChanged="FileList_SelectionChanged"
                     ContainerContentChanging="FileList_ContainerContentChanging">
                     <ListView.Header>

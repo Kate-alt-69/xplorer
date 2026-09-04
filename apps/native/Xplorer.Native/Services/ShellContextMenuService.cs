@@ -46,9 +46,34 @@ public sealed class ShellContextMenuService
         _subclassProc = WindowSubclassProc;
     }
 
-    public void ShowForPath(nint ownerHwnd, string path)
+    public void ShowForPath(nint ownerHwnd, string path) => ShowForPaths(ownerHwnd, [path]);
+
+    /// <summary>
+    /// Shows one Windows Shell context menu for the entire selection, just like Explorer. Shell
+    /// extensions therefore receive every selected child PIDL instead of only the item that was
+    /// right-clicked. Selections must share a parent folder, which is naturally true for one file view.
+    /// </summary>
+    public void ShowForPaths(nint ownerHwnd, IReadOnlyCollection<string> paths)
     {
-        nint absolutePidl = 0;
+        var normalized = paths
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(Path.GetFullPath)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (normalized.Length == 0) return;
+
+        var firstParent = Path.GetDirectoryName(normalized[0]);
+        if (firstParent is null || normalized.Any(path =>
+                !string.Equals(Path.GetDirectoryName(path), firstParent, StringComparison.OrdinalIgnoreCase)))
+        {
+            // A shell IContextMenu selection belongs to one parent IShellFolder. A normal Xplorer
+            // selection can never cross folders, but fail safely if a caller ever supplies one.
+            normalized = [normalized[0]];
+        }
+
+        var absolutePidls = new List<nint>(normalized.Length);
+        var childPidls = new nint[normalized.Length];
         nint shellFolderPtr = 0;
         nint contextMenuPtr = 0;
         nint menu = 0;
@@ -57,17 +82,49 @@ public sealed class ShellContextMenuService
 
         try
         {
-            Marshal.ThrowExceptionForHR(SHParseDisplayName(path, 0, out absolutePidl, 0, out _));
+            for (var index = 0; index < normalized.Length; index++)
+            {
+                Marshal.ThrowExceptionForHR(
+                    SHParseDisplayName(normalized[index], 0, out var absolutePidl, 0, out _));
+                absolutePidls.Add(absolutePidl);
 
-            var shellFolderIid = IidShellFolder;
-            Marshal.ThrowExceptionForHR(
-                SHBindToParent(absolutePidl, ref shellFolderIid, out shellFolderPtr, out var childPidl));
+                var shellFolderIid = IidShellFolder;
+                var bindHr = SHBindToParent(
+                    absolutePidl,
+                    ref shellFolderIid,
+                    out var boundFolderPtr,
+                    out var childPidl);
+                if (bindHr < 0)
+                {
+                    if (boundFolderPtr != 0) Marshal.Release(boundFolderPtr);
+                    Marshal.ThrowExceptionForHR(bindHr);
+                }
 
-            shellFolder = (IShellFolder)Marshal.GetObjectForIUnknown(shellFolderPtr);
-            var children = new[] { childPidl };
+                childPidls[index] = childPidl;
+                if (index == 0)
+                {
+                    shellFolderPtr = boundFolderPtr;
+                    shellFolder = (IShellFolder)Marshal.GetObjectForIUnknown(shellFolderPtr);
+                }
+                else if (boundFolderPtr != 0)
+                {
+                    // Only the first parent interface is required. The relative child PIDL remains
+                    // valid because its containing absolute PIDL stays allocated until menu cleanup.
+                    Marshal.Release(boundFolderPtr);
+                }
+            }
+
+            if (shellFolder is null) return;
+
             var contextMenuIid = IidContextMenu;
             Marshal.ThrowExceptionForHR(
-                shellFolder.GetUIObjectOf(ownerHwnd, 1, children, ref contextMenuIid, 0, out contextMenuPtr));
+                shellFolder.GetUIObjectOf(
+                    ownerHwnd,
+                    (uint)childPidls.Length,
+                    childPidls,
+                    ref contextMenuIid,
+                    0,
+                    out contextMenuPtr));
 
             contextMenu = (IContextMenu)Marshal.GetObjectForIUnknown(contextMenuPtr);
             menu = CreatePopupMenu();
@@ -89,7 +146,10 @@ public sealed class ShellContextMenuService
             if (shellFolder is not null) Marshal.FinalReleaseComObject(shellFolder);
             if (contextMenuPtr != 0) Marshal.Release(contextMenuPtr);
             if (shellFolderPtr != 0) Marshal.Release(shellFolderPtr);
-            if (absolutePidl != 0) CoTaskMemFree(absolutePidl);
+            foreach (var absolutePidl in absolutePidls)
+            {
+                if (absolutePidl != 0) CoTaskMemFree(absolutePidl);
+            }
         }
     }
 
