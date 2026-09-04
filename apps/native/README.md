@@ -9,6 +9,8 @@ This directory contains the Windows-native Xplorer file manager.
 - **Legacy code:** the old React/Tauri file-manager implementation is intentionally removed from this rewrite branch. Git history remains available when an old non-AI idea is worth salvaging.
 - **Context menus:** file/folder menus are sourced from the Windows Shell. `IContextMenu2` / `IContextMenu3` messages are forwarded so dynamic and owner-drawn third-party submenus can work instead of being redrawn by Xplorer.
 - **Folder background RMB:** Xplorer owns only view-level commands such as View / Sort / Refresh; Windows supplies the registered folder-background verbs and shell extensions.
+- **File operations:** copy/move/delete use the modern Windows `IFileOperation` stack so Windows owns native progress, cancellation, elevation, conflict prompts, apply-to-all behavior, undo records, and Recycle Bin semantics.
+- **Search:** current-folder search is deterministic filename/type matching with no model, embeddings, network call, or background AI runtime.
 - **Settings:** a compact native `ContentDialog`, with global view/sort settings by default and optional per-folder overrides.
 - **Terminal:** launch through Windows Terminal (`wt.exe`). The default Windows Terminal profile is used unless a custom command is configured.
 - **Drives:** fixed disks/partitions never expose Eject. Device-eject support must be capability-based and conservative.
@@ -46,12 +48,14 @@ The project targets .NET 10 and Windows App SDK 2.4.0.
 13. Native tab-session restore, including the active tab and Back/Forward stacks.
 14. Explorer-style New folder command with `Ctrl+Shift+N` and immediate rename.
 15. Explorer keyboard navigation: `Ctrl+L`, `Ctrl+T`, `Ctrl+W`, `F5`, `Alt+Left`, `Alt+Right`, and `Alt+Up`.
+16. Modern `IFileOperation` copy/move/delete backend with native Windows progress, cancellation, conflict handling, elevation, undo, and Recycle Bin behavior.
+17. Native current-folder filename/type search, wired to `Ctrl+F` and the Search rail button, with no AI runtime.
 
 ## Next native passes
 
-1. Move the file-operation backend from legacy `SHFileOperation` to `IFileOperation` for richer per-item progress, cancellation, and conflict reporting.
-2. Add native drag/drop in both directions while preserving Windows copy-vs-move semantics.
-3. Add capability-based removable-device eject through Windows device APIs.
-4. Add fast native search/indexing without coupling the file manager to an AI runtime.
-5. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
-6. Restore window size/position alongside the existing tab session.
+1. Add native drag/drop in both directions while preserving Windows copy-vs-move semantics.
+2. Add capability-based removable-device eject through Windows device APIs.
+3. Add optional indexed/recursive native search while keeping search fully deterministic and local.
+4. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
+5. Restore window size/position alongside the existing tab session.
+6. Add richer operation-status integration without replacing Windows-owned conflict/progress UI.
