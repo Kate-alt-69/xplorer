@@ -12,6 +12,7 @@ This directory contains the Windows-native Xplorer file manager.
 - **File operations:** copy/move/delete use the modern Windows `IFileOperation` stack so Windows owns native progress, cancellation, elevation, conflict prompts, apply-to-all behavior, undo records, and Recycle Bin semantics.
 - **Search:** current-folder search is deterministic filename/type matching with no model, embeddings, network call, or background AI runtime.
 - **Settings:** a compact native `ContentDialog`, with global view/sort settings by default and optional per-folder overrides.
+- **Themes:** optional hot-reloaded XML themes use a strict data-only Xplorer schema, not executable XAML.
 - **Terminal:** launch through Windows Terminal (`wt.exe`). The default Windows Terminal profile is used unless a custom command is configured.
 - **Drives:** fixed disks/partitions never expose Eject. Device-eject support must be capability-based and conservative.
 - **File tree:** intentionally removed from the native sidebar.
@@ -52,17 +53,21 @@ The project targets .NET 10 and Windows App SDK 2.4.0. The background worker is 
 16. Modern `IFileOperation` copy/move/delete backend with native Windows progress, cancellation, conflict handling, elevation, undo, and Recycle Bin behavior.
 17. Native current-folder filename/type search, wired to `Ctrl+F` and the Search rail button, with no AI runtime.
 18. Native file drag/drop in both directions with Windows copy-vs-move semantics and Shell-backed operations.
+19. Safe XML theme loader with strict versioned fields, size limits, no DTD/external entities, layout clamps, and hot reload.
 
 ## Rust background worker
 
-The first worker pass is dependency-free Rust + direct Win32 FFI. It provides a single-instance background mode, reversible HKCU startup registration, low-priority scheduling, fixed-drive metadata snapshots, a 24 KiB/s directory budget + 488 KiB/s metadata budget, and persisted NTFS USN markers. See `apps/worker/README.md` for the index format and current USN behavior.
+The first worker pass is dependency-free Rust + direct Win32 FFI. It provides a single-instance background mode, reversible HKCU startup registration, low-priority scheduling, fixed-drive metadata snapshots, a 24 KiB/s directory budget + 488 KiB/s metadata budget, persisted NTFS USN markers, and immediate stop signaling from Settings/uninstall. See `apps/worker/README.md` for the index format and current USN behavior.
+
+## XML themes
+
+Selecting `Custom XML` creates/uses `%LOCALAPPDATA%\\Xplorer\\Themes\\default.xml`. Theme files are capped at 64 KiB, cannot leave that folder, reject unknown fields, prohibit DTD/external entity processing, and only expose approved colors/layout/tile dimensions. Editing the active XML file is hot-reloaded while Xplorer is open.
 
 ## Next native passes
 
 1. Replay USN journal records into incremental index deltas instead of using the journal only as a reconciliation trigger.
 2. Connect WinUI indexed/recursive search to the Rust worker through a tiny local IPC contract.
 3. Add capability-based removable-device eject through Windows device APIs.
-4. Add safe XML theme files that map only approved fields into WinUI resources.
-5. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
-6. Restore window size/position alongside the existing tab session.
-7. Add richer operation-status integration without replacing Windows-owned conflict/progress UI.
+4. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
+5. Restore window size/position alongside the existing tab session.
+6. Add richer operation-status integration without replacing Windows-owned conflict/progress UI.

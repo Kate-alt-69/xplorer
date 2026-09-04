@@ -12,8 +12,11 @@ public sealed partial class SettingsDialog : ContentDialog
         InitializeComponent();
         _settingsService = settingsService;
 
+        ThemeService.EnsureDefaultThemeFile();
         var settings = _settingsService.Current;
         SelectComboItem(ThemeComboBox, settings.Theme);
+        ThemeFileBox.Text = settings.ThemeFileName;
+        ThemeFolderText.Text = $"Theme folder: {ThemeService.ThemeDirectory}";
         SelectComboItem(ViewModeComboBox, settings.DefaultViewMode);
         SelectComboItem(SortModeComboBox, settings.DefaultSortMode);
         ShowHiddenSwitch.IsOn = settings.ShowHiddenFiles;
@@ -34,7 +37,18 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             IntegrationStatusText.Text = string.Empty;
             var settings = _settingsService.Current;
-            settings.Theme = ReadComboItem(ThemeComboBox, "System");
+            var selectedTheme = ReadComboItem(ThemeComboBox, "System");
+            var selectedThemeFile = string.IsNullOrWhiteSpace(ThemeFileBox.Text)
+                ? "default.xml"
+                : ThemeFileBox.Text.Trim();
+
+            if (string.Equals(selectedTheme, "Custom XML", StringComparison.OrdinalIgnoreCase))
+                _ = ThemeService.Load(selectedThemeFile);
+            else
+                _ = ThemeService.ResolveThemePath(selectedThemeFile);
+
+            settings.Theme = selectedTheme;
+            settings.ThemeFileName = selectedThemeFile;
             settings.DefaultViewMode = ReadComboItem(ViewModeComboBox, "Medium");
             settings.DefaultSortMode = ReadComboItem(SortModeComboBox, "Name");
             settings.ShowHiddenFiles = ShowHiddenSwitch.IsOn;
@@ -52,7 +66,7 @@ public sealed partial class SettingsDialog : ContentDialog
         catch (Exception ex)
         {
             args.Cancel = true;
-            IntegrationStatusText.Text = $"Windows integration could not be updated: {ex.Message}";
+            IntegrationStatusText.Text = $"Settings could not be updated: {ex.Message}";
         }
         finally
         {

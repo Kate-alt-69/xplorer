@@ -3,6 +3,7 @@ namespace Xplorer.Native.Models;
 public sealed class XplorerSettings
 {
     public string Theme { get; set; } = "System";
+    public string ThemeFileName { get; set; } = "default.xml";
     public string DefaultViewMode { get; set; } = "Medium";
     public string DefaultSortMode { get; set; } = "Name";
     public bool ShowHiddenFiles { get; set; }

@@ -16,7 +16,20 @@
                             <ComboBoxItem Content="System" />
                             <ComboBoxItem Content="Dark" />
                             <ComboBoxItem Content="Light" />
+                            <ComboBoxItem Content="Custom XML" />
                         </ComboBox>
+                        <TextBox
+                            x:Name="ThemeFileBox"
+                            Header="XML theme file"
+                            PlaceholderText="default.xml" />
+                        <TextBlock
+                            x:Name="ThemeFolderText"
+                            Opacity="0.7"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Text="Custom XML themes use Xplorer's safe data-only schema. They cannot instantiate XAML controls or execute code, and changes are hot-reloaded while Xplorer is open."
+                            Opacity="0.7"
+                            TextWrapping="Wrap" />
                         <ToggleSwitch x:Name="ShowHiddenSwitch" Header="Show hidden files" OnContent="On" OffContent="Off" />
                         <ToggleSwitch x:Name="ShowExtensionsSwitch" Header="Show file extensions" OnContent="On" OffContent="Off" />
                     </StackPanel>

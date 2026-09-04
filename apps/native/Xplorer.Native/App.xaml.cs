@@ -44,6 +44,7 @@ public partial class App : Application
 
         var initialFolder = ParseInitialFolder(rawArgument);
         var mainWindow = new MainWindow(initialFolder);
+        mainWindow.InitializeXmlThemeSupport();
         if (initialFolder is null)
             mainWindow.RestorePreviousSession();
 
