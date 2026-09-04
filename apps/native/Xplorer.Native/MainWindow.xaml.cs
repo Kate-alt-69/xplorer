@@ -31,6 +31,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        InitializeNativeFileOperations();
         ApplyTheme();
         RefreshDrives();
         AddTab(_homePath, select: true);
