@@ -17,6 +17,7 @@ public sealed partial class MainWindow
         InstallAsyncAccelerator(VirtualKey.Right, VirtualKeyModifiers.Menu, NavigateForwardFromKeyboardAsync);
         InstallAsyncAccelerator(VirtualKey.Up, VirtualKeyModifiers.Menu, NavigateUpFromKeyboardAsync);
         InitializeNativeSearch();
+        InitializeNativeDragDrop();
     }
 
     private void FocusAddressBar()
