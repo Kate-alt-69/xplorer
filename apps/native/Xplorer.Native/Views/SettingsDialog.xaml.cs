@@ -22,6 +22,7 @@ public sealed partial class SettingsDialog : ContentDialog
         TerminalCommandBox.Text = settings.TerminalCommand;
         TerminalArgumentsBox.Text = settings.TerminalArguments;
         WindowsShellMenuSwitch.IsOn = settings.WindowsShellContextMenu;
+        BackgroundIndexingSwitch.IsOn = settings.BackgroundIndexing;
 
         PrimaryButtonClick += OnPrimaryButtonClick;
     }
@@ -42,8 +43,10 @@ public sealed partial class SettingsDialog : ContentDialog
             settings.TerminalCommand = TerminalCommandBox.Text.Trim();
             settings.TerminalArguments = TerminalArgumentsBox.Text.Trim();
             settings.WindowsShellContextMenu = WindowsShellMenuSwitch.IsOn;
+            settings.BackgroundIndexing = BackgroundIndexingSwitch.IsOn;
 
             ShellIntegrationService.Apply(settings.WindowsShellContextMenu);
+            IndexWorkerService.Apply(settings.BackgroundIndexing);
             await _settingsService.SaveAsync();
         }
         catch (Exception ex)

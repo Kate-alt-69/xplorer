@@ -11,6 +11,7 @@ public sealed class XplorerSettings
     public string TerminalCommand { get; set; } = string.Empty;
     public string TerminalArguments { get; set; } = string.Empty;
     public bool WindowsShellContextMenu { get; set; }
+    public bool BackgroundIndexing { get; set; } = true;
     public Dictionary<string, FolderViewSettings> FolderOverrides { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
     public ExplorerSessionSettings Session { get; set; } = new();

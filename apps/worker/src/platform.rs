@@ -5,6 +5,7 @@ use std::{
     os::windows::ffi::OsStrExt,
     path::Path,
     ptr::{null, null_mut},
+    time::Duration,
 };
 
 type Handle = *mut c_void;
@@ -26,6 +27,12 @@ const MOVEFILE_REPLACE_EXISTING: u32 = 0x0000_0001;
 const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
 const PROCESS_MODE_BACKGROUND_BEGIN: u32 = 0x0010_0000;
 const IDLE_PRIORITY_CLASS: u32 = 0x0000_0040;
+const EVENT_MODIFY_STATE: u32 = 0x0002;
+const SYNCHRONIZE: u32 = 0x0010_0000;
+const WAIT_OBJECT_0: u32 = 0;
+const WAIT_TIMEOUT: u32 = 258;
+const WAIT_FAILED: u32 = 0xffff_ffff;
+const STOP_EVENT_NAME: &str = "Local\\Xplorer.IndexWorker.Stop.v1";
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -50,6 +57,16 @@ unsafe extern "system" {
     fn CreateMutexW(attributes: *const c_void, initial_owner: i32, name: *const u16) -> Handle;
     fn GetLastError() -> u32;
     fn CloseHandle(handle: Handle) -> i32;
+    fn CreateEventW(
+        event_attributes: *const c_void,
+        manual_reset: i32,
+        initial_state: i32,
+        name: *const u16,
+    ) -> Handle;
+    fn OpenEventW(desired_access: u32, inherit_handle: i32, name: *const u16) -> Handle;
+    fn SetEvent(event: Handle) -> i32;
+    fn ResetEvent(event: Handle) -> i32;
+    fn WaitForSingleObject(handle: Handle, milliseconds: u32) -> u32;
     fn GetDriveTypeW(root_path_name: *const u16) -> u32;
     fn CreateFileW(
         file_name: *const u16,
@@ -127,6 +144,74 @@ impl Drop for SingleInstanceMutex {
         unsafe {
             CloseHandle(self.0);
         }
+    }
+}
+
+pub struct StopEvent(Handle);
+
+impl StopEvent {
+    pub fn create_for_worker() -> io::Result<Self> {
+        let name = wide(STOP_EVENT_NAME);
+        let handle = unsafe { CreateEventW(null(), 1, 0, name.as_ptr()) };
+        if handle.is_null() {
+            return Err(io::Error::last_os_error());
+        }
+
+        if unsafe { ResetEvent(handle) } == 0 {
+            let error = io::Error::last_os_error();
+            unsafe {
+                CloseHandle(handle);
+            }
+            return Err(error);
+        }
+
+        Ok(Self(handle))
+    }
+
+    pub fn wait(&self, timeout: Duration) -> io::Result<bool> {
+        let milliseconds = timeout.as_millis().min(u32::MAX as u128) as u32;
+        match unsafe { WaitForSingleObject(self.0, milliseconds) } {
+            WAIT_OBJECT_0 => Ok(true),
+            WAIT_TIMEOUT => Ok(false),
+            WAIT_FAILED => Err(io::Error::last_os_error()),
+            other => Err(io::Error::other(format!("unexpected wait result {other}"))),
+        }
+    }
+}
+
+impl Drop for StopEvent {
+    fn drop(&mut self) {
+        unsafe {
+            CloseHandle(self.0);
+        }
+    }
+}
+
+pub fn signal_stop_event() -> io::Result<bool> {
+    let name = wide(STOP_EVENT_NAME);
+    let handle = unsafe { OpenEventW(EVENT_MODIFY_STATE | SYNCHRONIZE, 0, name.as_ptr()) };
+    if handle.is_null() {
+        let error = unsafe { GetLastError() };
+        if error == ERROR_FILE_NOT_FOUND as u32 {
+            return Ok(false);
+        }
+        return Err(io::Error::from_raw_os_error(error as i32));
+    }
+
+    let ok = unsafe { SetEvent(handle) };
+    let error = if ok == 0 {
+        Some(io::Error::last_os_error())
+    } else {
+        None
+    };
+    unsafe {
+        CloseHandle(handle);
+    }
+
+    if let Some(error) = error {
+        Err(error)
+    } else {
+        Ok(true)
     }
 }
 

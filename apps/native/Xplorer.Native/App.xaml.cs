@@ -20,10 +20,25 @@ public partial class App : Application
             try
             {
                 ShellIntegrationService.Unregister();
+                IndexWorkerService.Disable();
             }
             finally
             {
                 Environment.Exit(0);
+            }
+        }
+
+        var settings = new SettingsService();
+        if (settings.Current.BackgroundIndexing)
+        {
+            try
+            {
+                IndexWorkerService.EnsureEnabled();
+            }
+            catch
+            {
+                // A development build may not have the Rust sidecar beside it yet. Missing worker
+                // integration must never prevent the file manager itself from launching.
             }
         }
 

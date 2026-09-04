@@ -7,11 +7,14 @@
 - `xplorer-worker.exe --service-worker` starts the headless worker.
 - `--register-startup` creates the reversible per-user `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` entry.
 - `--unregister-startup` removes only the Xplorer-owned startup value.
+- `--stop-service-worker` signals a named Windows event so a running worker exits immediately instead of waiting for its 30-minute sleep interval.
 - a named Windows mutex (`Local\\Xplorer.IndexWorker.v1`) guarantees one worker instance per user session.
 - release builds use the Windows GUI subsystem so Registry startup does not create a console window or tray icon.
 - the process asks Windows for background scheduling and falls back to the idle priority class.
 
 The current WinUI shell is still a .NET executable, so this first pass is a separate Rust binary. The intended end state is a Rust-owned Xplorer process host where the same executable can dispatch `xplorer.exe --service-worker` without loading WinUI/.NET for worker mode.
+
+The WinUI settings layer now expects `xplorer-worker.exe` beside the installed Xplorer executable. Enabling background indexing registers the worker and starts it; disabling indexing removes the Run value and signals the running worker to exit. Cleanup also removes the known Run value directly if the worker binary was manually deleted first.
 
 ## Indexing
 

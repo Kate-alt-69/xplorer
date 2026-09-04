@@ -4,13 +4,12 @@ use std::{
     fs,
     io,
     path::{Path, PathBuf},
-    thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use crate::{
     index,
-    platform::{self, SingleInstanceMutex, UsnMarker},
+    platform::{self, SingleInstanceMutex, StopEvent, UsnMarker},
     state::{CursorState, VolumeCursor},
 };
 
@@ -34,6 +33,11 @@ where
         return Ok(0);
     }
 
+    if arguments.iter().any(|value| value == "--stop-service-worker") {
+        let _ = platform::signal_stop_event()?;
+        return Ok(0);
+    }
+
     let service_worker = arguments.iter().any(|value| value == "--service-worker");
     let once = arguments.iter().any(|value| value == "--once" || value == "--scan-once");
     if !service_worker && !once {
@@ -48,6 +52,7 @@ fn run_worker(once: bool) -> io::Result<i32> {
         return Ok(0);
     };
 
+    let stop_event = StopEvent::create_for_worker()?;
     platform::enter_background_mode();
     let data_dir = data_directory()?;
     fs::create_dir_all(&data_dir)?;
@@ -58,10 +63,9 @@ fn run_worker(once: bool) -> io::Result<i32> {
         reconcile(&data_dir, &mut state);
         state.save(&cursor_path)?;
 
-        if once {
+        if once || stop_event.wait(RECONCILE_INTERVAL)? {
             return Ok(0);
         }
-        thread::sleep(RECONCILE_INTERVAL);
     }
 }
 
