@@ -20,6 +20,14 @@ public sealed partial class MainWindow
         var commandBar = Root.Children.OfType<CommandBar>().FirstOrDefault();
         if (commandBar is not null)
         {
+            var newFolderButton = new AppBarButton
+            {
+                Label = "New folder",
+                Icon = new FontIcon { Glyph = "\uE710" },
+            };
+            newFolderButton.Click += async (_, _) => await CreateNewFolderAsync();
+            commandBar.PrimaryCommands.Insert(0, newFolderButton);
+
             foreach (var command in commandBar.PrimaryCommands)
             {
                 if (command is not AppBarButton button) continue;
@@ -48,6 +56,10 @@ public sealed partial class MainWindow
         InstallAsyncAccelerator(VirtualKey.Delete, VirtualKeyModifiers.None, DeleteSelectionAsync);
         InstallAccelerator(VirtualKey.A, VirtualKeyModifiers.Control, SelectAllFiles);
         InstallAsyncAccelerator(VirtualKey.F2, VirtualKeyModifiers.None, RenameSelectionAsync);
+        InstallAsyncAccelerator(
+            VirtualKey.N,
+            VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
+            CreateNewFolderAsync);
     }
 
     private IReadOnlyList<FileSystemItem> GetSelectedOperationItems()
@@ -56,6 +68,50 @@ public sealed partial class MainWindow
             ? (ListViewBase)FileDetails
             : FileGrid;
         return list.SelectedItems.OfType<FileSystemItem>().ToArray();
+    }
+
+    private async Task CreateNewFolderAsync()
+    {
+        if (IsTextInputFocused()) return;
+
+        try
+        {
+            var folderPath = GetUniqueNewFolderPath(CurrentPath);
+            Directory.CreateDirectory(folderPath);
+            await NavigateAsync(CurrentPath, pushHistory: false);
+
+            var created = Items.FirstOrDefault(item =>
+                item.IsDirectory &&
+                string.Equals(item.FullPath, folderPath, StringComparison.OrdinalIgnoreCase));
+            if (created is not null)
+            {
+                if (FileDetails.Visibility == Visibility.Visible)
+                    FileDetails.SelectedItem = created;
+                else
+                    FileGrid.SelectedItem = created;
+            }
+
+            StatusText.Text = $"Created {Path.GetFileName(folderPath)}";
+            await RenameSelectionAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Could not create folder: {ex.Message}";
+        }
+    }
+
+    private static string GetUniqueNewFolderPath(string parent)
+    {
+        var candidate = Path.Combine(parent, "New folder");
+        if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+
+        for (var suffix = 2; suffix < int.MaxValue; suffix++)
+        {
+            candidate = Path.Combine(parent, $"New folder ({suffix})");
+            if (!File.Exists(candidate) && !Directory.Exists(candidate)) return candidate;
+        }
+
+        throw new IOException("No available name for a new folder.");
     }
 
     private void CopySelectionToClipboard(bool move)
