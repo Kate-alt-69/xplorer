@@ -27,8 +27,13 @@ public partial class App : Application
             }
         }
 
-        var mainWindow = new MainWindow(ParseInitialFolder(rawArgument));
+        var initialFolder = ParseInitialFolder(rawArgument);
+        var mainWindow = new MainWindow(initialFolder);
+        if (initialFolder is null)
+            mainWindow.RestorePreviousSession();
+
         _window = mainWindow;
+        _window.Closed += (_, _) => mainWindow.PersistSession();
         _window.Activate();
     }
 

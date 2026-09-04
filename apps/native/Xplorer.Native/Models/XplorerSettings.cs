@@ -13,6 +13,7 @@ public sealed class XplorerSettings
     public bool WindowsShellContextMenu { get; set; }
     public Dictionary<string, FolderViewSettings> FolderOverrides { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+    public ExplorerSessionSettings Session { get; set; } = new();
 }
 
 public sealed class FolderViewSettings

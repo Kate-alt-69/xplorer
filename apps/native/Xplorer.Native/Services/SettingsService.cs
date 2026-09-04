@@ -104,6 +104,14 @@ public sealed class SettingsService
         return created;
     }
 
+    public void Save()
+    {
+        var tempPath = _settingsPath + ".tmp";
+        var json = JsonSerializer.Serialize(Current, JsonOptions);
+        File.WriteAllText(tempPath, json);
+        File.Move(tempPath, _settingsPath, overwrite: true);
+    }
+
     public async Task SaveAsync()
     {
         var tempPath = _settingsPath + ".tmp";
