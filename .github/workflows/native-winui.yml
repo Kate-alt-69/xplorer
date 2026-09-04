@@ -1,4 +1,4 @@
-name: Native WinUI
+name: Native Windows Stack
 
 on:
   push:
@@ -6,10 +6,12 @@ on:
       - rewrite/native-winui
     paths:
       - 'apps/native/**'
+      - 'apps/worker/**'
       - '.github/workflows/native-winui.yml'
   pull_request:
     paths:
       - 'apps/native/**'
+      - 'apps/worker/**'
       - '.github/workflows/native-winui.yml'
 
 permissions:
@@ -34,3 +36,17 @@ jobs:
 
       - name: Build native app
         run: dotnet build apps/native/Xplorer.Native/Xplorer.Native.csproj -c Release --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64
+
+  build-worker-x64:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select stable Rust
+        run: rustup default stable
+
+      - name: Build low-resource Rust worker
+        run: cargo build --manifest-path apps/worker/Cargo.toml --release

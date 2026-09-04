@@ -19,6 +19,7 @@ This directory contains the Windows-native Xplorer file manager.
 - **Tabs:** one real native tab strip. Each tab owns its current path and independent Back/Forward history.
 - **Views:** dense Medium/Large tile views plus a native Details list. View + sort choices persist globally by default.
 - **Thumbnails:** generated lazily through Windows Storage thumbnail APIs for visible items only.
+- **Background indexing:** a separate zero-UI Rust worker under `apps/worker` owns slow metadata indexing and USN journal cursors without loading WinUI/.NET in the worker process.
 
 ## Build
 
@@ -29,7 +30,7 @@ dotnet build -c Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64
 dotnet run -c Debug -p:Platform=x64 -p:RuntimeIdentifier=win-x64
 ```
 
-The project targets .NET 10 and Windows App SDK 2.4.0.
+The project targets .NET 10 and Windows App SDK 2.4.0. The background worker is built separately with stable Rust from `apps/worker`.
 
 ## Implemented native passes
 
@@ -50,12 +51,18 @@ The project targets .NET 10 and Windows App SDK 2.4.0.
 15. Explorer keyboard navigation: `Ctrl+L`, `Ctrl+T`, `Ctrl+W`, `F5`, `Alt+Left`, `Alt+Right`, and `Alt+Up`.
 16. Modern `IFileOperation` copy/move/delete backend with native Windows progress, cancellation, conflict handling, elevation, undo, and Recycle Bin behavior.
 17. Native current-folder filename/type search, wired to `Ctrl+F` and the Search rail button, with no AI runtime.
+18. Native file drag/drop in both directions with Windows copy-vs-move semantics and Shell-backed operations.
+
+## Rust background worker
+
+The first worker pass is dependency-free Rust + direct Win32 FFI. It provides a single-instance background mode, reversible HKCU startup registration, low-priority scheduling, fixed-drive metadata snapshots, a 24 KiB/s directory budget + 488 KiB/s metadata budget, and persisted NTFS USN markers. See `apps/worker/README.md` for the index format and current USN behavior.
 
 ## Next native passes
 
-1. Add native drag/drop in both directions while preserving Windows copy-vs-move semantics.
-2. Add capability-based removable-device eject through Windows device APIs.
-3. Add optional indexed/recursive native search while keeping search fully deterministic and local.
-4. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
-5. Restore window size/position alongside the existing tab session.
-6. Add richer operation-status integration without replacing Windows-owned conflict/progress UI.
+1. Replay USN journal records into incremental index deltas instead of using the journal only as a reconciliation trigger.
+2. Connect WinUI indexed/recursive search to the Rust worker through a tiny local IPC contract.
+3. Add capability-based removable-device eject through Windows device APIs.
+4. Add safe XML theme files that map only approved fields into WinUI resources.
+5. Finish Size Map as a native disk-usage visualization rather than a placeholder button.
+6. Restore window size/position alongside the existing tab session.
+7. Add richer operation-status integration without replacing Windows-owned conflict/progress UI.
