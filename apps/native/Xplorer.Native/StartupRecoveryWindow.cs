@@ -33,11 +33,13 @@ public sealed class StartupRecoveryWindow : Window
         };
         root.Children.Add(stack);
 
+        // Keep the mandatory recovery surface to the oldest/core WinUI properties only. This
+        // window exists precisely because some XAML/control resource may be unhealthy, so it should
+        // not depend on another typography helper or optional style just to show diagnostics.
         stack.Children.Add(new TextBlock
         {
             Text = "Xplorer recovered from a WinUI layout startup failure",
             FontSize = 24,
-            FontWeight = Windows.UI.Text.FontWeights.SemiBold,
             TextWrapping = TextWrapping.Wrap,
         });
 
@@ -82,12 +84,13 @@ public sealed class StartupRecoveryWindow : Window
                 try
                 {
                     Directory.CreateDirectory(CrashLogService.LogDirectory);
-                    Process.Start(new ProcessStartInfo
+                    var startInfo = new ProcessStartInfo
                     {
                         FileName = "explorer.exe",
                         UseShellExecute = true,
-                        ArgumentList = { CrashLogService.LogDirectory },
-                    });
+                    };
+                    startInfo.ArgumentList.Add(CrashLogService.LogDirectory);
+                    Process.Start(startInfo);
                 }
                 catch (Exception ex)
                 {
