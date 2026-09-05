@@ -15,6 +15,7 @@ const UI_EXECUTABLE: &str = "Xplorer.Native.exe";
 const STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(3);
 const DEBUG_STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(15);
 const STARTUP_POLL_INTERVAL: Duration = Duration::from_millis(75);
+const DEBUG_STARTUP_ENV: &str = "XPLORER_DEBUG_STARTUP";
 const MB_OK: u32 = 0;
 const MB_ICONERROR: u32 = 0x0000_0010;
 const VC_RUNTIME_DLLS: &[&str] = &["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"];
@@ -33,8 +34,8 @@ unsafe extern "system" {
 /// Rust owns the public xplorer.exe process. Worker switches are handled in-process without
 /// touching .NET; ordinary launches forward to the sibling WinUI executable. Keep the host alive
 /// briefly so an immediately-crashing UI produces a visible diagnostic instead of looking like
-/// xplorer.exe simply did nothing. --debug/-debug extends that observation window and logs every
-/// launch stage without forwarding the debug switch into the WinUI command line.
+/// xplorer.exe simply did nothing. --debug/-debug extends that observation window and enables the
+/// managed UI preflight through a private environment variable without forwarding a fake app arg.
 pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     let debug = arguments.iter().any(|argument| is_debug_argument(argument));
     let arguments: Vec<OsString> = arguments
@@ -78,7 +79,13 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
         return Ok(3);
     }
 
-    let mut child = match Command::new(&ui).args(&arguments).spawn() {
+    let mut command = Command::new(&ui);
+    command.args(&arguments);
+    if debug {
+        command.env(DEBUG_STARTUP_ENV, "1");
+    }
+
+    let mut child = match command.spawn() {
         Ok(child) => child,
         Err(error) => {
             log_host_message(&format!("Could not spawn {}: {error}", ui.display()));
