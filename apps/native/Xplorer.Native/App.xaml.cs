@@ -124,6 +124,18 @@ public partial class App : Application
             CrashLogService.LogException("Theme startup ignored", ex);
         }
 
+        try
+        {
+            mainWindow.InitializeWorkspaceTracking();
+            CrashLogService.Log("Live workspace tracking initialized.");
+        }
+        catch (Exception ex)
+        {
+            // Current-folder watching and priority indexing are optimizations. Normal navigation,
+            // manual refresh and the background worker must remain available if setup fails.
+            CrashLogService.LogException("Workspace tracking startup ignored", ex);
+        }
+
         if (initialFolder is null)
         {
             try
@@ -157,6 +169,7 @@ public partial class App : Application
         // may still be performing its first multi-hour paced crawl while Xplorer is fully usable.
         // No snapshot, cursor or USN state is a startup prerequisite for the file manager.
         StartBackgroundIndexingAfterUi(settings);
+        UiMemoryService.SchedulePostStartupTrim();
         CrashLogService.Log("Startup completed.");
     }
 
