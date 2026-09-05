@@ -80,8 +80,15 @@ fn run_worker(once: bool) -> io::Result<i32> {
     let mut state = CursorState::load(&cursor_path)?;
 
     loop {
-        reconcile(&data_dir, &mut state);
+        reconcile(&data_dir, &mut state, &stop_event);
         state.save(&cursor_path)?;
+
+        // A stop request may arrive while a paced full-volume snapshot is in progress. Check again
+        // before entering the normal 30-minute idle wait so Settings -> Background indexing: Off
+        // takes effect promptly even on very large disks.
+        if stop_event.wait(Duration::ZERO)? {
+            return Ok(0);
+        }
 
         if once {
             return Ok(0);
@@ -93,18 +100,22 @@ fn run_worker(once: bool) -> io::Result<i32> {
     }
 }
 
-fn reconcile(data_dir: &Path, state: &mut CursorState) {
+fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
     let now = unix_now();
     for drive in platform::fixed_drive_letters() {
+        if stop_event.wait(Duration::ZERO).unwrap_or(true) {
+            return;
+        }
+
         let snapshot_current = index::snapshot_is_current(data_dir, drive);
         let current = platform::query_usn_marker(drive).ok();
         let Some(previous) = state.get(drive) else {
-            rebuild_snapshot(drive, data_dir, state, now, current);
+            rebuild_snapshot(drive, data_dir, state, now, current, stop_event);
             continue;
         };
 
         if !snapshot_current {
-            rebuild_snapshot(drive, data_dir, state, now, current);
+            rebuild_snapshot(drive, data_dir, state, now, current, stop_event);
             continue;
         }
 
@@ -120,7 +131,7 @@ fn reconcile(data_dir: &Path, state: &mut CursorState) {
                     || previous.journal_id != marker.journal_id
                     || previous.next_usn > marker.next_usn
                 {
-                    rebuild_snapshot(drive, data_dir, state, now, Some(marker));
+                    rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
                     continue;
                 }
 
@@ -141,15 +152,19 @@ fn reconcile(data_dir: &Path, state: &mut CursorState) {
                 ) {
                     Ok(batch) if batch.complete => batch,
                     _ => {
-                        rebuild_snapshot(drive, data_dir, state, now, Some(marker));
+                        rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
                         continue;
                     }
                 };
 
+                if stop_event.wait(Duration::ZERO).unwrap_or(true) {
+                    return;
+                }
+
                 let applied = match delta::apply_changes(drive, data_dir, &batch.changes) {
                     Ok(result) if !result.requires_full_scan => result,
                     _ => {
-                        rebuild_snapshot(drive, data_dir, state, now, Some(marker));
+                        rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
                         continue;
                     }
                 };
@@ -168,7 +183,7 @@ fn reconcile(data_dir: &Path, state: &mut CursorState) {
                 if previous.journal_supported
                     || now.saturating_sub(previous.last_scan_unix) >= RECONCILE_INTERVAL.as_secs()
                 {
-                    rebuild_snapshot(drive, data_dir, state, now, None);
+                    rebuild_snapshot(drive, data_dir, state, now, None, stop_event);
                 }
             }
         }
@@ -181,8 +196,13 @@ fn rebuild_snapshot(
     state: &mut CursorState,
     now: u64,
     before: Option<platform::UsnMarker>,
+    stop_event: &StopEvent,
 ) {
-    if index::scan_volume(drive, data_dir).is_err() {
+    if index::scan_volume(drive, data_dir, Some(stop_event)).is_err() {
+        return;
+    }
+
+    if stop_event.wait(Duration::ZERO).unwrap_or(true) {
         return;
     }
 
