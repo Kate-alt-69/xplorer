@@ -10,10 +10,17 @@ public sealed partial class MainWindow
     private FileSystemWatcher? _xmlThemeWatcher;
     private FileSystemWatcher? _settingsThemeWatcher;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _themeReloadTimer;
+    private ItemsPanelTemplate? _defaultMediumItemsPanel;
+    private ItemsPanelTemplate? _defaultLargeItemsPanel;
     private bool _reloadSettingsBeforeTheme;
 
     public void InitializeXmlThemeSupport()
     {
+        // Capture the compiled templates once. Built-in/System theme resets must never invoke the
+        // runtime XAML parser; only a custom XML theme with custom tile dimensions needs it.
+        _defaultMediumItemsPanel ??= Root.Resources["MediumItemsPanel"] as ItemsPanelTemplate;
+        _defaultLargeItemsPanel ??= Root.Resources["LargeItemsPanel"] as ItemsPanelTemplate;
+
         ThemeService.EnsureDefaultThemeFile();
         ApplyXmlTheme();
         ConfigureSettingsThemeWatcher();
@@ -76,6 +83,10 @@ public sealed partial class MainWindow
         }
         catch (Exception ex)
         {
+            // A bad user theme must leave Xplorer usable. Revert the layout/resources that can be
+            // restored without invoking XamlReader again, while continuing to watch the bad file so
+            // fixing it in an editor hot-reloads automatically.
+            RestoreCompiledItemPanels();
             StatusText.Text = $"XML theme ignored: {ex.Message}";
         }
     }
@@ -139,9 +150,16 @@ public sealed partial class MainWindow
             if (child is Grid grid && Grid.GetRow(grid) == 4) grid.Background = null;
         }
 
-        Root.Resources["MediumItemsPanel"] = CreateItemsPanel(116, 104);
-        Root.Resources["LargeItemsPanel"] = CreateItemsPanel(170, 148);
+        RestoreCompiledItemPanels();
         ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
+    }
+
+    private void RestoreCompiledItemPanels()
+    {
+        if (_defaultMediumItemsPanel is not null)
+            Root.Resources["MediumItemsPanel"] = _defaultMediumItemsPanel;
+        if (_defaultLargeItemsPanel is not null)
+            Root.Resources["LargeItemsPanel"] = _defaultLargeItemsPanel;
     }
 
     private void ConfigureSettingsThemeWatcher()
