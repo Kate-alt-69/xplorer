@@ -36,8 +36,33 @@ public static class CrashLogService
         }
     }
 
-    public static void LogException(string stage, Exception exception) =>
-        Log($"{stage}: {exception.GetType().FullName}: {exception.Message}{Environment.NewLine}{exception}");
+    public static void LogException(string stage, Exception exception)
+    {
+        var builder = new StringBuilder();
+        builder.Append(stage);
+        builder.Append(": ");
+
+        Exception? current = exception;
+        var depth = 0;
+        while (current is not null)
+        {
+            if (depth > 0)
+                builder.AppendLine().Append("  Inner: ");
+
+            builder.Append(current.GetType().FullName);
+            builder.Append(" HResult=0x");
+            builder.Append(unchecked((uint)current.HResult).ToString("X8"));
+            builder.Append(": ");
+            builder.Append(current.Message);
+
+            current = current.InnerException;
+            depth++;
+        }
+
+        builder.AppendLine();
+        builder.Append(exception);
+        Log(builder.ToString());
+    }
 
     public static void ShowFatal(string stage, Exception exception)
     {

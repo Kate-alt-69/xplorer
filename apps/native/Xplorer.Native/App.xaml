@@ -4,6 +4,13 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- WinUI 3 desktop apps must merge the control resource dictionary explicitly.
+                 Without it, compiled MainWindow XAML can build successfully but fail at runtime
+                 while resolving WinUI control styles/theme resources on older Windows versions. -->
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6D6AFB" />
