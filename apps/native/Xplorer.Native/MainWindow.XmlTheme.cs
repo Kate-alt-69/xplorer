@@ -38,7 +38,7 @@ public sealed partial class MainWindow
             var theme = ThemeService.Load(_settingsService.Current.ThemeFileName);
             Root.Background = new SolidColorBrush(theme.Background);
             Tabs.Height = theme.TabHeight;
-            Root.Resources["XplorerAccentBrush"] = new SolidColorBrush(theme.Accent);
+            SetXmlAccent(theme.Accent);
 
             var shellGrid = Root.Children
                 .OfType<Grid>()
@@ -80,6 +80,20 @@ public sealed partial class MainWindow
         }
     }
 
+    private void SetXmlAccent(Windows.UI.Color color)
+    {
+        // Keep the same brush instance so controls using StaticResource update immediately when a
+        // theme is hot-reloaded instead of holding on to the old accent object.
+        if (Root.Resources.TryGetValue("XplorerAccentBrush", out var resource) &&
+            resource is SolidColorBrush brush)
+        {
+            brush.Color = color;
+            return;
+        }
+
+        Root.Resources["XplorerAccentBrush"] = new SolidColorBrush(color);
+    }
+
     private static ItemsPanelTemplate CreateItemsPanel(double width, double height)
     {
         var xaml = $"""
@@ -98,9 +112,7 @@ public sealed partial class MainWindow
             Root.Background = brush;
         }
 
-        // Custom themes install this key into the window ResourceDictionary. Remove it when the
-        // user returns to a built-in theme so the old accent cannot bleed into System/Dark/Light.
-        Root.Resources.Remove("XplorerAccentBrush");
+        SetXmlAccent(XplorerThemeDefinition.Default.Accent);
 
         Tabs.Height = 38;
         var shellGrid = Root.Children
