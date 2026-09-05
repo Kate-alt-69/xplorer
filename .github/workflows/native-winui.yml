@@ -118,6 +118,36 @@ jobs:
           Write-Host "Archive: $archive"
           Write-Host "Installer: $installer"
 
+      - name: Smoke-test native UI startup
+        shell: pwsh
+        run: |
+          $ui = (Resolve-Path 'dist/Xplorer-win-x64/Xplorer.Native.exe').Path
+          $startupLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\startup.log'
+          Remove-Item $startupLog -Force -ErrorAction SilentlyContinue
+          $process = Start-Process -FilePath $ui -PassThru
+          try {
+            Start-Sleep -Seconds 2
+            $process.Refresh()
+            if ($process.HasExited) {
+              if (Test-Path $startupLog) {
+                Write-Host '--- Xplorer startup.log ---'
+                Get-Content $startupLog
+              }
+              Write-Host '--- recent Application events ---'
+              Get-WinEvent -FilterHashtable @{ LogName='Application'; StartTime=(Get-Date).AddMinutes(-3) } -ErrorAction SilentlyContinue |
+                Where-Object { $_.Message -match 'Xplorer.Native|Microsoft.UI.Xaml|WindowsAppRuntime' } |
+                Select-Object -First 10 TimeCreated, Id, ProviderName, LevelDisplayName, Message |
+                Format-List
+              throw "Xplorer.Native.exe exited during the 2 second startup smoke test with code $($process.ExitCode)."
+            }
+          }
+          finally {
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+            $process.Dispose()
+          }
+
       - name: Smoke-test installer reinstall and data preservation
         shell: pwsh
         run: |
@@ -151,11 +181,14 @@ jobs:
           $themeDir = Join-Path $dataDir 'Themes'
           $sentinel = Join-Path $themeDir 'ci-preserve.txt'
           $shellVerb = 'HKCU:\Software\Classes\Directory\shell\Xplorer.Native'
+          $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 
           Invoke-BoundedProcess -FilePath $setup -Arguments '/S' -Label 'First installer run'
           if (-not (Test-Path (Join-Path $installDir 'xplorer.exe'))) { throw 'Installed Rust host missing.' }
           if (-not (Test-Path (Join-Path $installDir 'Xplorer.Native.exe'))) { throw 'Installed WinUI executable missing.' }
           if (-not (Test-Path $shellVerb)) { throw 'Installed shell integration is missing.' }
+          if (-not (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue)) { throw 'Background worker startup registration is missing.' }
+          if (-not (Get-Process -Name xplorer -ErrorAction SilentlyContinue)) { throw 'Background worker was not started by the installer.' }
 
           New-Item -ItemType Directory -Force -Path $themeDir | Out-Null
           Set-Content -Path $sentinel -Value 'preserve-me' -NoNewline
@@ -163,11 +196,13 @@ jobs:
           Invoke-BoundedProcess -FilePath $setup -Arguments '/S' -Label 'Upgrade/reinstall'
           if (-not (Test-Path $sentinel)) { throw 'Installer upgrade removed Xplorer user data.' }
           if (-not (Test-Path $shellVerb)) { throw 'Upgrade lost Xplorer shell integration.' }
+          if (-not (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue)) { throw 'Upgrade lost background worker startup registration.' }
 
           $uninstaller = Join-Path $installDir 'Uninstall.exe'
           Invoke-BoundedProcess -FilePath $uninstaller -Arguments '/S' -Label 'Uninstaller'
           if (Test-Path (Join-Path $installDir 'xplorer.exe')) { throw 'Uninstaller left program files behind.' }
           if (Test-Path $shellVerb) { throw 'Uninstaller left Xplorer shell integration behind.' }
+          if (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue) { throw 'Uninstaller left the background worker startup registration behind.' }
           if (-not (Test-Path $sentinel)) { throw 'Uninstaller deleted preserved user data.' }
           Remove-Item -Recurse -Force $dataDir -ErrorAction SilentlyContinue
 
