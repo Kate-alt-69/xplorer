@@ -11,6 +11,7 @@ namespace Xplorer.Native.Services;
 public static class ThemeImportService
 {
     private const int MaximumStateBytes = 16 * 1024;
+    private const int MaximumThemeBytes = 64 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private const string PendingStateFileName = "pending-preview.json";
 
@@ -31,14 +32,8 @@ public static class ThemeImportService
 
     public static bool HasPendingPreview()
     {
-        try
-        {
-            return TryReadState() is not null;
-        }
-        catch
-        {
-            return false;
-        }
+        try { return TryReadState() is not null; }
+        catch { return false; }
     }
 
     public static async Task<ImportResult> StageAsync(string sourcePath, string displayName)
@@ -49,7 +44,7 @@ public static class ThemeImportService
         var sourceInfo = new FileInfo(sourcePath);
         if (!sourceInfo.Exists)
             throw new FileNotFoundException("The selected XML theme no longer exists.", sourcePath);
-        if (sourceInfo.Length > 64 * 1024)
+        if (sourceInfo.Length > MaximumThemeBytes)
             throw new InvalidDataException("Xplorer theme files are limited to 64 KiB.");
 
         var scan = await ThemeSecurityService.ScanFileAsync(sourcePath).ConfigureAwait(false);
@@ -60,6 +55,9 @@ public static class ThemeImportService
         DiscardPending();
 
         var bytes = await File.ReadAllBytesAsync(sourcePath).ConfigureAwait(false);
+        if (bytes.Length > MaximumThemeBytes)
+            throw new InvalidDataException("The selected XML theme changed while it was being imported and is now too large.");
+
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         var stagedName = $".pending-{Guid.NewGuid():N}.xml";
         var stagedPath = ThemeService.ResolveThemePath(stagedName);
@@ -92,13 +90,19 @@ public static class ThemeImportService
 
         ValidateStateFileName(state.StagedFileName);
         var path = ThemeService.ResolveThemePath(state.StagedFileName);
-        if (!File.Exists(path))
+        var info = new FileInfo(path);
+        if (!info.Exists)
         {
             TryDelete(PendingStatePath);
             return null;
         }
+        if (info.Length <= 0 || info.Length > MaximumThemeBytes)
+            throw new InvalidDataException("The staged theme has an invalid size and will not be loaded.");
 
         var bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
+        if (bytes.Length > MaximumThemeBytes)
+            throw new InvalidDataException("The staged theme changed while it was being verified and is now too large.");
+
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         if (!string.Equals(hash, state.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The staged theme changed after it was previewed. Xplorer will not trust it.");
@@ -145,14 +149,8 @@ public static class ThemeImportService
     public static void DiscardPending()
     {
         PendingThemeState? state = null;
-        try
-        {
-            state = TryReadState();
-        }
-        catch
-        {
-            // Malformed state is discarded below.
-        }
+        try { state = TryReadState(); }
+        catch { }
 
         if (state is not null)
         {

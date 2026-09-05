@@ -12,114 +12,337 @@ public sealed partial class SettingsDialog : ContentDialog
 {
     private readonly SettingsService _settingsService;
     private readonly nint _ownerHwnd;
-    private bool _suppressEvents = true;
+    private bool _suppressEvents;
+
+    private ComboBox? _themeComboBox;
+    private ComboBox? _viewModeComboBox;
+    private ComboBox? _sortModeComboBox;
+    private ToggleSwitch? _showHiddenSwitch;
+    private ToggleSwitch? _showExtensionsSwitch;
+    private ToggleSwitch? _perFolderViewSwitch;
+    private ToggleSwitch? _windowsShellMenuSwitch;
+    private ToggleSwitch? _backgroundIndexingSwitch;
+    private TextBox? _terminalCommandBox;
+    private TextBox? _terminalArgumentsBox;
 
     public SettingsDialog(SettingsService settingsService)
     {
         InitializeComponent();
         _settingsService = settingsService;
         _ownerHwnd = GetForegroundWindow();
-
         ThemeService.EnsureDefaultThemeFile();
-        var settings = _settingsService.Current;
-        SelectComboItem(ThemeComboBox, settings.Theme);
-        ThemeFileText.Text = settings.ThemeFileName;
-        ThemeFolderText.Text = ThemeService.ThemeDirectory;
-        SelectComboItem(ViewModeComboBox, settings.DefaultViewMode);
-        SelectComboItem(SortModeComboBox, settings.DefaultSortMode);
-        ShowHiddenSwitch.IsOn = settings.ShowHiddenFiles;
-        ShowExtensionsSwitch.IsOn = settings.ShowFileExtensions;
-        PerFolderViewSwitch.IsOn = settings.RememberViewPerFolder;
-        TerminalCommandBox.Text = settings.TerminalCommand;
-        TerminalArgumentsBox.Text = settings.TerminalArguments;
-        WindowsShellMenuSwitch.IsOn = settings.WindowsShellContextMenu;
-        BackgroundIndexingSwitch.IsOn = settings.BackgroundIndexing;
-        SectionList.SelectedIndex = 0;
 
         Closed += (_, _) => UiMemoryService.SchedulePostInteractionTrim("settings dialog closed");
-        _suppressEvents = false;
+        SectionList.SelectedIndex = 0;
+        RenderSection("General");
     }
 
     private void SectionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var section = (SectionList.SelectedItem as ListViewItem)?.Tag?.ToString() ?? "General";
-        GeneralPage.Visibility = section == "General" ? Visibility.Visible : Visibility.Collapsed;
-        ExplorerPage.Visibility = section == "Explorer" ? Visibility.Visible : Visibility.Collapsed;
-        ThemePage.Visibility = section == "Theme" ? Visibility.Visible : Visibility.Collapsed;
-        TerminalPage.Visibility = section == "Terminal" ? Visibility.Visible : Visibility.Collapsed;
-        SystemPage.Visibility = section == "System" ? Visibility.Visible : Visibility.Collapsed;
+        RenderSection(section);
+    }
 
-        (SectionTitle.Text, SectionDescription.Text) = section switch
+    private void RenderSection(string section)
+    {
+        _suppressEvents = true;
+        try
         {
-            "Explorer" => ("Explorer", "Folder layout, sorting and per-folder behavior."),
-            "Theme" => ("Theme", "Appearance, safe XML import and temporary previews."),
-            "Terminal" => ("Terminal", "Choose what the Terminal button launches."),
-            "System" => ("System", "Windows integration and the background metadata worker."),
-            _ => ("General", "Everyday Xplorer behavior."),
+            ResetPageControlReferences();
+            PageHost.Children.Clear();
+            StatusText.Text = string.Empty;
+
+            (SectionTitle.Text, SectionDescription.Text) = section switch
+            {
+                "Explorer" => ("Explorer", "Folder layout, sorting and per-folder behavior."),
+                "Theme" => ("Theme", "Appearance, safe XML import and temporary previews."),
+                "Terminal" => ("Terminal", "Choose what the Terminal button launches."),
+                "System" => ("System", "Windows integration and the background metadata worker."),
+                _ => ("General", "Everyday Xplorer behavior."),
+            };
+
+            switch (section)
+            {
+                case "Explorer": BuildExplorerPage(); break;
+                case "Theme": BuildThemePage(); break;
+                case "Terminal": BuildTerminalPage(); break;
+                case "System": BuildSystemPage(); break;
+                default: BuildGeneralPage(); break;
+            }
+        }
+        finally
+        {
+            _suppressEvents = false;
+        }
+    }
+
+    private void BuildGeneralPage()
+    {
+        var settings = _settingsService.Current;
+
+        _showHiddenSwitch = CreateToggle(settings.ShowHiddenFiles);
+        _showHiddenSwitch.Toggled += ShowHiddenSwitch_Toggled;
+        PageHost.Children.Add(CreateSettingRow(
+            "Show hidden files",
+            "Include files and folders carrying the Windows Hidden attribute.",
+            "Useful for development and troubleshooting. Hidden system data can be noisy, so it is off by default.",
+            _showHiddenSwitch));
+
+        _showExtensionsSwitch = CreateToggle(settings.ShowFileExtensions);
+        _showExtensionsSwitch.Toggled += ShowExtensionsSwitch_Toggled;
+        PageHost.Children.Add(CreateSettingRow(
+            "Show file extensions",
+            "Keep .txt, .png, .exe and other extensions visible in file names.",
+            "Extensions make file types explicit and help avoid misleading names such as photo.jpg.exe.",
+            _showExtensionsSwitch));
+    }
+
+    private void BuildExplorerPage()
+    {
+        var settings = _settingsService.Current;
+
+        _viewModeComboBox = CreateCombo(["Medium", "Large", "Details"], settings.DefaultViewMode);
+        _viewModeComboBox.SelectionChanged += ViewModeComboBox_SelectionChanged;
+        PageHost.Children.Add(CreateSettingRow(
+            "Default view",
+            "Choose the file layout used globally unless per-folder memory is enabled.",
+            "Medium balances density and readability. Large favors thumbnails. Details exposes metadata columns.",
+            _viewModeComboBox));
+
+        _sortModeComboBox = CreateCombo(["Name", "Date modified", "Type", "Size"], settings.DefaultSortMode);
+        _sortModeComboBox.SelectionChanged += SortModeComboBox_SelectionChanged;
+        PageHost.Children.Add(CreateSettingRow(
+            "Default sort",
+            "Set the global ordering for folders without their own saved preference.",
+            "This becomes the fallback ordering for every folder unless per-folder memory is enabled.",
+            _sortModeComboBox));
+
+        _perFolderViewSwitch = CreateToggle(settings.RememberViewPerFolder, "Per folder", "Global");
+        _perFolderViewSwitch.Toggled += PerFolderViewSwitch_Toggled;
+        PageHost.Children.Add(CreateSettingRow(
+            "Remember view and sort per folder",
+            "Let each folder keep its own view and sort instead of using one global setting.",
+            "Useful if Pictures should stay Large while development folders stay Details.",
+            _perFolderViewSwitch));
+    }
+
+    private void BuildThemePage()
+    {
+        var settings = _settingsService.Current;
+
+        _themeComboBox = CreateCombo(["System", "Dark", "Light", "Custom XML"], settings.Theme);
+        _themeComboBox.SelectionChanged += ThemeComboBox_SelectionChanged;
+        PageHost.Children.Add(CreateSettingRow(
+            "Theme mode",
+            "Use the system appearance, force light/dark, or activate an imported Xplorer XML theme.",
+            "Custom XML is data-only: it can change supported colors/layout values but cannot create controls or run code.",
+            _themeComboBox));
+
+        var current = new StackPanel { Spacing = 4 };
+        current.Children.Add(new TextBlock { Text = "Current XML theme", FontWeight = Windows.UI.Text.FontWeights.SemiBold });
+        current.Children.Add(new TextBlock { Text = settings.ThemeFileName, TextWrapping = TextWrapping.Wrap });
+        current.Children.Add(new TextBlock
+        {
+            Text = ThemeService.ThemeDirectory,
+            Opacity = 0.62,
+            TextWrapping = TextWrapping.Wrap,
+        });
+        PageHost.Children.Add(current);
+
+        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+        var import = new Button { Content = "Import new theme…" };
+        import.Click += ImportThemeButton_Click;
+        var revert = new Button { Content = "Revert preview" };
+        revert.Click += RevertThemePreviewButton_Click;
+        actions.Children.Add(import);
+        actions.Children.Add(revert);
+        actions.Children.Add(CreateInfoButton(
+            "Imports are staged first, scanned through Windows AMSI when a provider participates, parsed with Xplorer's strict data-only schema, then previewed without changing the saved theme."));
+        PageHost.Children.Add(actions);
+
+        PageHost.Children.Add(new TextBlock
+        {
+            Text = "Imported themes cannot add buttons, commands or file operations. The preview carries only already-parsed style values. If you leave it active, Xplorer asks again after restart before making it permanent.",
+            Opacity = 0.68,
+            TextWrapping = TextWrapping.Wrap,
+        });
+    }
+
+    private void BuildTerminalPage()
+    {
+        var settings = _settingsService.Current;
+        PageHost.Children.Add(new TextBlock
+        {
+            Text = "Xplorer launches terminal sessions in the current directory. Leave the custom command empty to use your Windows Terminal default profile.",
+            Opacity = 0.72,
+            TextWrapping = TextWrapping.Wrap,
+        });
+
+        _terminalCommandBox = new TextBox
+        {
+            Header = "Custom command",
+            PlaceholderText = "Example: pwsh.exe, powershell.exe, cmd.exe or wsl.exe",
+            Text = settings.TerminalCommand,
         };
+        _terminalCommandBox.LostFocus += TerminalBoxes_LostFocus;
+        PageHost.Children.Add(_terminalCommandBox);
+
+        _terminalArgumentsBox = new TextBox
+        {
+            Header = "Arguments",
+            PlaceholderText = "Optional arguments",
+            Text = settings.TerminalArguments,
+        };
+        _terminalArgumentsBox.LostFocus += TerminalBoxes_LostFocus;
+        PageHost.Children.Add(_terminalArgumentsBox);
+
+        var info = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        info.Children.Add(CreateInfoButton(
+            "The terminal setting affects only the Terminal button. Xplorer does not spawn PowerShell/CMD/conhost to enumerate folders or feed its index."));
+        info.Children.Add(new TextBlock
+        {
+            Text = "Terminal choice does not affect file browsing or indexing.",
+            VerticalAlignment = VerticalAlignment.Center,
+            Opacity = 0.68,
+        });
+        PageHost.Children.Add(info);
+    }
+
+    private void BuildSystemPage()
+    {
+        var settings = _settingsService.Current;
+
+        _windowsShellMenuSwitch = CreateToggle(settings.WindowsShellContextMenu);
+        _windowsShellMenuSwitch.Toggled += WindowsShellMenuSwitch_Toggled;
+        PageHost.Children.Add(CreateSettingRow(
+            "Open in Xplorer shell entry",
+            "Add reversible Xplorer-owned context-menu entries without replacing explorer.exe or injecting hooks.",
+            "Turning this off removes only registry entries marked as owned by Xplorer.",
+            _windowsShellMenuSwitch));
+
+        _backgroundIndexingSwitch = CreateToggle(settings.BackgroundIndexing);
+        _backgroundIndexingSwitch.Toggled += BackgroundIndexingSwitch_Toggled;
+        PageHost.Children.Add(CreateSettingRow(
+            "Background indexing",
+            "Run the tiny Rust metadata worker at background priority and keep the current workspace hot.",
+            "The worker indexes metadata only, uses NTFS USN deltas when available, and prioritizes the current directory plus bounded descendants.",
+            _backgroundIndexingSwitch));
+    }
+
+    private static Grid CreateSettingRow(string title, string description, string info, FrameworkElement control)
+    {
+        var grid = new Grid { ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var text = new StackPanel { Spacing = 3 };
+        text.Children.Add(new TextBlock { Text = title, FontWeight = Windows.UI.Text.FontWeights.SemiBold });
+        text.Children.Add(new TextBlock { Text = description, Opacity = 0.68, TextWrapping = TextWrapping.Wrap });
+        grid.Children.Add(text);
+
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        actions.Children.Add(CreateInfoButton(info));
+        actions.Children.Add(control);
+        Grid.SetColumn(actions, 1);
+        grid.Children.Add(actions);
+        return grid;
+    }
+
+    private static Button CreateInfoButton(string text)
+    {
+        var button = new Button
+        {
+            Content = "i",
+            Width = 26,
+            Height = 26,
+            Padding = new Thickness(0),
+        };
+        ToolTipService.SetToolTip(button, text);
+        return button;
+    }
+
+    private static ToggleSwitch CreateToggle(bool value, string on = "On", string off = "Off") => new()
+    {
+        IsOn = value,
+        OnContent = on,
+        OffContent = off,
+    };
+
+    private static ComboBox CreateCombo(IReadOnlyList<string> choices, string selected)
+    {
+        var combo = new ComboBox { Width = 190 };
+        foreach (var choice in choices)
+            combo.Items.Add(new ComboBoxItem { Content = choice });
+        SelectComboItem(combo, selected);
+        return combo;
     }
 
     private async void ShowHiddenSwitch_Toggled(object sender, RoutedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _showHiddenSwitch is null) return;
         var old = _settingsService.Current.ShowHiddenFiles;
-        var value = ShowHiddenSwitch.IsOn;
+        var value = _showHiddenSwitch.IsOn;
         await PersistSimpleAsync(
             settings => settings.ShowHiddenFiles = value,
             settings => settings.ShowHiddenFiles = old,
-            () => ShowHiddenSwitch.IsOn = old);
+            () => { if (_showHiddenSwitch is not null) _showHiddenSwitch.IsOn = old; });
     }
 
     private async void ShowExtensionsSwitch_Toggled(object sender, RoutedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _showExtensionsSwitch is null) return;
         var old = _settingsService.Current.ShowFileExtensions;
-        var value = ShowExtensionsSwitch.IsOn;
+        var value = _showExtensionsSwitch.IsOn;
         await PersistSimpleAsync(
             settings => settings.ShowFileExtensions = value,
             settings => settings.ShowFileExtensions = old,
-            () => ShowExtensionsSwitch.IsOn = old);
+            () => { if (_showExtensionsSwitch is not null) _showExtensionsSwitch.IsOn = old; });
     }
 
     private async void ViewModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _viewModeComboBox is null) return;
         var old = _settingsService.Current.DefaultViewMode;
-        var value = ReadComboItem(ViewModeComboBox, old);
+        var value = ReadComboItem(_viewModeComboBox, old);
         await PersistSimpleAsync(
             settings => settings.DefaultViewMode = value,
             settings => settings.DefaultViewMode = old,
-            () => SelectComboItem(ViewModeComboBox, old));
+            () => { if (_viewModeComboBox is not null) SelectComboItem(_viewModeComboBox, old); });
     }
 
     private async void SortModeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _sortModeComboBox is null) return;
         var old = _settingsService.Current.DefaultSortMode;
-        var value = ReadComboItem(SortModeComboBox, old);
+        var value = ReadComboItem(_sortModeComboBox, old);
         await PersistSimpleAsync(
             settings => settings.DefaultSortMode = value,
             settings => settings.DefaultSortMode = old,
-            () => SelectComboItem(SortModeComboBox, old));
+            () => { if (_sortModeComboBox is not null) SelectComboItem(_sortModeComboBox, old); });
     }
 
     private async void PerFolderViewSwitch_Toggled(object sender, RoutedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _perFolderViewSwitch is null) return;
         var old = _settingsService.Current.RememberViewPerFolder;
-        var value = PerFolderViewSwitch.IsOn;
+        var value = _perFolderViewSwitch.IsOn;
         await PersistSimpleAsync(
             settings => settings.RememberViewPerFolder = value,
             settings => settings.RememberViewPerFolder = old,
-            () => PerFolderViewSwitch.IsOn = old);
+            () => { if (_perFolderViewSwitch is not null) _perFolderViewSwitch.IsOn = old; });
     }
 
     private async void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _themeComboBox is null) return;
         var settings = _settingsService.Current;
         var old = settings.Theme;
-        var value = ReadComboItem(ThemeComboBox, old);
+        var value = ReadComboItem(_themeComboBox, old);
 
         try
         {
@@ -133,44 +356,36 @@ public sealed partial class SettingsDialog : ContentDialog
         catch (Exception ex)
         {
             settings.Theme = old;
-            WithSuppressedEvents(() => SelectComboItem(ThemeComboBox, old));
+            WithSuppressedEvents(() => { if (_themeComboBox is not null) SelectComboItem(_themeComboBox, old); });
             ShowError(ex.Message);
         }
     }
 
     private async void TerminalBoxes_LostFocus(object sender, RoutedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _terminalCommandBox is null || _terminalArgumentsBox is null) return;
         var settings = _settingsService.Current;
         var oldCommand = settings.TerminalCommand;
         var oldArguments = settings.TerminalArguments;
-        var command = TerminalCommandBox.Text.Trim();
-        var arguments = TerminalArgumentsBox.Text.Trim();
+        var command = _terminalCommandBox.Text.Trim();
+        var arguments = _terminalArgumentsBox.Text.Trim();
 
         await PersistSimpleAsync(
-            value =>
-            {
-                value.TerminalCommand = command;
-                value.TerminalArguments = arguments;
-            },
-            value =>
-            {
-                value.TerminalCommand = oldCommand;
-                value.TerminalArguments = oldArguments;
-            },
+            value => { value.TerminalCommand = command; value.TerminalArguments = arguments; },
+            value => { value.TerminalCommand = oldCommand; value.TerminalArguments = oldArguments; },
             () =>
             {
-                TerminalCommandBox.Text = oldCommand;
-                TerminalArgumentsBox.Text = oldArguments;
+                if (_terminalCommandBox is not null) _terminalCommandBox.Text = oldCommand;
+                if (_terminalArgumentsBox is not null) _terminalArgumentsBox.Text = oldArguments;
             });
     }
 
     private async void WindowsShellMenuSwitch_Toggled(object sender, RoutedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _windowsShellMenuSwitch is null) return;
         var settings = _settingsService.Current;
         var old = settings.WindowsShellContextMenu;
-        var desired = WindowsShellMenuSwitch.IsOn;
+        var desired = _windowsShellMenuSwitch.IsOn;
         if (old == desired) return;
 
         try
@@ -184,17 +399,17 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             try { ShellIntegrationService.Apply(old); } catch { }
             settings.WindowsShellContextMenu = old;
-            WithSuppressedEvents(() => WindowsShellMenuSwitch.IsOn = old);
+            WithSuppressedEvents(() => { if (_windowsShellMenuSwitch is not null) _windowsShellMenuSwitch.IsOn = old; });
             ShowError(ex.Message);
         }
     }
 
     private async void BackgroundIndexingSwitch_Toggled(object sender, RoutedEventArgs e)
     {
-        if (_suppressEvents) return;
+        if (_suppressEvents || _backgroundIndexingSwitch is null) return;
         var settings = _settingsService.Current;
         var old = settings.BackgroundIndexing;
-        var desired = BackgroundIndexingSwitch.IsOn;
+        var desired = _backgroundIndexingSwitch.IsOn;
         if (old == desired) return;
 
         try
@@ -208,7 +423,7 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             try { IndexWorkerService.Apply(old); } catch { }
             settings.BackgroundIndexing = old;
-            WithSuppressedEvents(() => BackgroundIndexingSwitch.IsOn = old);
+            WithSuppressedEvents(() => { if (_backgroundIndexingSwitch is not null) _backgroundIndexingSwitch.IsOn = old; });
             ShowError(ex.Message);
         }
     }
@@ -224,10 +439,7 @@ public sealed partial class SettingsDialog : ContentDialog
                 "Cancel");
             if (!continueImport) return;
 
-            var picker = new FileOpenPicker
-            {
-                SuggestedStartLocation = PickerLocationId.Downloads,
-            };
+            var picker = new FileOpenPicker { SuggestedStartLocation = PickerLocationId.Downloads };
             picker.FileTypeFilter.Add(".xml");
             WinRT.Interop.InitializeWithWindow.Initialize(picker, ResolveOwnerHwnd());
             var file = await picker.PickSingleFileAsync();
@@ -270,7 +482,7 @@ public sealed partial class SettingsDialog : ContentDialog
 
             ThemePreviewCoordinator.Preview(import.Definition);
             StatusText.Text = import.Scan.Performed
-                ? $"Previewing {import.State.DisplayName}. Local antimalware scan passed. Restart Xplorer to keep or discard it."
+                ? $"Previewing {import.State.DisplayName}. Antimalware scan passed. Restart Xplorer to keep or discard it."
                 : $"Previewing {import.State.DisplayName}. Restart Xplorer to keep or discard it.";
         }
         catch (Exception ex)
@@ -288,10 +500,7 @@ public sealed partial class SettingsDialog : ContentDialog
         StatusText.Text = "Theme preview reverted.";
     }
 
-    private async Task PersistSimpleAsync(
-        Action<XplorerSettings> apply,
-        Action<XplorerSettings> rollback,
-        Action rollbackUi)
+    private async Task PersistSimpleAsync(Action<XplorerSettings> apply, Action<XplorerSettings> rollback, Action rollbackUi)
     {
         var settings = _settingsService.Current;
         try
@@ -329,8 +538,21 @@ public sealed partial class SettingsDialog : ContentDialog
         return foreground;
     }
 
-    private void ShowSaved() => StatusText.Text = "Saved automatically";
+    private void ResetPageControlReferences()
+    {
+        _themeComboBox = null;
+        _viewModeComboBox = null;
+        _sortModeComboBox = null;
+        _showHiddenSwitch = null;
+        _showExtensionsSwitch = null;
+        _perFolderViewSwitch = null;
+        _windowsShellMenuSwitch = null;
+        _backgroundIndexingSwitch = null;
+        _terminalCommandBox = null;
+        _terminalArgumentsBox = null;
+    }
 
+    private void ShowSaved() => StatusText.Text = "Saved automatically";
     private void ShowError(string message) => StatusText.Text = $"Could not save: {message}";
 
     private void WithSuppressedEvents(Action action)

@@ -3,13 +3,11 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Settings"
-    CloseButtonText="Close"
-    DefaultButton="Close"
-    HorizontalContentAlignment="Stretch">
+    CloseButtonText="Close">
 
-    <Grid MinWidth="760" MaxWidth="920" MinHeight="500" MaxHeight="650">
+    <Grid MinWidth="620" MaxWidth="860" MinHeight="460" MaxHeight="620">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="170" />
+            <ColumnDefinition Width="150" />
             <ColumnDefinition Width="1" />
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
@@ -19,7 +17,6 @@
             Grid.Column="0"
             Margin="0,0,10,0"
             SelectionMode="Single"
-            SelectedIndex="0"
             SelectionChanged="SectionList_SelectionChanged">
             <ListViewItem Content="General" Tag="General" />
             <ListViewItem Content="Explorer" Tag="Explorer" />
@@ -49,153 +46,14 @@
                     x:Name="StatusText"
                     Grid.Column="1"
                     Margin="12,4,0,0"
-                    MaxWidth="290"
+                    MaxWidth="260"
                     TextWrapping="Wrap"
                     TextAlignment="Right"
                     Opacity="0.75" />
             </Grid>
 
             <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <Grid>
-                    <StackPanel x:Name="GeneralPage" Spacing="18" Padding="0,4,12,16">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Show hidden files" FontWeight="SemiBold" />
-                                <TextBlock Text="Include files and folders carrying the Windows Hidden attribute." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button Width="26" Height="26" Content="i" ToolTipService.ToolTip="Useful for development and troubleshooting. Hidden system data can be noisy, so it is off by default." />
-                                <ToggleSwitch x:Name="ShowHiddenSwitch" OnContent="On" OffContent="Off" Toggled="ShowHiddenSwitch_Toggled" />
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Show file extensions" FontWeight="SemiBold" />
-                                <TextBlock Text="Keep .txt, .png, .exe and other extensions visible in file names." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button Width="26" Height="26" Content="i" ToolTipService.ToolTip="Extensions make file types explicit and help avoid misleading names such as photo.jpg.exe." />
-                                <ToggleSwitch x:Name="ShowExtensionsSwitch" OnContent="On" OffContent="Off" Toggled="ShowExtensionsSwitch_Toggled" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-
-                    <StackPanel x:Name="ExplorerPage" Visibility="Collapsed" Spacing="18" Padding="0,4,12,16">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Default view" FontWeight="SemiBold" />
-                                <TextBlock Text="Choose the file layout used globally unless per-folder memory is enabled." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ComboBox x:Name="ViewModeComboBox" Grid.Column="1" SelectionChanged="ViewModeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Medium" />
-                                <ComboBoxItem Content="Large" />
-                                <ComboBoxItem Content="Details" />
-                            </ComboBox>
-                        </Grid>
-
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Default sort" FontWeight="SemiBold" />
-                                <TextBlock Text="Set the global ordering for folders that do not have their own saved preference." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ComboBox x:Name="SortModeComboBox" Grid.Column="1" SelectionChanged="SortModeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="Name" />
-                                <ComboBoxItem Content="Date modified" />
-                                <ComboBoxItem Content="Type" />
-                                <ComboBoxItem Content="Size" />
-                            </ComboBox>
-                        </Grid>
-
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Remember view and sort per folder" FontWeight="SemiBold" />
-                                <TextBlock Text="When enabled, each folder may keep its own view and sort instead of using one global setting." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button Width="26" Height="26" Content="i" ToolTipService.ToolTip="Enable this if you want, for example, Pictures to stay on Large while development folders stay on Details." />
-                                <ToggleSwitch x:Name="PerFolderViewSwitch" OffContent="Global" OnContent="Per folder" Toggled="PerFolderViewSwitch_Toggled" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-
-                    <StackPanel x:Name="ThemePage" Visibility="Collapsed" Spacing="18" Padding="0,4,12,16">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="220" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Theme mode" FontWeight="SemiBold" />
-                                <TextBlock Text="Use the system appearance, force light/dark, or activate an imported Xplorer XML theme." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <ComboBox x:Name="ThemeComboBox" Grid.Column="1" SelectionChanged="ThemeComboBox_SelectionChanged">
-                                <ComboBoxItem Content="System" />
-                                <ComboBoxItem Content="Dark" />
-                                <ComboBoxItem Content="Light" />
-                                <ComboBoxItem Content="Custom XML" />
-                            </ComboBox>
-                        </Grid>
-
-                        <Border Padding="14" CornerRadius="8" BorderThickness="1" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Current XML theme" FontWeight="SemiBold" />
-                                <TextBlock x:Name="ThemeFileText" TextWrapping="Wrap" />
-                                <TextBlock x:Name="ThemeFolderText" Opacity="0.62" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-
-                        <Grid ColumnSpacing="10">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Button x:Name="ImportThemeButton" Content="Import new theme…" Click="ImportThemeButton_Click" />
-                            <Button Grid.Column="1" Content="Revert preview" Click="RevertThemePreviewButton_Click" />
-                            <Button Grid.Column="2" Width="26" Height="26" HorizontalAlignment="Left" Content="i" ToolTipService.ToolTip="Imports are staged first, scanned through Windows AMSI when a provider participates, parsed with Xplorer's strict data-only XML schema, and previewed without changing your saved theme." />
-                        </Grid>
-
-                        <TextBlock
-                            Text="Imported themes cannot create XAML controls, run commands, add buttons, or change file operations. Preview applies only the parsed color/layout/file-size values. Xplorer asks again after restart before making a preview permanent."
-                            Opacity="0.68"
-                            TextWrapping="Wrap" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="TerminalPage" Visibility="Collapsed" Spacing="18" Padding="0,4,12,16">
-                        <TextBlock Text="Xplorer launches terminal sessions in the current directory. Leave the custom command empty to use your Windows Terminal default profile." TextWrapping="Wrap" Opacity="0.72" />
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="26" /></Grid.ColumnDefinitions>
-                            <TextBox x:Name="TerminalCommandBox" Header="Custom command" PlaceholderText="Example: pwsh.exe, powershell.exe, cmd.exe or wsl.exe" LostFocus="TerminalBoxes_LostFocus" />
-                            <Button Grid.Column="1" Width="26" Height="26" Margin="0,26,0,0" Content="i" ToolTipService.ToolTip="This changes the shell launched by the Terminal button. It is not used internally for Xplorer file enumeration or indexing." />
-                        </Grid>
-                        <TextBox x:Name="TerminalArgumentsBox" Header="Arguments" PlaceholderText="Optional arguments" LostFocus="TerminalBoxes_LostFocus" />
-                    </StackPanel>
-
-                    <StackPanel x:Name="SystemPage" Visibility="Collapsed" Spacing="20" Padding="0,4,12,16">
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Open in Xplorer shell entry" FontWeight="SemiBold" />
-                                <TextBlock Text="Adds reversible Xplorer-owned context-menu entries without replacing explorer.exe or injecting hooks." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button Width="26" Height="26" Content="i" ToolTipService.ToolTip="Adds entries for folders, drives and folder backgrounds. Turning it off removes only keys owned by Xplorer." />
-                                <ToggleSwitch x:Name="WindowsShellMenuSwitch" OnContent="On" OffContent="Off" Toggled="WindowsShellMenuSwitch_Toggled" />
-                            </StackPanel>
-                        </Grid>
-
-                        <Grid ColumnSpacing="12">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Background indexing" FontWeight="SemiBold" />
-                                <TextBlock Text="Runs the tiny Rust metadata worker at background priority and keeps the currently viewed workspace hot." Opacity="0.68" TextWrapping="Wrap" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                                <Button Width="26" Height="26" Content="i" ToolTipService.ToolTip="The worker indexes metadata only, uses NTFS USN deltas when available, and prioritizes the current directory plus a bounded number of descendants." />
-                                <ToggleSwitch x:Name="BackgroundIndexingSwitch" OnContent="On" OffContent="Off" Toggled="BackgroundIndexingSwitch_Toggled" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </Grid>
+                <StackPanel x:Name="PageHost" Spacing="18" Padding="0,4,12,16" />
             </ScrollViewer>
         </Grid>
     </Grid>

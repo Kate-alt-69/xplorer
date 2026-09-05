@@ -23,6 +23,7 @@ public sealed partial class MainWindow
     private bool _reloadSettingsBeforeTheme;
     private bool _pendingThemeAtStartup;
     private bool _pendingThemePromptShown;
+    private XplorerThemeDefinition? _previewThemeDefinition;
 
     public void InitializeXmlThemeSupport()
     {
@@ -90,6 +91,19 @@ public sealed partial class MainWindow
         }
     }
 
+    private void ApplyThemeOrPreview()
+    {
+        if (_previewThemeDefinition is { } preview)
+        {
+            ConfigureXmlThemeWatcher(null);
+            ApplyThemeDefinition(preview);
+        }
+        else
+        {
+            ApplyXmlTheme();
+        }
+    }
+
     private void ApplyThemeDefinition(XplorerThemeDefinition theme)
     {
         var mediumItemsPanel = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
@@ -138,12 +152,14 @@ public sealed partial class MainWindow
         {
             try
             {
+                _previewThemeDefinition = theme;
                 ConfigureXmlThemeWatcher(null);
                 ApplyThemeDefinition(theme);
                 StatusText.Text = "Temporary theme preview — restart Xplorer to keep or discard it";
             }
             catch (Exception ex)
             {
+                _previewThemeDefinition = null;
                 ApplyXmlTheme();
                 StatusText.Text = $"Theme preview failed safely: {ex.Message}";
             }
@@ -154,6 +170,7 @@ public sealed partial class MainWindow
     {
         DispatcherQueue.TryEnqueue(() =>
         {
+            _previewThemeDefinition = null;
             ApplyTheme();
             ApplyXmlTheme();
         });
@@ -169,7 +186,7 @@ public sealed partial class MainWindow
         try
         {
             ApplyTheme();
-            ApplyXmlTheme();
+            ApplyThemeOrPreview();
             await NavigateAsync(CurrentPath, pushHistory: false);
         }
         catch (Exception ex)
@@ -208,6 +225,7 @@ public sealed partial class MainWindow
             };
 
             var result = await dialog.ShowAsync();
+            _previewThemeDefinition = null;
             if (result == ContentDialogResult.Primary)
             {
                 var fileName = await ThemeImportService.CommitPendingAsync(_settingsService);
@@ -225,6 +243,7 @@ public sealed partial class MainWindow
         }
         catch (Exception ex)
         {
+            _previewThemeDefinition = null;
             ThemeImportService.DiscardPending();
             ApplyTheme();
             ApplyXmlTheme();
@@ -375,7 +394,7 @@ public sealed partial class MainWindow
                         RefreshSearchPresentation();
                     }
 
-                    ApplyXmlTheme();
+                    ApplyThemeOrPreview();
                 };
             }
 

@@ -10,7 +10,7 @@ namespace Xplorer.Native.Services;
 public static class ThemeSecurityService
 {
     private const int MaximumThemeBytes = 64 * 1024;
-    private const int AmsiResultDetected = 32768;
+    private const int AmsiResultBlockedByAdminStart = 16384;
 
     public sealed record ScanResult(bool Performed, bool Clean, string Message);
 
@@ -23,6 +23,9 @@ public static class ThemeSecurityService
             throw new InvalidDataException("Xplorer theme files are limited to 64 KiB.");
 
         var bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
+        if (bytes.Length > MaximumThemeBytes)
+            throw new InvalidDataException("The selected theme changed while it was being scanned and is now too large.");
+
         nint context = 0;
         try
         {
@@ -50,12 +53,14 @@ public static class ThemeSecurityService
                     $"The local antimalware provider did not complete the AMSI scan (0x{scanHr:X8}).");
             }
 
-            if (result >= AmsiResultDetected)
+            // AMSI reserves 16384..20479 for administrator-blocked content and 32768+ for malware.
+            // Both are a hard stop for an imported theme.
+            if (result >= AmsiResultBlockedByAdminStart)
             {
                 return new ScanResult(
                     true,
                     false,
-                    "The local antimalware provider flagged this XML file. Xplorer will not import or preview it.");
+                    "The local antimalware policy/provider blocked this XML file. Xplorer will not import or preview it.");
             }
 
             return new ScanResult(
