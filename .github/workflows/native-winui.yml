@@ -124,24 +124,63 @@ jobs:
           $ui = (Resolve-Path 'dist/Xplorer-win-x64/Xplorer.Native.exe').Path
           $startupLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\startup.log'
           Remove-Item $startupLog -Force -ErrorAction SilentlyContinue
+          $env:XPLORER_DEBUG_STARTUP = '1'
           $process = Start-Process -FilePath $ui -PassThru
           try {
-            Start-Sleep -Seconds 2
+            Start-Sleep -Seconds 6
             $process.Refresh()
+
+            if (Test-Path $startupLog) {
+              Write-Host '--- Xplorer startup.log ---'
+              Get-Content $startupLog
+            }
+
             if ($process.HasExited) {
-              if (Test-Path $startupLog) {
-                Write-Host '--- Xplorer startup.log ---'
-                Get-Content $startupLog
-              }
               Write-Host '--- recent Application events ---'
               Get-WinEvent -FilterHashtable @{ LogName='Application'; StartTime=(Get-Date).AddMinutes(-3) } -ErrorAction SilentlyContinue |
                 Where-Object { $_.Message -match 'Xplorer.Native|Microsoft.UI.Xaml|WindowsAppRuntime' } |
                 Select-Object -First 10 TimeCreated, Id, ProviderName, LevelDisplayName, Message |
                 Format-List
-              throw "Xplorer.Native.exe exited during the 2 second startup smoke test with code $($process.ExitCode)."
+              throw "Xplorer.Native.exe exited during the startup smoke test with code $($process.ExitCode)."
+            }
+            if (-not (Test-Path $startupLog)) {
+              throw 'Xplorer produced no startup.log during startup smoke test.'
+            }
+
+            $log = Get-Content $startupLog -Raw
+            $fatalMarkers = @(
+              'UI preflight control FAILED:',
+              'UI preflight XAML FAILED:',
+              'UI preflight action FAILED:',
+              'MainWindow construction failed:',
+              'Startup recovery window activated.',
+              'App.OnLaunched:',
+              'WinUI unhandled exception'
+            )
+            foreach ($marker in $fatalMarkers) {
+              if ($log.Contains($marker, [StringComparison]::Ordinal)) {
+                throw "Native startup smoke test detected failure marker: $marker"
+              }
+            }
+
+            $requiredMarkers = @(
+              'XamlControlsResources installed programmatically.',
+              'UI preflight action OK: application Resources access',
+              'UI preflight action OK: default XML theme parse',
+              'UI preflight action OK: SettingsDialog compiled XAML',
+              'MainWindow constructed.',
+              'Theme support initialized.',
+              'MainWindow activated.',
+              'Startup completed.'
+            )
+            foreach ($marker in $requiredMarkers) {
+              if (-not $log.Contains($marker, [StringComparison]::Ordinal)) {
+                throw "Native startup smoke test did not reach required marker: $marker"
+              }
             }
           }
           finally {
+            Remove-Item Env:XPLORER_DEBUG_STARTUP -ErrorAction SilentlyContinue
             if (-not $process.HasExited) {
               Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             }
