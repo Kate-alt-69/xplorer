@@ -51,6 +51,8 @@ public partial class App : Application
         _window = mainWindow;
         _window.Closed += (_, _) => mainWindow.PersistSession();
         _window.Activate();
+        if (initialFolder is null)
+            mainWindow.RestoreWindowPlacement();
     }
 
     private static string? ParseInitialFolder(string rawArgument)

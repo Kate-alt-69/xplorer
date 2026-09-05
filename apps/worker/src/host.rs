@@ -3,7 +3,7 @@ use std::{
     ffi::{c_void, OsStr, OsString},
     io,
     os::windows::ffi::OsStrExt,
-    path::Path,
+    path::{Path, PathBuf},
     process::Command,
     ptr::null_mut,
 };
@@ -19,6 +19,8 @@ unsafe extern "system" {
 
 /// Rust owns the public xplorer.exe process. Worker switches are handled in-process without
 /// touching .NET; ordinary launches forward to the sibling WinUI executable and immediately exit.
+/// If the UI sidecar was removed or an update is incomplete, folder launches fall forward to
+/// Windows Explorer instead of leaving a dead Shell verb behind.
 pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     let executable = env::current_exe()?;
     let directory = executable.parent().ok_or_else(|| {
@@ -27,6 +29,9 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     let ui = directory.join(UI_EXECUTABLE);
 
     if !ui.is_file() {
+        if launch_explorer_fallback(&arguments).is_ok() {
+            return Ok(0);
+        }
         show_missing_ui(&ui);
         return Ok(3);
     }
@@ -35,9 +40,24 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     Ok(0)
 }
 
+fn launch_explorer_fallback(arguments: &[OsString]) -> io::Result<()> {
+    let target = arguments
+        .iter()
+        .find(|argument| !argument.to_string_lossy().starts_with("--"))
+        .map(PathBuf::from)
+        .filter(|path| path.exists());
+
+    let mut command = Command::new("explorer.exe");
+    if let Some(target) = target {
+        command.arg(target);
+    }
+    command.spawn()?;
+    Ok(())
+}
+
 fn show_missing_ui(path: &Path) {
     let text = format!(
-        "Xplorer's native UI is missing. Reinstall Xplorer or restore:\n{}",
+        "Xplorer's native UI is missing and Windows Explorer could not be started. Reinstall Xplorer or restore:\n{}",
         path.display()
     );
     let text = wide(&text);

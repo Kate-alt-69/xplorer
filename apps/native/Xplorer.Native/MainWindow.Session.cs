@@ -62,14 +62,16 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// Captures tabs and their Back/Forward stacks synchronously during Window.Closed.
-    /// The write is deliberately small and atomic so shutdown cannot leave a half-written JSON file.
+    /// Captures tabs, history and normal window placement synchronously during Window.Closed.
+    /// GetWindowPlacement preserves the non-maximized rectangle, so a maximized session can be
+    /// restored without replacing the user's preferred normal window size with the monitor bounds.
     /// </summary>
     public void PersistSession()
     {
         var session = new ExplorerSessionSettings
         {
             SelectedTabIndex = Math.Max(0, Tabs.SelectedIndex),
+            Window = CaptureWindowPlacement(),
         };
 
         foreach (var tab in Tabs.TabItems.OfType<TabViewItem>())
