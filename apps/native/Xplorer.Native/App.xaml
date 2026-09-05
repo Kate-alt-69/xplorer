@@ -11,16 +11,19 @@
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#111116" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#FFFF99A4" />
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6D6AFB" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#F7F7FA" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#26000000" />
+                    <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#FFC42B1C" />
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="#5B57E8" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="HighContrast">
                     <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
