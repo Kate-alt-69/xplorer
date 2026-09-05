@@ -43,6 +43,8 @@ jobs:
         run: |
           git remote set-url origin https://github.com/Kate-alt-69/xplorer.git
           git config --local --unset-all http.https://github.com/.extraheader 2>$null
+          git config --local core.autocrlf false
+          git reset --hard HEAD
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           tar.exe -a -c -f dist/Xplorer-source-git-ready.zip --exclude='./dist' .
           if ($LASTEXITCODE -ne 0) { throw "Source snapshot archive failed with exit code $LASTEXITCODE." }
