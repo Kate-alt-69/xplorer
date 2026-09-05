@@ -13,18 +13,43 @@ public sealed partial class MainWindow
     private ItemsPanelTemplate? _defaultMediumItemsPanel;
     private ItemsPanelTemplate? _defaultLargeItemsPanel;
     private Brush? _defaultRootBackground;
+    private Brush? _defaultSidebarBackground;
+    private Brush? _defaultRailBackground;
+    private Brush? _defaultCommandBarBackground;
+    private Brush? _defaultBottomBarBackground;
     private double? _defaultTabHeight;
     private bool _reloadSettingsBeforeTheme;
 
     public void InitializeXmlThemeSupport()
     {
-        // Capture compiled/default UI resources once. Built-in/System theme resets must never call
-        // Application.Current.Resources or XamlReader: both are avoidable runtime resource lookups,
-        // and older Windows 10 builds have proven more sensitive to those during WinUI startup.
+        // Capture the real compiled/native values once. XML reset must restore Xplorer's visual
+        // language, not null out backgrounds and accidentally fall back to plain WinUI grey.
         _defaultMediumItemsPanel ??= Root.Resources["MediumItemsPanel"] as ItemsPanelTemplate;
         _defaultLargeItemsPanel ??= Root.Resources["LargeItemsPanel"] as ItemsPanelTemplate;
         _defaultRootBackground ??= Root.Background;
         _defaultTabHeight ??= Tabs.Height;
+
+        var shellGrid = Root.Children
+            .OfType<Grid>()
+            .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
+        if (shellGrid is not null)
+        {
+            foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
+            {
+                if (Grid.GetColumn(child) == 0 && child is Border sidebar)
+                    _defaultSidebarBackground ??= sidebar.Background;
+                else if (Grid.GetColumn(child) == 2 && child is Panel rail)
+                    _defaultRailBackground ??= rail.Background;
+            }
+        }
+
+        foreach (var child in Root.Children.OfType<FrameworkElement>())
+        {
+            if (child is CommandBar commandBar && Grid.GetRow(commandBar) == 2)
+                _defaultCommandBarBackground ??= commandBar.Background;
+            else if (child is Grid bottomBar && Grid.GetRow(bottomBar) == 4)
+                _defaultBottomBarBackground ??= bottomBar.Background;
+        }
 
         ThemeService.EnsureDefaultThemeFile();
         ApplyXmlTheme();
@@ -43,16 +68,14 @@ public sealed partial class MainWindow
                 return;
             }
 
-            // Watch the requested path before parsing it. If a newly selected theme is temporarily
-            // malformed/missing while being edited, fixing or recreating that same file must hot-reload it.
+            // Watch the requested path before parsing it. A malformed file remains recoverable by
+            // simply fixing/saving that same file in an editor.
             var themePath = ThemeService.ResolveThemePath(_settingsService.Current.ThemeFileName);
             ConfigureXmlThemeWatcher(themePath);
             var theme = ThemeService.Load(_settingsService.Current.ThemeFileName);
 
-            // Runtime XAML is needed only because ItemsWrapGrid dimensions cannot be changed through
-            // ItemsPanelTemplate after creation. Build BOTH templates before mutating any visible UI;
-            // if WinUI rejects either generated template the old theme remains intact instead of a
-            // half-applied background/sidebar with the previous item layout.
+            // Build both runtime templates before mutating visible state. If either parser call
+            // fails, the previous complete theme remains visible instead of a half-applied one.
             var mediumItemsPanel = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
             var largeItemsPanel = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
 
@@ -96,8 +119,6 @@ public sealed partial class MainWindow
         }
         catch (Exception ex)
         {
-            // A bad user theme must leave Xplorer usable. Revert the item templates without invoking
-            // XamlReader again, while continuing to watch the bad file so fixing it hot-reloads.
             RestoreCompiledItemPanels();
             StatusText.Text = $"XML theme ignored: {ex.Message}";
         }
@@ -105,8 +126,6 @@ public sealed partial class MainWindow
 
     private void SetXmlAccent(Windows.UI.Color color)
     {
-        // Keep the same brush instance so controls using StaticResource update immediately when a
-        // theme is hot-reloaded instead of holding on to the old accent object.
         if (Root.Resources.TryGetValue("XplorerAccentBrush", out var resource) &&
             resource is SolidColorBrush brush)
         {
@@ -129,14 +148,12 @@ public sealed partial class MainWindow
 
     private void ResetXmlThemeLayout()
     {
-        // Restore the actual compiled values captured from MainWindow instead of asking
-        // Application.Current.Resources to resolve them again at runtime.
         if (_defaultRootBackground is not null)
             Root.Background = _defaultRootBackground;
 
         SetXmlAccent(XplorerThemeDefinition.Default.Accent);
-
         Tabs.Height = _defaultTabHeight ?? 38;
+
         var shellGrid = Root.Children
             .OfType<Grid>()
             .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
@@ -147,18 +164,20 @@ public sealed partial class MainWindow
             foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
             {
                 if (Grid.GetColumn(child) == 0 && child is Border sidebar)
-                    sidebar.Background = null;
+                    sidebar.Background = _defaultSidebarBackground;
                 else if (Grid.GetColumn(child) == 1 && ReferenceEquals(child, FileArea))
                     FileArea.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
                 else if (Grid.GetColumn(child) == 2 && child is Panel rail)
-                    rail.Background = null;
+                    rail.Background = _defaultRailBackground;
             }
         }
 
         foreach (var child in Root.Children.OfType<FrameworkElement>())
         {
-            if (child is CommandBar commandBar) commandBar.Background = null;
-            if (child is Grid grid && Grid.GetRow(grid) == 4) grid.Background = null;
+            if (child is CommandBar commandBar && Grid.GetRow(commandBar) == 2)
+                commandBar.Background = _defaultCommandBarBackground;
+            if (child is Grid grid && Grid.GetRow(grid) == 4)
+                grid.Background = _defaultBottomBarBackground;
         }
 
         RestoreCompiledItemPanels();
