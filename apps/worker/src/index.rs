@@ -49,7 +49,13 @@ pub fn snapshot_is_current(data_dir: &Path, drive: u8) -> bool {
         && u32::from_le_bytes(header[8..12].try_into().unwrap()) == SNAPSHOT_VERSION
 }
 
-pub fn scan_volume(drive: u8, data_dir: &Path) -> io::Result<ScanStats> {
+pub fn scan_volume(
+    drive: u8,
+    data_dir: &Path,
+    stop_event: Option<&platform::StopEvent>,
+) -> io::Result<ScanStats> {
+    ensure_not_stopped(stop_event)?;
+
     let root = PathBuf::from(format!("{}:{}", drive as char, std::path::MAIN_SEPARATOR));
     let final_path = snapshot_path(data_dir, drive);
     let temp_path = data_dir.join(format!("{}.xidx.tmp", drive as char));
@@ -66,7 +72,7 @@ pub fn scan_volume(drive: u8, data_dir: &Path) -> io::Result<ScanStats> {
     let mut metadata_budget = PacedBudget::new(METADATA_BUDGET_BYTES_PER_SECOND);
     let mut stats = ScanStats::default();
 
-    walk_directory(
+    let walk_result = walk_directory(
         &root,
         &root,
         data_dir,
@@ -75,11 +81,20 @@ pub fn scan_volume(drive: u8, data_dir: &Path) -> io::Result<ScanStats> {
         &mut metadata_budget,
         &mut stats,
         0,
-    )?;
+        stop_event,
+    );
 
+    if let Err(error) = walk_result {
+        drop(writer);
+        let _ = fs::remove_file(&temp_path);
+        return Err(error);
+    }
+
+    ensure_not_stopped(stop_event)?;
     writer.flush()?;
     writer.get_ref().sync_data()?;
     drop(writer);
+    ensure_not_stopped(stop_event)?;
     platform::replace_file(&temp_path, &final_path)?;
     Ok(stats)
 }
@@ -94,7 +109,9 @@ fn walk_directory(
     metadata_budget: &mut PacedBudget,
     stats: &mut ScanStats,
     depth: usize,
+    stop_event: Option<&platform::StopEvent>,
 ) -> io::Result<()> {
+    ensure_not_stopped(stop_event)?;
     if depth > MAX_RECURSION_DEPTH {
         return Ok(());
     }
@@ -108,6 +125,8 @@ fn walk_directory(
     };
 
     for entry in entries {
+        ensure_not_stopped(stop_event)?;
+
         let entry = match entry {
             Ok(entry) => entry,
             Err(_) => {
@@ -123,6 +142,7 @@ fn walk_directory(
 
         let name_units = entry.file_name().encode_wide().count() as u64;
         directory_budget.charge(96u64.saturating_add(name_units.saturating_mul(2)));
+        ensure_not_stopped(stop_event)?;
 
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
@@ -137,6 +157,7 @@ fn walk_directory(
         metadata_budget.charge(
             128u64.saturating_add((relative_units.len() as u64).saturating_mul(2)),
         );
+        ensure_not_stopped(stop_event)?;
 
         let attributes = metadata.file_attributes();
         let is_directory = attributes & FILE_ATTRIBUTE_DIRECTORY != 0;
@@ -178,10 +199,23 @@ fn walk_directory(
                 metadata_budget,
                 stats,
                 depth + 1,
+                stop_event,
             )?;
         }
     }
 
+    Ok(())
+}
+
+fn ensure_not_stopped(stop_event: Option<&platform::StopEvent>) -> io::Result<()> {
+    if let Some(event) = stop_event {
+        if event.wait(Duration::ZERO)? {
+            return Err(io::Error::new(
+                io::ErrorKind::Interrupted,
+                "Xplorer index scan was stopped",
+            ));
+        }
+    }
     Ok(())
 }
 
