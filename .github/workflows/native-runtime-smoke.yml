@@ -1,0 +1,113 @@
+name: Native Runtime Smoke
+
+on:
+  push:
+    branches:
+      - rewrite/native-winui
+    paths:
+      - 'apps/native/**'
+      - 'apps/worker/**'
+      - 'scripts/build-native.ps1'
+      - '.github/workflows/native-runtime-smoke.yml'
+  pull_request:
+    paths:
+      - 'apps/native/**'
+      - 'apps/worker/**'
+      - 'scripts/build-native.ps1'
+      - '.github/workflows/native-runtime-smoke.yml'
+
+concurrency:
+  group: native-runtime-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  windows-2022-runtime:
+    runs-on: windows-2022
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Select stable Rust
+        run: rustup default stable
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build native Xplorer
+        shell: pwsh
+        run: ./scripts/build-native.ps1 -Configuration Release -Runtime win-x64
+
+      - name: Exercise WinUI startup and runtime XAML probes
+        shell: pwsh
+        run: |
+          $ui = (Resolve-Path 'dist/Xplorer-win-x64/Xplorer.Native.exe').Path
+          $startupLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\startup.log'
+          Remove-Item $startupLog -Force -ErrorAction SilentlyContinue
+          $env:XPLORER_DEBUG_STARTUP = '1'
+          $process = Start-Process -FilePath $ui -PassThru
+          try {
+            Start-Sleep -Seconds 6
+            $process.Refresh()
+
+            if (Test-Path $startupLog) {
+              Write-Host '--- Xplorer startup.log ---'
+              Get-Content $startupLog
+            }
+
+            if ($process.HasExited) {
+              throw "Xplorer.Native.exe exited during runtime smoke test with code $($process.ExitCode)."
+            }
+            if (-not (Test-Path $startupLog)) {
+              throw 'Xplorer produced no startup.log during runtime smoke test.'
+            }
+
+            $log = Get-Content $startupLog -Raw
+            $fatalMarkers = @(
+              'UI preflight control FAILED:',
+              'UI preflight XAML FAILED:',
+              'MainWindow construction failed:',
+              'Startup recovery window activated.',
+              'App.OnLaunched:',
+              'WinUI unhandled exception'
+            )
+            foreach ($marker in $fatalMarkers) {
+              if ($log.Contains($marker, [StringComparison]::Ordinal)) {
+                throw "Runtime smoke test detected failure marker: $marker"
+              }
+            }
+
+            if (-not $log.Contains('XamlControlsResources installed programmatically.', [StringComparison]::Ordinal)) {
+              throw 'Framework XAML control resources were not installed successfully.'
+            }
+            if (-not $log.Contains('MainWindow constructed.', [StringComparison]::Ordinal)) {
+              throw 'MainWindow did not construct successfully.'
+            }
+            if (-not $log.Contains('Startup completed.', [StringComparison]::Ordinal)) {
+              throw 'Xplorer did not complete startup.'
+            }
+          }
+          finally {
+            Remove-Item Env:XPLORER_DEBUG_STARTUP -ErrorAction SilentlyContinue
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+            $process.Dispose()
+          }
+
+      - name: Upload startup diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-runtime-startup-log
+          path: ${{ env.LOCALAPPDATA }}\Xplorer\Logs\startup.log
+          if-no-files-found: ignore
+          retention-days: 7
