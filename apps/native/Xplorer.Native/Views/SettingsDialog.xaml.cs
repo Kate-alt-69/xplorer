@@ -60,10 +60,10 @@ public sealed partial class SettingsDialog : ContentDialog
             var desiredShellIntegration = WindowsShellMenuSwitch.IsOn;
             var desiredBackgroundIndexing = BackgroundIndexingSwitch.IsOn;
 
+            // The XML filename is irrelevant while System/Dark/Light is active. Validating it in
+            // those modes previously made an old/bad custom filename block unrelated settings saves.
             if (string.Equals(selectedTheme, "Custom XML", StringComparison.OrdinalIgnoreCase))
                 _ = ThemeService.Load(selectedThemeFile);
-            else
-                _ = ThemeService.ResolveThemePath(selectedThemeFile);
 
             // External integration can partially mutate Windows state before throwing. Mark each
             // operation as attempted before calling it so a failure midway still triggers rollback.
