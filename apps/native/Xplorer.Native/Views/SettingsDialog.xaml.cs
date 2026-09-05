@@ -34,9 +34,21 @@ public sealed partial class SettingsDialog : ContentDialog
     {
         var deferral = args.GetDeferral();
         var settings = _settingsService.Current;
+
+        var previousTheme = settings.Theme;
+        var previousThemeFileName = settings.ThemeFileName;
+        var previousViewMode = settings.DefaultViewMode;
+        var previousSortMode = settings.DefaultSortMode;
+        var previousShowHidden = settings.ShowHiddenFiles;
+        var previousShowExtensions = settings.ShowFileExtensions;
+        var previousPerFolderView = settings.RememberViewPerFolder;
+        var previousTerminalCommand = settings.TerminalCommand;
+        var previousTerminalArguments = settings.TerminalArguments;
         var previousShellIntegration = settings.WindowsShellContextMenu;
         var previousBackgroundIndexing = settings.BackgroundIndexing;
-        var integrationChanged = false;
+
+        var shellIntegrationAttempted = false;
+        var backgroundIndexingAttempted = false;
 
         try
         {
@@ -53,11 +65,13 @@ public sealed partial class SettingsDialog : ContentDialog
             else
                 _ = ThemeService.ResolveThemePath(selectedThemeFile);
 
-            // Apply external integration before mutating the in-memory settings object. If either
-            // operation fails, rollback the previous integration state and keep settings untouched.
+            // External integration can partially mutate Windows state before throwing. Mark each
+            // operation as attempted before calling it so a failure midway still triggers rollback.
+            shellIntegrationAttempted = true;
             ShellIntegrationService.Apply(desiredShellIntegration);
+
+            backgroundIndexingAttempted = true;
             IndexWorkerService.Apply(desiredBackgroundIndexing);
-            integrationChanged = true;
 
             settings.Theme = selectedTheme;
             settings.ThemeFileName = selectedThemeFile;
@@ -77,17 +91,43 @@ public sealed partial class SettingsDialog : ContentDialog
         {
             args.Cancel = true;
 
-            if (integrationChanged)
+            // SaveAsync can fail after the in-memory object was mutated. Restore every field this
+            // dialog owns so a failed Save never leaves the running UI in a phantom configuration.
+            settings.Theme = previousTheme;
+            settings.ThemeFileName = previousThemeFileName;
+            settings.DefaultViewMode = previousViewMode;
+            settings.DefaultSortMode = previousSortMode;
+            settings.ShowHiddenFiles = previousShowHidden;
+            settings.ShowFileExtensions = previousShowExtensions;
+            settings.RememberViewPerFolder = previousPerFolderView;
+            settings.TerminalCommand = previousTerminalCommand;
+            settings.TerminalArguments = previousTerminalArguments;
+            settings.WindowsShellContextMenu = previousShellIntegration;
+            settings.BackgroundIndexing = previousBackgroundIndexing;
+
+            // Roll back independently: one failed cleanup must not stop the other subsystem from
+            // being restored to the user's last persisted preference.
+            if (backgroundIndexingAttempted)
             {
                 try
                 {
-                    ShellIntegrationService.Apply(previousShellIntegration);
                     IndexWorkerService.Apply(previousBackgroundIndexing);
                 }
                 catch
                 {
-                    // Keep the original failure visible. A later Settings save will reconcile
-                    // integration state from the persisted preference again.
+                    // Keep the original failure visible below.
+                }
+            }
+
+            if (shellIntegrationAttempted)
+            {
+                try
+                {
+                    ShellIntegrationService.Apply(previousShellIntegration);
+                }
+                catch
+                {
+                    // Keep the original failure visible below.
                 }
             }
 
