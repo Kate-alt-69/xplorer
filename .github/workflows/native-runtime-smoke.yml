@@ -74,6 +74,7 @@ jobs:
             $fatalMarkers = @(
               'UI preflight control FAILED:',
               'UI preflight XAML FAILED:',
+              'UI preflight action FAILED:',
               'MainWindow construction failed:',
               'Startup recovery window activated.',
               'App.OnLaunched:',
@@ -85,18 +86,28 @@ jobs:
               }
             }
 
-            if (-not $log.Contains('XamlControlsResources installed programmatically.', [StringComparison]::Ordinal)) {
-              throw 'Framework XAML control resources were not installed successfully.'
-            }
-            if (-not $log.Contains('MainWindow constructed.', [StringComparison]::Ordinal)) {
-              throw 'MainWindow did not construct successfully.'
-            }
-            if (-not $log.Contains('Startup completed.', [StringComparison]::Ordinal)) {
-              throw 'Xplorer did not complete startup.'
+            $requiredMarkers = @(
+              'XamlControlsResources installed programmatically.',
+              'UI preflight action OK: application Resources access',
+              'UI preflight action OK: default XML theme parse',
+              'UI preflight action OK: SettingsDialog compiled XAML',
+              'MainWindow constructed.',
+              'Theme support initialized.',
+              'MainWindow activated.',
+              'Startup completed.'
+            )
+            foreach ($marker in $requiredMarkers) {
+              if (-not $log.Contains($marker, [StringComparison]::Ordinal)) {
+                throw "Runtime smoke test did not reach required marker: $marker"
+              }
             }
           }
           finally {
             Remove-Item Env:XPLORER_DEBUG_STARTUP -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Force -Path 'dist/runtime-diagnostics' | Out-Null
+            if (Test-Path $startupLog) {
+              Copy-Item $startupLog 'dist/runtime-diagnostics/startup.log' -Force
+            }
             if (-not $process.HasExited) {
               Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
             }
@@ -108,6 +119,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: native-runtime-startup-log
-          path: ${{ env.LOCALAPPDATA }}\Xplorer\Logs\startup.log
+          path: dist/runtime-diagnostics/startup.log
           if-no-files-found: ignore
           retention-days: 7
