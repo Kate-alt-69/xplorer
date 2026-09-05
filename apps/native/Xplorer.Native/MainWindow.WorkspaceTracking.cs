@@ -1,6 +1,4 @@
 using Microsoft.UI.Xaml.Controls;
-using Windows.Storage;
-using Windows.System;
 using Xplorer.Native.Models;
 using Xplorer.Native.Services;
 
@@ -37,8 +35,9 @@ public sealed partial class MainWindow
         if (e.ClickedItem is not FileSystemItem item) return;
 
         // WinUI's DoubleTapped routing is inconsistent with Extended selection on some Windows 10
-        // builds. Detect the second native ItemClick as a reliable fallback. The existing routed
-        // DoubleTapped handler can still run; ActivateItemAsync is idempotent for the same folder.
+        // builds. Detect the second native ItemClick as a reliable fallback. The routed
+        // DoubleTapped handler may also fire for the same gesture; both now share the deduplicated
+        // ActivateFileSystemItemAsync path so a file can never launch twice from one double-click.
         var now = Environment.TickCount64;
         var threshold = Math.Clamp((long)GetDoubleClickTime(), 250L, 1000L);
         var isDoubleActivation =
@@ -52,26 +51,7 @@ public sealed partial class MainWindow
 
         _lastClickedPath = null;
         _lastClickTick = 0;
-        await ActivateItemAsync(item);
-    }
-
-    private async Task ActivateItemAsync(FileSystemItem item)
-    {
-        if (item.IsDirectory)
-        {
-            await NavigateAsync(item.FullPath);
-            return;
-        }
-
-        try
-        {
-            var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-            await Launcher.LaunchFileAsync(file);
-        }
-        catch
-        {
-            StatusText.Text = $"Could not open {item.Name}";
-        }
+        await ActivateFileSystemItemAsync(item);
     }
 
     private void AddressBox_WorkspaceTextChanged(object sender, TextChangedEventArgs e)
