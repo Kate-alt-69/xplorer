@@ -5,7 +5,7 @@ param(
     [ValidateSet('win-x64', 'win-arm64')]
     [string]$Runtime = 'win-x64',
 
-    [string]$Version = '0.4.0-alpha.1',
+    [string]$Version = '1.0.0-alpha.1',
 
     [switch]$SkipNativeBuild
 )
@@ -24,6 +24,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $payload = Join-Path $repoRoot 'dist\Xplorer-win-x64'
 $output = Join-Path $repoRoot 'dist\Xplorer-Setup-x64.exe'
 $installerScript = Join-Path $repoRoot 'installer\Xplorer.nsi'
+$installerIcon = Join-Path $repoRoot 'installer\Xplorer.ico'
 
 if (-not $SkipNativeBuild) {
     & (Join-Path $PSScriptRoot 'build-native.ps1') `
@@ -38,6 +39,9 @@ if (-not (Test-Path (Join-Path $payload 'xplorer.exe'))) {
 }
 if (-not (Test-Path (Join-Path $payload 'Xplorer.Native.exe'))) {
     throw "Native UI is missing from payload: $payload."
+}
+if (-not (Test-Path $installerIcon)) {
+    throw "Installer icon is missing: $installerIcon."
 }
 
 $makensis = $null
@@ -62,6 +66,7 @@ Write-Host "==> Building Xplorer installer $Version"
     "/DAPP_VERSION=$Version" `
     "/DPAYLOAD_DIR=$payload" `
     "/DOUT_FILE=$output" `
+    "/DICON_FILE=$installerIcon" `
     $installerScript
 if ($LASTEXITCODE -ne 0) {
     throw "makensis failed with exit code $LASTEXITCODE."

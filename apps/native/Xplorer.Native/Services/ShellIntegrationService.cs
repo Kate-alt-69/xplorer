@@ -13,6 +13,7 @@ public static class ShellIntegrationService
     private const string OwnershipValueName = "XplorerOwner";
     private const string OwnershipValue = "{8F7A8759-1D96-45A1-A7A4-1F516D9DC7B8}";
     private const string HostExecutableName = "xplorer.exe";
+    private const string UiExecutableName = "Xplorer.Native.exe";
 
     private static readonly ShellVerb[] Verbs =
     [
@@ -31,6 +32,7 @@ public static class ShellIntegrationService
     public static void Register()
     {
         var executable = ResolvePublicExecutable();
+        var iconExecutable = ResolveIconExecutable(executable);
 
         foreach (var verb in Verbs)
         {
@@ -40,7 +42,7 @@ public static class ShellIntegrationService
 
             key.SetValue("", "Open in Xplorer", RegistryValueKind.String);
             key.SetValue("MUIVerb", "Open in Xplorer", RegistryValueKind.String);
-            key.SetValue("Icon", $"\"{executable}\"", RegistryValueKind.String);
+            key.SetValue("Icon", $"\"{iconExecutable}\"", RegistryValueKind.String);
             key.SetValue(OwnershipValueName, OwnershipValue, RegistryValueKind.String);
 
             using var command = key.CreateSubKey("command", writable: true)
@@ -78,6 +80,12 @@ public static class ShellIntegrationService
         return Environment.ProcessPath is { Length: > 0 } processPath
             ? processPath
             : throw new InvalidOperationException("Unable to determine the Xplorer executable path.");
+    }
+
+    private static string ResolveIconExecutable(string fallback)
+    {
+        var ui = Path.Combine(AppContext.BaseDirectory, UiExecutableName);
+        return File.Exists(ui) ? ui : fallback;
     }
 
     private sealed record ShellVerb(string ParentPath, string? TargetToken);
