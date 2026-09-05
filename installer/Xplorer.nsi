@@ -1,7 +1,6 @@
 Unicode true
 RequestExecutionLevel user
 SetCompressor /SOLID lzma
-SetShellVarContext current
 
 !include "MUI2.nsh"
 !include "LogicLib.nsh"
@@ -46,6 +45,7 @@ Var ExistingUninstall
 Var UpgradeBackup
 
 Function .onInit
+  SetShellVarContext current
   StrCpy $UpgradeBackup "$LOCALAPPDATA\Xplorer.upgrade-data"
 FunctionEnd
 
@@ -90,6 +90,7 @@ Function RemoveLegacyShellKeys
 FunctionEnd
 
 Section "Xplorer" SEC_MAIN
+  SetShellVarContext current
   Call StopRunningXplorer
   Call BackupNativeUserData
 
