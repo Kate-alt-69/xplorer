@@ -30,8 +30,8 @@ public sealed class SettingsService
         try
         {
             if (!File.Exists(_settingsPath)) return new XplorerSettings();
-            return JsonSerializer.Deserialize<XplorerSettings>(File.ReadAllText(_settingsPath), JsonOptions)
-                   ?? new XplorerSettings();
+            var loaded = JsonSerializer.Deserialize<XplorerSettings>(File.ReadAllText(_settingsPath), JsonOptions);
+            return loaded is null ? new XplorerSettings() : Normalize(loaded);
         }
         catch
         {
@@ -51,13 +51,48 @@ public sealed class SettingsService
             if (!File.Exists(_settingsPath)) return false;
             var reloaded = JsonSerializer.Deserialize<XplorerSettings>(File.ReadAllText(_settingsPath), JsonOptions);
             if (reloaded is null) return false;
-            Current = reloaded;
+            Current = Normalize(reloaded);
             return true;
         }
         catch
         {
             return false;
         }
+    }
+
+    private static XplorerSettings Normalize(XplorerSettings settings)
+    {
+        settings.Theme = string.IsNullOrWhiteSpace(settings.Theme) ? "System" : settings.Theme;
+        settings.ThemeFileName = string.IsNullOrWhiteSpace(settings.ThemeFileName) ? "default.xml" : settings.ThemeFileName;
+        settings.DefaultViewMode = string.IsNullOrWhiteSpace(settings.DefaultViewMode) ? "Medium" : settings.DefaultViewMode;
+        settings.DefaultSortMode = string.IsNullOrWhiteSpace(settings.DefaultSortMode) ? "Name" : settings.DefaultSortMode;
+        settings.TerminalCommand ??= string.Empty;
+        settings.TerminalArguments ??= string.Empty;
+
+        // System.Text.Json recreates dictionaries with its default comparer. Rebuild this one so
+        // Windows paths remain case-insensitive after restart just like they are during first run.
+        var normalizedOverrides = new Dictionary<string, FolderViewSettings>(StringComparer.OrdinalIgnoreCase);
+        if (settings.FolderOverrides is not null)
+        {
+            foreach (var pair in settings.FolderOverrides)
+            {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null) continue;
+                normalizedOverrides[pair.Key] = pair.Value;
+            }
+        }
+        settings.FolderOverrides = normalizedOverrides;
+
+        settings.Session ??= new ExplorerSessionSettings();
+        settings.Session.Tabs ??= [];
+        settings.Session.Window ??= new WindowPlacementSettings();
+        foreach (var tab in settings.Session.Tabs)
+        {
+            tab.CurrentPath ??= string.Empty;
+            tab.BackHistory ??= [];
+            tab.ForwardHistory ??= [];
+        }
+
+        return settings;
     }
 
     public string GetViewMode(string folder)
