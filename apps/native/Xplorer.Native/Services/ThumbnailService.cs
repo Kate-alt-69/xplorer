@@ -29,11 +29,14 @@ public static class ThumbnailService
                     ThumbnailOptions.UseCurrentScale);
             }
 
-            if (thumbnail.Size == 0) return null;
+            using (thumbnail)
+            {
+                if (thumbnail.Size == 0) return null;
 
-            var bitmap = new BitmapImage();
-            await bitmap.SetSourceAsync(thumbnail);
-            return bitmap;
+                var bitmap = new BitmapImage();
+                await bitmap.SetSourceAsync(thumbnail);
+                return bitmap;
+            }
         }
         catch
         {
