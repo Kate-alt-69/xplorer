@@ -38,11 +38,9 @@ public partial class App : Application
             throw;
         }
 
-        // Many WinUI controls (TabView, CommandBar, ListView, GridView, ContentDialog, ...) resolve
-        // their default styles from XamlControlsResources. Install it after App.xaml itself has
-        // loaded so a framework resource problem is observable instead of becoming an opaque
-        // App.InitializeComponent parse failure. MainWindow still has a code-only recovery path.
-        TryInstallFrameworkControlResources();
+        // Application.Resources can fail while the App constructor itself is still running on
+        // older Windows 10 builds. Install framework control resources from OnLaunched instead,
+        // after WinUI has fully registered the Application instance.
         UiStartupDiagnostics.AttachFrameworkTracing(this);
     }
 
@@ -64,6 +62,7 @@ public partial class App : Application
     {
         try
         {
+            TryInstallFrameworkControlResources();
             LaunchCore(args);
         }
         catch (Exception ex)
