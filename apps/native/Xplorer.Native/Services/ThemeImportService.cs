@@ -47,16 +47,19 @@ public static class ThemeImportService
         if (sourceInfo.Length > MaximumThemeBytes)
             throw new InvalidDataException("Xplorer theme files are limited to 64 KiB.");
 
-        var scan = await ThemeSecurityService.ScanFileAsync(sourcePath).ConfigureAwait(false);
+        // Read once, then use this exact immutable byte buffer for the AV scan, SHA-256 identity and
+        // staged file. The source can disappear or change after this point without changing what the
+        // user actually previewed.
+        var bytes = await File.ReadAllBytesAsync(sourcePath).ConfigureAwait(false);
+        if (bytes.Length > MaximumThemeBytes)
+            throw new InvalidDataException("The selected XML theme changed while it was being imported and is now too large.");
+
+        var scan = ThemeSecurityService.ScanBytes(bytes, Path.GetFileName(sourcePath));
         if (!scan.Clean)
             throw new InvalidDataException(scan.Message);
 
         ThemeService.EnsureDefaultThemeFile();
         DiscardPending();
-
-        var bytes = await File.ReadAllBytesAsync(sourcePath).ConfigureAwait(false);
-        if (bytes.Length > MaximumThemeBytes)
-            throw new InvalidDataException("The selected XML theme changed while it was being imported and is now too large.");
 
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         var stagedName = $".pending-{Guid.NewGuid():N}.xml";
@@ -107,7 +110,7 @@ public static class ThemeImportService
         if (!string.Equals(hash, state.Sha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("The staged theme changed after it was previewed. Xplorer will not trust it.");
 
-        var scan = await ThemeSecurityService.ScanFileAsync(path).ConfigureAwait(false);
+        var scan = ThemeSecurityService.ScanBytes(bytes, state.SourceFileName);
         if (!scan.Clean)
             throw new InvalidDataException(scan.Message);
 
