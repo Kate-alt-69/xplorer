@@ -84,7 +84,7 @@
                             OffContent="Off"
                             OnContent="Enabled" />
                         <TextBlock
-                            Text="Adds an Xplorer-owned entry for folders, drives, and folder backgrounds under your user account. Turning it off removes only registry keys carrying Xplorer's ownership marker."
+                            Text="Adds Xplorer-owned entries for folders, drives, folder backgrounds, and the Windows desktop background. Turning it off removes only registry keys carrying Xplorer's ownership marker."
                             Opacity="0.7"
                             TextWrapping="Wrap" />
 
@@ -95,7 +95,7 @@
                             OffContent="Off"
                             OnContent="Enabled" />
                         <TextBlock
-                            Text="Runs the zero-UI Rust worker at background priority. Directory discovery is paced at 24 KiB/s and metadata capture at 488 KiB/s; ordinary file contents are never read for indexing. The startup entry is per-user and removable."
+                            Text="Runs the zero-UI Rust worker at background priority. Directory discovery is paced at 24 KiB/s and metadata capture at 488 KiB/s; ordinary file contents are never read for indexing. NTFS journal changes are replayed as tiny metadata deltas when available. The startup entry is per-user and removable."
                             Opacity="0.7"
                             TextWrapping="Wrap" />
                         <TextBlock
