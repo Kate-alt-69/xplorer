@@ -8,35 +8,24 @@ public static class ThumbnailService
 {
     public static async Task<BitmapImage?> LoadAsync(string path, bool isDirectory, uint size = 96)
     {
+        // Xplorer has its own folder/file icon language. Explorer shell thumbnails for folders
+        // and ordinary file types were visually replacing those icons with stock yellow folders.
+        // Only real visual media gets a thumbnail; everything else keeps the Xplorer vector icon.
+        if (isDirectory || !IsImage(path)) return null;
+
         try
         {
-            StorageItemThumbnail thumbnail;
-            if (isDirectory)
-            {
-                var folder = await StorageFolder.GetFolderFromPathAsync(path);
-                thumbnail = await folder.GetThumbnailAsync(
-                    ThumbnailMode.ListView,
-                    size,
-                    ThumbnailOptions.UseCurrentScale);
-            }
-            else
-            {
-                var file = await StorageFile.GetFileFromPathAsync(path);
-                var mode = IsImage(path) ? ThumbnailMode.PicturesView : ThumbnailMode.ListView;
-                thumbnail = await file.GetThumbnailAsync(
-                    mode,
-                    size,
-                    ThumbnailOptions.UseCurrentScale);
-            }
+            var file = await StorageFile.GetFileFromPathAsync(path);
+            using var thumbnail = await file.GetThumbnailAsync(
+                ThumbnailMode.PicturesView,
+                size,
+                ThumbnailOptions.UseCurrentScale);
 
-            using (thumbnail)
-            {
-                if (thumbnail.Size == 0) return null;
+            if (thumbnail.Size == 0) return null;
 
-                var bitmap = new BitmapImage();
-                await bitmap.SetSourceAsync(thumbnail);
-                return bitmap;
-            }
+            var bitmap = new BitmapImage();
+            await bitmap.SetSourceAsync(thumbnail);
+            return bitmap;
         }
         catch
         {
@@ -44,9 +33,6 @@ public static class ThumbnailService
         }
     }
 
-    private static bool IsImage(string path)
-    {
-        return Path.GetExtension(path).ToLowerInvariant() is
-            ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".gif" or ".tif" or ".tiff" or ".heic" or ".avif";
-    }
+    private static bool IsImage(string path) => Path.GetExtension(path).ToLowerInvariant() is
+        ".png" or ".jpg" or ".jpeg" or ".webp" or ".bmp" or ".gif" or ".tif" or ".tiff" or ".heic" or ".avif" or ".svg";
 }
