@@ -241,7 +241,7 @@ public sealed partial class MainWindow
         {
             Text = item.DisplayName,
             FontSize = 16,
-            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            FontWeight = Windows.UI.Text.FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis,
         });
         content.Children.Add(CreateInspectorRow("Type", item.TypeName));
