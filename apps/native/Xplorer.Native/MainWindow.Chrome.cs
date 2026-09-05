@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
+using Xplorer.Native.Models;
 using Xplorer.Native.Services;
 
 namespace Xplorer.Native;
@@ -13,6 +14,7 @@ public sealed partial class MainWindow
     private const double NativeExtensionsRailWidth = 48;
     private bool _chromeLoaded;
     private bool _sidebarCollapsed;
+    private bool _inspectorRailHooked;
 
     /// <summary>
     /// Finishes the visual setup after WinUI has loaded the tree. This deliberately runs after
@@ -33,6 +35,7 @@ public sealed partial class MainWindow
         // tree is live, then hook the rail button immediately because Root.Loaded is already firing.
         InitializeNativeSearch();
         HookSearchRailButton();
+        HookInspectorRailButton();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
@@ -194,6 +197,103 @@ public sealed partial class MainWindow
 
         if (!string.IsNullOrWhiteSpace(target) && Directory.Exists(target))
             await NavigateAsync(target);
+    }
+
+    private void HookInspectorRailButton()
+    {
+        if (_inspectorRailHooked) return;
+
+        foreach (var button in FindVisualDescendants<Button>(Root))
+        {
+            if (!string.Equals(
+                    ToolTipService.GetToolTip(button)?.ToString(),
+                    "Inspector",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            button.IsEnabled = true;
+            button.Click += InspectorRailButton_Click;
+            _inspectorRailHooked = true;
+            break;
+        }
+    }
+
+    private void InspectorRailButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button anchor) return;
+
+        var item = GetSelectedItem();
+        if (item is null)
+        {
+            StatusText.Text = "Select a file or folder to inspect.";
+            return;
+        }
+
+        var content = new StackPanel
+        {
+            Width = 330,
+            Spacing = 8,
+            Padding = new Thickness(4),
+        };
+        content.Children.Add(new TextBlock
+        {
+            Text = item.DisplayName,
+            FontSize = 16,
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        content.Children.Add(CreateInspectorRow("Type", item.TypeName));
+        content.Children.Add(CreateInspectorRow("Size", item.SizeText));
+        content.Children.Add(CreateInspectorRow("Modified", item.ModifiedText));
+        content.Children.Add(new TextBlock
+        {
+            Text = "Path",
+            FontSize = 11,
+            Opacity = 0.62,
+            Margin = new Thickness(0, 4, 0, 0),
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = item.FullPath,
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            IsTextSelectionEnabled = true,
+        });
+
+        var flyout = new Flyout
+        {
+            Content = content,
+            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Left,
+        };
+        flyout.ShowAt(anchor);
+    }
+
+    private static FrameworkElement CreateInspectorRow(string label, string value)
+    {
+        var grid = new Grid { ColumnSpacing = 12 };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var labelBlock = new TextBlock
+        {
+            Text = label,
+            FontSize = 11,
+            Opacity = 0.62,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var valueBlock = new TextBlock
+        {
+            Text = value,
+            FontSize = 12,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        Grid.SetColumn(valueBlock, 1);
+        grid.Children.Add(labelBlock);
+        grid.Children.Add(valueBlock);
+        return grid;
     }
 
     private async void ChromeSortName_Click(object sender, RoutedEventArgs e)
