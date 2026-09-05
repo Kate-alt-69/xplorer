@@ -61,7 +61,7 @@ jobs:
 
       - name: Build upgrade installer
         shell: pwsh
-        run: ./scripts/build-installer.ps1 -Configuration Release -Runtime win-x64 -Version 0.4.0-alpha.1 -SkipNativeBuild
+        run: ./scripts/build-installer.ps1 -Configuration Release -Runtime win-x64 -Version 1.0.0-alpha.1 -SkipNativeBuild
 
       - name: Measure idle worker memory
         shell: pwsh
