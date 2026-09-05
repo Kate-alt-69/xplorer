@@ -66,20 +66,38 @@ public static class UiStartupDiagnostics
             "basic Grid",
             "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><TextBlock Text=\"probe\" /></Grid>");
         ProbeXaml(
-            "TabView",
+            "TabView basic",
             "<TabView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" IsAddTabButtonVisible=\"True\" />");
         ProbeXaml(
-            "CommandBar",
+            "TabView MainWindow properties",
+            "<TabView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Height=\"38\" IsAddTabButtonVisible=\"True\" CanReorderTabs=\"True\" TabWidthMode=\"SizeToContent\" />");
+        ProbeXaml(
+            "CommandBar FontIcon",
             "<CommandBar xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><AppBarButton><AppBarButton.Icon><FontIcon Glyph=\"&#xE8B0;\" /></AppBarButton.Icon></AppBarButton></CommandBar>");
+        ProbeXaml(
+            "AppBarButton Symbol icons",
+            "<CommandBar xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><AppBarButton Icon=\"Copy\" Label=\"Copy\"/><AppBarButton Icon=\"Cut\" Label=\"Cut\"/><AppBarButton Icon=\"Paste\" Label=\"Paste\"/><AppBarButton Icon=\"Delete\" Label=\"Delete\"/><AppBarButton Icon=\"Setting\" Label=\"Settings\"/></CommandBar>");
         ProbeXaml(
             "ItemsWrapGrid template",
             "<ItemsPanelTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><ItemsWrapGrid Orientation=\"Horizontal\" ItemWidth=\"116\" ItemHeight=\"104\" /></ItemsPanelTemplate>");
+        ProbeXaml(
+            "GridView local ItemsPanel/DataTemplate",
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><Grid.Resources><ItemsPanelTemplate x:Key=\"P\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><ItemsWrapGrid Orientation=\"Horizontal\" ItemWidth=\"116\" ItemHeight=\"104\" /></ItemsPanelTemplate><DataTemplate x:Key=\"T\" xmlns:x=\"http://schemas.microsoft.com/winfx/2006/xaml\"><TextBlock Text=\"item\" MaxLines=\"2\" /></DataTemplate></Grid.Resources><GridView ItemsPanel=\"{StaticResource P}\" ItemTemplate=\"{StaticResource T}\" SelectionMode=\"Extended\" IsMultiSelectCheckBoxEnabled=\"False\" /></Grid>");
+        ProbeXaml(
+            "ListView Header",
+            "<ListView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><ListView.Header><Grid Padding=\"12,7\"><TextBlock Text=\"Name\" /></Grid></ListView.Header></ListView>");
+        ProbeXaml(
+            "TextBlock MaxLines",
+            "<TextBlock xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Text=\"probe\" TextWrapping=\"Wrap\" TextTrimming=\"CharacterEllipsis\" MaxLines=\"2\" />");
         ProbeXaml(
             "app theme resource",
             "<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Background=\"{ThemeResource ApplicationPageBackgroundThemeBrush}\" />");
         ProbeXaml(
             "card stroke resource",
             "<Border xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" BorderBrush=\"{ThemeResource CardStrokeColorDefaultBrush}\" BorderThickness=\"1\" />");
+        ProbeXaml(
+            "critical fill resource",
+            "<TextBlock xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Foreground=\"{ThemeResource SystemFillColorCriticalBrush}\" Text=\"probe\" />");
 
         CrashLogService.Log("UI preflight completed.");
     }
