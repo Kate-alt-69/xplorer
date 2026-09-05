@@ -19,6 +19,7 @@ public static class ShellIntegrationService
         new(@"Directory\shell", "%1"),
         new(@"Drive\shell", "%1"),
         new(@"Directory\Background\shell", "%V"),
+        new(@"DesktopBackground\shell", null),
     ];
 
     public static void Apply(bool enabled)
@@ -44,7 +45,8 @@ public static class ShellIntegrationService
 
             using var command = key.CreateSubKey("command", writable: true)
                 ?? throw new InvalidOperationException($"Unable to create the command for HKCU\\{keyPath}.");
-            command.SetValue("", $"\"{executable}\" \"{verb.TargetToken}\"", RegistryValueKind.String);
+            var target = verb.TargetToken ?? Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            command.SetValue("", $"\"{executable}\" \"{target}\"", RegistryValueKind.String);
             command.SetValue(OwnershipValueName, OwnershipValue, RegistryValueKind.String);
         }
     }
@@ -78,5 +80,5 @@ public static class ShellIntegrationService
             : throw new InvalidOperationException("Unable to determine the Xplorer executable path.");
     }
 
-    private sealed record ShellVerb(string ParentPath, string TargetToken);
+    private sealed record ShellVerb(string ParentPath, string? TargetToken);
 }
