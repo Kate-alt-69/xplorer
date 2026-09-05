@@ -8,13 +8,17 @@ use std::{
 };
 
 use crate::{
-    index,
-    platform::{self, SingleInstanceMutex, StopEvent, UsnMarker},
+    delta, index,
+    platform::{self, SingleInstanceMutex, StopEvent},
     state::{CursorState, VolumeCursor},
+    usn,
 };
 
 const RECONCILE_INTERVAL: Duration = Duration::from_secs(30 * 60);
+const FULL_SNAPSHOT_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const IDLE_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_DELTA_BYTES: u64 = 4 * 1024 * 1024;
+const MAX_USN_RECORDS_PER_PASS: usize = 4096;
 
 pub fn run<I>(arguments: I) -> io::Result<i32>
 where
@@ -93,51 +97,105 @@ fn reconcile(data_dir: &Path, state: &mut CursorState) {
     let now = unix_now();
     for drive in platform::fixed_drive_letters() {
         let snapshot_exists = index::snapshot_path(data_dir, drive).is_file();
-        let before = platform::query_usn_marker(drive).ok();
-        let previous = state.get(drive);
+        let current = platform::query_usn_marker(drive).ok();
+        let Some(previous) = state.get(drive) else {
+            rebuild_snapshot(drive, data_dir, state, now, current);
+            continue;
+        };
 
-        if !needs_scan(snapshot_exists, previous, before, now) {
+        if !snapshot_exists {
+            rebuild_snapshot(drive, data_dir, state, now, current);
             continue;
         }
 
-        if index::scan_volume(drive, data_dir).is_err() {
-            continue;
-        }
+        let snapshot_due = now.saturating_sub(previous.last_scan_unix)
+            >= FULL_SNAPSHOT_INTERVAL.as_secs();
+        let delta_too_large = delta::delta_size(data_dir, drive) >= MAX_DELTA_BYTES;
 
-        let after = platform::query_usn_marker(drive).ok().or(before);
-        state.upsert(VolumeCursor {
-            drive,
-            journal_supported: after.is_some(),
-            journal_id: after.map_or(0, |marker| marker.journal_id),
-            next_usn: after.map_or(0, |marker| marker.next_usn),
-            last_scan_unix: now,
-            last_seen_unix: now,
-        });
+        match current {
+            Some(marker) => {
+                if snapshot_due
+                    || delta_too_large
+                    || !previous.journal_supported
+                    || previous.journal_id != marker.journal_id
+                    || previous.next_usn > marker.next_usn
+                {
+                    rebuild_snapshot(drive, data_dir, state, now, Some(marker));
+                    continue;
+                }
+
+                if previous.next_usn == marker.next_usn {
+                    state.upsert(VolumeCursor {
+                        last_seen_unix: now,
+                        ..previous
+                    });
+                    continue;
+                }
+
+                let batch = match usn::read_changes(
+                    drive,
+                    previous.next_usn,
+                    marker.next_usn,
+                    marker.journal_id,
+                    MAX_USN_RECORDS_PER_PASS,
+                ) {
+                    Ok(batch) if batch.complete => batch,
+                    _ => {
+                        rebuild_snapshot(drive, data_dir, state, now, Some(marker));
+                        continue;
+                    }
+                };
+
+                let applied = match delta::apply_changes(drive, data_dir, &batch.changes) {
+                    Ok(result) if !result.requires_full_scan => result,
+                    _ => {
+                        rebuild_snapshot(drive, data_dir, state, now, Some(marker));
+                        continue;
+                    }
+                };
+
+                let _ = applied.records;
+                state.upsert(VolumeCursor {
+                    drive,
+                    journal_supported: true,
+                    journal_id: marker.journal_id,
+                    next_usn: batch.next_usn,
+                    last_scan_unix: previous.last_scan_unix,
+                    last_seen_unix: now,
+                });
+            }
+            None => {
+                if previous.journal_supported
+                    || now.saturating_sub(previous.last_scan_unix) >= RECONCILE_INTERVAL.as_secs()
+                {
+                    rebuild_snapshot(drive, data_dir, state, now, None);
+                }
+            }
+        }
     }
 }
 
-fn needs_scan(
-    snapshot_exists: bool,
-    previous: Option<VolumeCursor>,
-    current_usn: Option<UsnMarker>,
+fn rebuild_snapshot(
+    drive: u8,
+    data_dir: &Path,
+    state: &mut CursorState,
     now: u64,
-) -> bool {
-    if !snapshot_exists {
-        return true;
+    before: Option<platform::UsnMarker>,
+) {
+    if index::scan_volume(drive, data_dir).is_err() {
+        return;
     }
 
-    let Some(previous) = previous else {
-        return true;
-    };
-
-    match current_usn {
-        Some(marker) => {
-            !previous.journal_supported
-                || previous.journal_id != marker.journal_id
-                || previous.next_usn != marker.next_usn
-        }
-        None => now.saturating_sub(previous.last_scan_unix) >= RECONCILE_INTERVAL.as_secs(),
-    }
+    let _ = delta::clear(data_dir, drive);
+    let after = platform::query_usn_marker(drive).ok().or(before);
+    state.upsert(VolumeCursor {
+        drive,
+        journal_supported: after.is_some(),
+        journal_id: after.map_or(0, |marker| marker.journal_id),
+        next_usn: after.map_or(0, |marker| marker.next_usn),
+        last_scan_unix: now,
+        last_seen_unix: now,
+    });
 }
 
 fn data_directory() -> io::Result<PathBuf> {

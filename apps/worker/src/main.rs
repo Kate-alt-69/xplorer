@@ -1,6 +1,8 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 #[cfg(windows)]
+mod delta;
+#[cfg(windows)]
 mod host;
 #[cfg(windows)]
 mod index;
@@ -8,6 +10,8 @@ mod index;
 mod platform;
 #[cfg(windows)]
 mod state;
+#[cfg(windows)]
+mod usn;
 #[cfg(windows)]
 mod worker;
 

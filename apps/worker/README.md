@@ -11,36 +11,31 @@
 - `--stop-service-worker` signals a named Windows event so a running worker exits immediately instead of waiting for its 30-minute sleep interval;
 - `--idle-probe` starts the worker primitives without scanning a drive so CI can measure the real Windows process footprint.
 
-A named Windows mutex (`Local\\Xplorer.IndexWorker.v1`) guarantees one worker instance per user session. Release builds use the Windows GUI subsystem, so startup creates neither a console window nor a tray icon. The worker asks Windows for background scheduling and falls back to the idle priority class.
+A named Windows mutex (`Local\\Xplorer.IndexWorker.v1`) guarantees one worker instance per user session. Release builds use the Windows GUI subsystem, so startup creates neither a console window nor a tray icon. The worker asks Windows for background scheduling and trims reclaimable resident pages before each long idle wait.
 
-Before a long 30-minute wait, the worker explicitly asks Windows to trim reclaimable resident pages from its working set. That preserves its tiny committed state but avoids keeping Rust/code/DLL pages resident while the worker is asleep; pages fault back normally when the next indexing pass wakes.
-
-The WinUI build copies the release Rust host beside `Xplorer.Native.exe`. Windows Shell verbs prefer the Rust `xplorer.exe`, so shell launches and worker startup share one stable public executable while the UI remains a native WinUI process behind it.
+The WinUI package keeps the Rust host beside `Xplorer.Native.exe`. Windows Shell verbs prefer the Rust `xplorer.exe`, so shell launches and worker startup share one stable public executable while the UI remains native WinUI.
 
 ## Indexing
 
 The first pass writes one compact, streaming metadata snapshot per fixed drive under `%LOCALAPPDATA%\\Xplorer\\Index`:
 
-- `C.xidx`, `D.xidx`, etc. contain UTF-16 relative paths, Windows attributes, file size, and last-write FILETIME.
-- `cursor.bin` stores the per-volume USN journal id + `NextUsn` cursor and the last completed scan time.
-- reparse-point directories are recorded but not traversed, preventing junction/symlink loops.
-- the Xplorer index directory excludes itself from the crawl.
+- `C.xidx`, `D.xidx`, etc. contain UTF-16 relative paths, Windows attributes, file size, and last-write FILETIME;
+- `C.xdelta`, `D.xdelta`, etc. contain small append-only metadata upserts/tombstones replayed from the NTFS USN journal;
+- `cursor.bin` stores the per-volume USN journal id + `NextUsn` cursor and the last completed full snapshot time;
+- reparse-point directories are recorded but not traversed, preventing junction/symlink loops;
+- the Xplorer index directory excludes itself from the crawl;
 - snapshots are written to a temporary file and atomically replaced after a successful scan.
 
-The crawler uses two logical pacing budgets:
+The crawler uses two logical pacing budgets: **24 KiB/s** for directory discovery and **488 KiB/s** for metadata capture, for the requested **512 KiB/s combined policy target**. It never reads ordinary file contents while indexing.
 
-- directory traversal/index record discovery: **24 KiB/s** estimated metadata work;
-- metadata capture: **488 KiB/s** estimated metadata work;
-- combined policy target: **512 KiB/s**.
+## USN incremental behavior
 
-This is intentionally a logical metadata-work throttle, not a claim that every cached kernel read can be byte-perfectly throttled. The worker never reads ordinary file contents while building the index.
+Every 30 minutes the worker queries the NTFS USN Change Journal. If the cursor has not moved, the drive stays untouched. If it has moved, Xplorer reads only records since the stored cursor and resolves the affected parent directory by NTFS file id. Normal file creates, edits, deletes and renames become tiny append-only delta records instead of triggering a full-drive crawl.
 
-## USN behavior
+The worker deliberately falls back to the slow paced full snapshot when correctness is ambiguous: journal reset/wrap, unsupported USN record versions, very large bursts, hard-link topology changes, directory rename/delete, inaccessible parent ids, a delta log above 4 MiB, or the normal 24-hour compaction pass. A successful full snapshot clears that volume's delta log and resets its cursor.
 
-On NTFS volumes where the current user can query the USN Change Journal, the worker stores the journal id and `NextUsn`. Every 30 minutes it checks that marker. If nothing changed, the drive is not rescanned and disk activity stays at zero. If the journal changes, this first implementation performs another paced reconciliation scan.
-
-The next worker pass will replay USN records into a delta log so ordinary file changes no longer require a full reconciliation scan. Volumes where USN is unavailable fall back to the paced 30-minute metadata reconciliation.
+This makes the USN journal an optimization, not a single point of correctness. Non-NTFS / unavailable-journal volumes continue using the paced 30-minute metadata reconciliation.
 
 ## Memory target
 
-The design keeps only the current directory traversal state, one metadata record, small buffered writes, and at most 26 volume cursors alive. CI measures both total working set and private committed memory without scanning a drive. Before idle trimming was added, Windows CI measured **820 KiB private memory** and **4544 KiB total working set**; the private target was already below 1 MiB. The idle-trim pass now targets the resident working set too, while preserving normal page-fault behavior when the worker wakes.
+The idle worker retains only a mutex/event, a few cursors, and tiny process state. Windows CI previously measured **820 KiB private memory** before the working-set trim pass; after explicit idle trimming the resident working set dropped to roughly **296 KiB** in one CI run. Exact Task Manager figures vary by Windows build and mapped system pages, so CI keeps reporting both working-set and private-memory measurements instead of hiding either number.
