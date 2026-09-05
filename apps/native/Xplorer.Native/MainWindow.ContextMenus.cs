@@ -17,11 +17,9 @@ public sealed partial class MainWindow
     /// Explorer-style RMB behavior: right-clicking an item outside the selection makes it the
     /// selection; right-clicking one of several selected items preserves the full selection.
     ///
-    /// IMPORTANT: selection menus are deliberately hosted from a fresh live IContextMenu instance.
-    /// Shell cascades created by registry SubCommands/ExtendedSubCommandsKey entries and a number of
-    /// installer shell extensions populate children only after WM_INITMENUPOPUP. Replaying a cached
-    /// HMENU snapshot severs that live COM owner and produces the tiny/blank submenu seen with custom
-    /// .reg cascades. Correct Explorer shell behavior wins over the tiny repeated-RMB cache gain.
+    /// Item menus use the compatibility-first live Shell host. Registry cascades and many installed
+    /// shell extensions populate child menus through CMF_SYNCCASCADEMENU and/or IContextMenu2/3
+    /// messages, so they must remain attached to their COM owner until TrackPopupMenuEx exits.
     /// </summary>
     private async void FileList_MultiRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
@@ -45,14 +43,11 @@ public sealed partial class MainWindow
 
         try
         {
-            // A fresh host guarantees that lazy cascades stay attached to their IContextMenu2/3
-            // while TrackPopupMenuEx is running. The service itself still keeps its safe cache code
-            // for callers that can opt into snapshot replay later once dynamic-popup detection lands.
-            using var liveShellMenu = new ShellContextMenuService();
+            using var liveShellMenu = new ExplorerShellMenuService();
             var result = liveShellMenu.ShowForPaths(_hwnd, selectedPaths);
 
-            // Cancelling a context menu must be essentially free. The old path re-enumerated the
-            // whole directory after every RMB close, which made menu spam much more expensive.
+            // Cancelling a context menu must be essentially free. Re-enumerate only after an
+            // invoked Shell command because it may have created, renamed, moved or deleted items.
             if (result == ShellMenuShowResult.Invoked)
                 await NavigateAsync(CurrentPath, pushHistory: false);
         }
