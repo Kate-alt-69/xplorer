@@ -63,8 +63,9 @@ FunctionEnd
 
 Function StopRunningXplorer
   ; taskkill returning "not found" is harmless during a first install.
-  nsExec::ExecToLog 'taskkill /IM xplorer.exe /F'
-  nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /F'
+  nsExec::ExecToLog 'taskkill /IM xplorer.exe /T /F'
+  nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /T /F'
+  Sleep 250
 FunctionEnd
 
 Function RestoreNativeUserData
@@ -220,11 +221,10 @@ SectionEnd
 Section "Uninstall"
   SetShellVarContext current
 
-  IfFileExists "$INSTDIR\Xplorer.Native.exe" 0 +2
-    nsExec::ExecToLog '"$INSTDIR\Xplorer.Native.exe" --cleanup-integration'
-  IfFileExists "$INSTDIR\xplorer.exe" 0 +3
+  ; Keep uninstall independent from WinUI startup. Registry cleanup below owns integration removal,
+  ; so a broken UI can never prevent uninstall from completing.
+  IfFileExists "$INSTDIR\xplorer.exe" 0 +2
     nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --stop-service-worker'
-    nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --unregister-startup'
 
   Call un.StopRunningXplorer
 
@@ -243,12 +243,31 @@ Section "Uninstall"
 
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "${INSTALL_KEY}"
-  RMDir /r "$INSTDIR"
+
+  ; The worker can have an executable image mapping for a short time after it receives the stop event.
+  ; Delete the two executable entry points explicitly after taskkill, retry once, then let NSIS mark
+  ; anything still transiently locked for deletion at reboot rather than leaving a half-installed tree.
+  ClearErrors
+  Delete "$INSTDIR\xplorer.exe"
+  ${If} ${Errors}
+    Sleep 750
+    ClearErrors
+    Delete /REBOOTOK "$INSTDIR\xplorer.exe"
+  ${EndIf}
+  ClearErrors
+  Delete "$INSTDIR\Xplorer.Native.exe"
+  ${If} ${Errors}
+    Sleep 250
+    ClearErrors
+    Delete /REBOOTOK "$INSTDIR\Xplorer.Native.exe"
+  ${EndIf}
+  RMDir /r /REBOOTOK "$INSTDIR"
 
   ; Preserve %LOCALAPPDATA%\Xplorer: settings, XML themes, indexes and diagnostic logs are user data.
 SectionEnd
 
 Function un.StopRunningXplorer
-  nsExec::ExecToLog 'taskkill /IM xplorer.exe /F'
-  nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /F'
+  nsExec::ExecToLog 'taskkill /IM xplorer.exe /T /F'
+  nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /T /F'
+  Sleep 500
 FunctionEnd
