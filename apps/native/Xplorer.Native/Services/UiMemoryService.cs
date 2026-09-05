@@ -29,7 +29,7 @@ public static class UiMemoryService
                 GC.Collect(2, GCCollectionMode.Optimized, blocking: true, compacting: false);
                 GC.WaitForPendingFinalizers();
 
-                _ = SetProcessWorkingSetSize(process.Handle, (nuint)unchecked((nint)(-1)), (nuint)unchecked((nint)(-1)));
+                _ = SetProcessWorkingSetSize(process.Handle, nuint.MaxValue, nuint.MaxValue);
                 await Task.Delay(250).ConfigureAwait(false);
                 process.Refresh();
                 CrashLogService.Log(
