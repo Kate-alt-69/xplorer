@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
+using Xplorer.Native.Views;
 
 namespace Xplorer.Native.Services;
 
@@ -65,6 +66,12 @@ public static class UiStartupDiagnostics
         ProbeControl("GridView", static () => new GridView());
         ProbeControl("CommandBar", static () => new CommandBar());
         ProbeControl("TabView", static () => new TabView());
+        ProbeControl("ScrollViewer", static () => new ScrollViewer());
+        ProbeControl("ComboBox", static () => new ComboBox());
+        ProbeControl("ToggleSwitch", static () => new ToggleSwitch());
+        ProbeControl("ProgressBar", static () => new ProgressBar());
+        ProbeControl("ContentDialog", static () => new ContentDialog());
+        ProbeControl("MenuFlyout", static () => new MenuFlyout());
 
         ProbeXaml(
             "basic Grid",
@@ -102,8 +109,38 @@ public static class UiStartupDiagnostics
         ProbeXaml(
             "critical fill resource",
             "<TextBlock xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Foreground=\"{ThemeResource SystemFillColorCriticalBrush}\" Text=\"probe\" />");
+        ProbeXaml(
+            "settings control stack",
+            "<Grid xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><StackPanel><ComboBox Header=\"Theme\"><ComboBoxItem Content=\"System\"/></ComboBox><ToggleSwitch Header=\"Enabled\"/><ProgressBar Minimum=\"0\" Maximum=\"100\" Value=\"50\"/><ScrollViewer><TextBlock Text=\"probe\"/></ScrollViewer></StackPanel></Grid>");
+
+        ProbeAction("application Resources access", static () =>
+        {
+            _ = Application.Current.Resources.Count;
+        });
+        ProbeAction("default XML theme parse", static () =>
+        {
+            ThemeService.EnsureDefaultThemeFile();
+            _ = ThemeService.Load("default.xml");
+        });
+        ProbeAction("SettingsDialog compiled XAML", static () =>
+        {
+            _ = new SettingsDialog(new SettingsService());
+        });
 
         CrashLogService.Log("UI preflight completed.");
+    }
+
+    private static void ProbeAction(string name, Action action)
+    {
+        try
+        {
+            action();
+            CrashLogService.Log($"UI preflight action OK: {name}");
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.LogException($"UI preflight action FAILED: {name}", ex);
+        }
     }
 
     private static void ProbeControl(string name, Func<object> factory)
