@@ -14,6 +14,8 @@ mod state;
 mod usn;
 #[cfg(windows)]
 mod worker;
+#[cfg(windows)]
+mod workspace;
 
 #[cfg(windows)]
 fn main() {
