@@ -4,14 +4,24 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary>
+            <!-- Keep the handful of resources referenced by Xplorer's compiled XAML app-local.
+                 This avoids startup depending on optional/OS-sensitive theme dictionaries while
+                 still allowing normal WinUI controls to resolve their built-in default styles. -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
-                    <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6D6AFB" />
+                    <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#111116" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#33FFFFFF" />
+                    <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6D6AFB" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="XplorerAccentBrush" Color="#5B57E8" />
+                    <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#F7F7FA" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#26000000" />
+                    <SolidColorBrush x:Key="XplorerAccentBrush" Color="#5B57E8" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="HighContrast">
+                    <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+                    <SolidColorBrush x:Key="XplorerAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
