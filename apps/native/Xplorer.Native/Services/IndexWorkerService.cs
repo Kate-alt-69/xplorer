@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32;
 
 namespace Xplorer.Native.Services;
@@ -12,6 +14,8 @@ public static class IndexWorkerService
     private const string HostExecutableName = "xplorer.exe";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "Xplorer Index Worker";
+    private const string WakeEventName = @"Local\Xplorer.IndexWorker.Wake.v1";
+    private const uint EventModifyState = 0x0002;
 
     public static void Apply(bool enabled)
     {
@@ -26,6 +30,39 @@ public static class IndexWorkerService
         RunHostCommand(host, "--service-worker", waitForExit: false);
     }
 
+    /// <summary>
+    /// Publish the directory the user is actually looking at. This is intentionally direct IPC:
+    /// no cmd.exe, powershell.exe or conhost.exe is created just to enumerate files. A tiny atomic
+    /// hint file survives worker restarts and a named event wakes an already-running worker.
+    /// </summary>
+    public static void PrioritizeWorkspace(string folder)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(folder);
+            if (!Directory.Exists(fullPath)) return;
+
+            var indexDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Xplorer",
+                "Index");
+            Directory.CreateDirectory(indexDirectory);
+
+            var hintPath = Path.Combine(indexDirectory, "workspace.hint");
+            var tempPath = Path.Combine(
+                indexDirectory,
+                $"workspace.hint.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(tempPath, fullPath, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            File.Move(tempPath, hintPath, overwrite: true);
+            SignalWorkerWake();
+        }
+        catch
+        {
+            // Workspace priority is an optimization. Current-folder navigation and refresh must
+            // never fail because the worker or its cache directory is unavailable.
+        }
+    }
+
     public static void Disable()
     {
         var host = TryResolveHostPath();
@@ -38,6 +75,20 @@ public static class IndexWorkerService
         // Cleanup still works if xplorer.exe was manually removed before Xplorer is uninstalled.
         using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
         runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
+    }
+
+    private static void SignalWorkerWake()
+    {
+        var handle = OpenEventW(EventModifyState, false, WakeEventName);
+        if (handle == nint.Zero) return;
+        try
+        {
+            _ = SetEvent(handle);
+        }
+        finally
+        {
+            _ = CloseHandle(handle);
+        }
     }
 
     private static string ResolveHostPath() =>
@@ -84,4 +135,13 @@ public static class IndexWorkerService
         if (process.ExitCode != 0)
             throw new InvalidOperationException($"{HostExecutableName} {argument} exited with code {process.ExitCode}.");
     }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern nint OpenEventW(uint desiredAccess, bool inheritHandle, string name);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetEvent(nint eventHandle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(nint handle);
 }
