@@ -12,14 +12,19 @@ public sealed partial class MainWindow
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _themeReloadTimer;
     private ItemsPanelTemplate? _defaultMediumItemsPanel;
     private ItemsPanelTemplate? _defaultLargeItemsPanel;
+    private Brush? _defaultRootBackground;
+    private double? _defaultTabHeight;
     private bool _reloadSettingsBeforeTheme;
 
     public void InitializeXmlThemeSupport()
     {
-        // Capture the compiled templates once. Built-in/System theme resets must never invoke the
-        // runtime XAML parser; only a custom XML theme with custom tile dimensions needs it.
+        // Capture compiled/default UI resources once. Built-in/System theme resets must never call
+        // Application.Current.Resources or XamlReader: both are avoidable runtime resource lookups,
+        // and older Windows 10 builds have proven more sensitive to those during WinUI startup.
         _defaultMediumItemsPanel ??= Root.Resources["MediumItemsPanel"] as ItemsPanelTemplate;
         _defaultLargeItemsPanel ??= Root.Resources["LargeItemsPanel"] as ItemsPanelTemplate;
+        _defaultRootBackground ??= Root.Background;
+        _defaultTabHeight ??= Tabs.Height;
 
         ThemeService.EnsureDefaultThemeFile();
         ApplyXmlTheme();
@@ -124,15 +129,14 @@ public sealed partial class MainWindow
 
     private void ResetXmlThemeLayout()
     {
-        if (Application.Current.Resources.TryGetValue("ApplicationPageBackgroundThemeBrush", out var background) &&
-            background is Brush brush)
-        {
-            Root.Background = brush;
-        }
+        // Restore the actual compiled values captured from MainWindow instead of asking
+        // Application.Current.Resources to resolve them again at runtime.
+        if (_defaultRootBackground is not null)
+            Root.Background = _defaultRootBackground;
 
         SetXmlAccent(XplorerThemeDefinition.Default.Accent);
 
-        Tabs.Height = 38;
+        Tabs.Height = _defaultTabHeight ?? 38;
         var shellGrid = Root.Children
             .OfType<Grid>()
             .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
