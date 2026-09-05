@@ -20,11 +20,17 @@ public static class Program
             WinRT.ComWrappersSupport.InitializeComWrappers();
             CrashLogService.Log("WinRT COM wrappers initialized.");
 
-            Application.Start(_ =>
+            Application.Start(initializationParams =>
             {
                 try
                 {
+                    _ = initializationParams; // The current app does not need launch bootstrap parameters here.
                     var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+                    if (dispatcherQueue is null)
+                    {
+                        throw new InvalidOperationException("WinUI did not provide a DispatcherQueue for the application thread.");
+                    }
+
                     var context = new DispatcherQueueSynchronizationContext(dispatcherQueue);
                     SynchronizationContext.SetSynchronizationContext(context);
                     CrashLogService.Log("WinUI Application.Start callback entered; creating App.");
