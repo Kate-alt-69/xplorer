@@ -11,7 +11,13 @@ public sealed class XplorerSettings
     public bool RememberViewPerFolder { get; set; }
     public string TerminalCommand { get; set; } = string.Empty;
     public string TerminalArguments { get; set; } = string.Empty;
-    public bool WindowsShellContextMenu { get; set; }
+
+    // Xplorer is a file manager, so fresh installs expose its owned HKCU "Open in Xplorer" verbs
+    // immediately. This never replaces explorer.exe or system file-open handlers, and the setting
+    // remains user-toggleable; ShellIntegrationService removes only registry keys carrying our
+    // ownership marker when disabled/uninstalled.
+    public bool WindowsShellContextMenu { get; set; } = true;
+
     public bool BackgroundIndexing { get; set; } = true;
     public Dictionary<string, FolderViewSettings> FolderOverrides { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
