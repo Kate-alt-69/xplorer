@@ -98,7 +98,8 @@ public static class ThemeService
             result = result with
             {
                 SidebarWidth = ReadDouble(layout, "SidebarWidth", result.SidebarWidth, 140, 480),
-                InspectorWidth = ReadDouble(layout, "InspectorWidth", result.InspectorWidth, 38, 96),
+                // The rail has 4 px padding on each side around 34 px buttons, so <42 clips them.
+                InspectorWidth = ReadDouble(layout, "InspectorWidth", result.InspectorWidth, 42, 96),
                 TabHeight = ReadDouble(layout, "TabHeight", result.TabHeight, 32, 64),
             };
         }
@@ -110,9 +111,10 @@ public static class ThemeService
             result = result with
             {
                 MediumTileWidth = ReadDouble(files, "MediumTileWidth", result.MediumTileWidth, 84, 220),
-                MediumTileHeight = ReadDouble(files, "MediumTileHeight", result.MediumTileHeight, 80, 220),
+                // Template icon rows are 68/102 px; keep enough room below for the two-line label.
+                MediumTileHeight = ReadDouble(files, "MediumTileHeight", result.MediumTileHeight, 96, 220),
                 LargeTileWidth = ReadDouble(files, "LargeTileWidth", result.LargeTileWidth, 120, 300),
-                LargeTileHeight = ReadDouble(files, "LargeTileHeight", result.LargeTileHeight, 110, 300),
+                LargeTileHeight = ReadDouble(files, "LargeTileHeight", result.LargeTileHeight, 132, 300),
             };
         }
 

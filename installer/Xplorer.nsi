@@ -21,7 +21,6 @@ SetShellVarContext current
 !define INSTALL_KEY "Software\Xplorer"
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Xplorer"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
-!define OWNERSHIP_VALUE "{8F7A8759-1D96-45A1-A7A4-1F516D9DC7B8}"
 
 Name "${PRODUCT_NAME}"
 OutFile "${OUT_FILE}"
@@ -51,7 +50,6 @@ Function .onInit
 FunctionEnd
 
 Function StopRunningXplorer
-  ; The worker and both old/new UI executables use the Xplorer process name family.
   ; taskkill returning "not found" is harmless during a first install.
   nsExec::ExecToLog 'taskkill /IM xplorer.exe /F'
   nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /F'
@@ -61,6 +59,8 @@ Function BackupNativeUserData
   RMDir /r "$UpgradeBackup"
   CreateDirectory "$UpgradeBackup"
 
+  ; Move only Xplorer's native data, not the old Tauri program payload that happened to share
+  ; %LOCALAPPDATA%\Xplorer. This keeps upgrades safe without dragging obsolete binaries forward.
   ClearErrors
   Rename "$LOCALAPPDATA\Xplorer\settings.json" "$UpgradeBackup\settings.json"
   ClearErrors
@@ -72,13 +72,13 @@ FunctionEnd
 Function RestoreNativeUserData
   CreateDirectory "$LOCALAPPDATA\Xplorer"
 
-  IfFileExists "$UpgradeBackup\settings.json" 0 +2
-    Rename "$UpgradeBackup\settings.json" "$LOCALAPPDATA\Xplorer\settings.json"
-  IfFileExists "$UpgradeBackup\Themes\*.*" 0 +2
-    Rename "$UpgradeBackup\Themes" "$LOCALAPPDATA\Xplorer\Themes"
-  IfFileExists "$UpgradeBackup\Index\*.*" 0 +2
-    Rename "$UpgradeBackup\Index" "$LOCALAPPDATA\Xplorer\Index"
-
+  ; Rename is intentionally unconditional: it also restores empty Themes/Index directories.
+  ClearErrors
+  Rename "$UpgradeBackup\settings.json" "$LOCALAPPDATA\Xplorer\settings.json"
+  ClearErrors
+  Rename "$UpgradeBackup\Themes" "$LOCALAPPDATA\Xplorer\Themes"
+  ClearErrors
+  Rename "$UpgradeBackup\Index" "$LOCALAPPDATA\Xplorer\Index"
   RMDir "$UpgradeBackup"
 FunctionEnd
 

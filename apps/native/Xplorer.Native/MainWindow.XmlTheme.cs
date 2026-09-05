@@ -31,6 +31,10 @@ public sealed partial class MainWindow
                 return;
             }
 
+            // Watch the requested path before parsing it. If a newly selected theme is temporarily
+            // malformed/missing while being edited, fixing or recreating that same file must hot-reload it.
+            var themePath = ThemeService.ResolveThemePath(_settingsService.Current.ThemeFileName);
+            ConfigureXmlThemeWatcher(themePath);
             var theme = ThemeService.Load(_settingsService.Current.ThemeFileName);
             Root.Background = new SolidColorBrush(theme.Background);
             Tabs.Height = theme.TabHeight;
@@ -69,7 +73,6 @@ public sealed partial class MainWindow
             Root.Resources["MediumItemsPanel"] = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
             Root.Resources["LargeItemsPanel"] = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
             ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
-            ConfigureXmlThemeWatcher(ThemeService.ResolveThemePath(_settingsService.Current.ThemeFileName));
         }
         catch (Exception ex)
         {
@@ -163,6 +166,7 @@ public sealed partial class MainWindow
         };
         _xmlThemeWatcher.Changed += XmlThemeFileChanged;
         _xmlThemeWatcher.Created += XmlThemeFileChanged;
+        _xmlThemeWatcher.Deleted += XmlThemeFileChanged;
         _xmlThemeWatcher.Renamed += XmlThemeFileRenamed;
     }
 
