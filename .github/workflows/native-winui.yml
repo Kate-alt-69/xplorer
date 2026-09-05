@@ -7,11 +7,13 @@ on:
     paths:
       - 'apps/native/**'
       - 'apps/worker/**'
+      - 'scripts/build-native.ps1'
       - '.github/workflows/native-winui.yml'
   pull_request:
     paths:
       - 'apps/native/**'
       - 'apps/worker/**'
+      - 'scripts/build-native.ps1'
       - '.github/workflows/native-winui.yml'
 
 permissions:
@@ -20,7 +22,7 @@ permissions:
 jobs:
   build-x64:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -29,8 +31,14 @@ jobs:
       - name: Select stable Rust
         run: rustup default stable
 
-      - name: Build Rust host and worker mode
-        run: cargo build --manifest-path apps/worker/Cargo.toml --release
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and package native Xplorer
+        shell: pwsh
+        run: ./scripts/build-native.ps1 -Configuration Release -Runtime win-x64 -Package
 
       - name: Measure idle worker memory
         shell: pwsh
@@ -54,20 +62,20 @@ jobs:
             $process.Dispose()
           }
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore native app
-        run: dotnet restore apps/native/Xplorer.Native/Xplorer.Native.csproj -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-
-      - name: Build native app with Rust host
-        run: dotnet build apps/native/Xplorer.Native/Xplorer.Native.csproj -c Release --no-restore -p:Platform=x64 -p:RuntimeIdentifier=win-x64
-
-      - name: Verify packaged Rust host
+      - name: Verify packaged app
         shell: pwsh
         run: |
-          $host = Get-ChildItem 'apps/native/Xplorer.Native/bin/Release' -Filter 'xplorer.exe' -Recurse | Select-Object -First 1
-          if (-not $host) { throw 'xplorer.exe was not copied beside the WinUI output' }
-          Write-Host "Packaged host: $($host.FullName)"
+          $publicHost = Resolve-Path 'dist/Xplorer-win-x64/xplorer.exe'
+          $nativeUi = Resolve-Path 'dist/Xplorer-win-x64/Xplorer.Native.exe'
+          $archive = Resolve-Path 'dist/Xplorer-win-x64.zip'
+          Write-Host "Public host: $publicHost"
+          Write-Host "Native UI: $nativeUi"
+          Write-Host "Archive: $archive"
+
+      - name: Upload portable x64 package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xplorer-win-x64
+          path: dist/Xplorer-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
