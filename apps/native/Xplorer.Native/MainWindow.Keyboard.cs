@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Windows.System;
 using Xplorer.Native.Models;
 
@@ -9,15 +10,51 @@ public sealed partial class MainWindow
 {
     private void InitializeKeyboardShortcuts()
     {
-        InstallAccelerator(VirtualKey.L, VirtualKeyModifiers.Control, FocusAddressBar);
-        InstallAccelerator(VirtualKey.T, VirtualKeyModifiers.Control, () => AddTab(CurrentPath, select: true));
-        InstallAsyncAccelerator(VirtualKey.W, VirtualKeyModifiers.Control, CloseCurrentTabAsync);
-        InstallAsyncAccelerator(VirtualKey.F5, VirtualKeyModifiers.None, () => NavigateAsync(CurrentPath, pushHistory: false));
-        InstallAsyncAccelerator(VirtualKey.Left, VirtualKeyModifiers.Menu, NavigateBackFromKeyboardAsync);
-        InstallAsyncAccelerator(VirtualKey.Right, VirtualKeyModifiers.Menu, NavigateForwardFromKeyboardAsync);
-        InstallAsyncAccelerator(VirtualKey.Up, VirtualKeyModifiers.Menu, NavigateUpFromKeyboardAsync);
+        // Navigation/window shortcuts remain global even while the address/search box is focused.
+        // File-operation accelerators still use InstallAccelerator/InstallAsyncAccelerator, which
+        // deliberately yield to text editing for Ctrl+C/X/V/Delete/F2.
+        InstallGlobalAccelerator(VirtualKey.L, VirtualKeyModifiers.Control, FocusAddressBar);
+        InstallGlobalAccelerator(VirtualKey.T, VirtualKeyModifiers.Control, () => AddTab(CurrentPath, select: true));
+        InstallGlobalAsyncAccelerator(VirtualKey.W, VirtualKeyModifiers.Control, CloseCurrentTabAsync);
+        InstallGlobalAsyncAccelerator(VirtualKey.F5, VirtualKeyModifiers.None, () => NavigateAsync(CurrentPath, pushHistory: false));
+        InstallGlobalAsyncAccelerator(VirtualKey.Left, VirtualKeyModifiers.Menu, NavigateBackFromKeyboardAsync);
+        InstallGlobalAsyncAccelerator(VirtualKey.Right, VirtualKeyModifiers.Menu, NavigateForwardFromKeyboardAsync);
+        InstallGlobalAsyncAccelerator(VirtualKey.Up, VirtualKeyModifiers.Menu, NavigateUpFromKeyboardAsync);
         InitializeNativeSearch();
         InitializeNativeDragDrop();
+    }
+
+    private void InstallGlobalAccelerator(VirtualKey key, VirtualKeyModifiers modifiers, Action action)
+    {
+        var accelerator = new KeyboardAccelerator
+        {
+            Key = key,
+            Modifiers = modifiers,
+        };
+        accelerator.Invoked += (_, args) =>
+        {
+            args.Handled = true;
+            action();
+        };
+        Root.KeyboardAccelerators.Add(accelerator);
+    }
+
+    private void InstallGlobalAsyncAccelerator(
+        VirtualKey key,
+        VirtualKeyModifiers modifiers,
+        Func<Task> action)
+    {
+        var accelerator = new KeyboardAccelerator
+        {
+            Key = key,
+            Modifiers = modifiers,
+        };
+        accelerator.Invoked += async (_, args) =>
+        {
+            args.Handled = true;
+            await action();
+        };
+        Root.KeyboardAccelerators.Add(accelerator);
     }
 
     private void FocusAddressBar()
