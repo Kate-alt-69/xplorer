@@ -205,15 +205,14 @@ public sealed partial class MainWindow
                     var shouldReloadSettings = _reloadSettingsBeforeTheme;
                     _reloadSettingsBeforeTheme = false;
 
-                    if (shouldReloadSettings && _settingsService.TryReload())
+                    if (shouldReloadSettings)
                     {
+                        if (!_settingsService.TryReload()) return;
                         ApplyTheme();
                         RefreshSearchPresentation();
                     }
-                    else
-                    {
-                        ApplyXmlTheme();
-                    }
+
+                    ApplyXmlTheme();
                 };
             }
 
