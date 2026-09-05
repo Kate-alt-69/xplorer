@@ -4,19 +4,20 @@ use std::{
     fs,
     io,
     path::{Path, PathBuf},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use crate::{
     delta, index,
     platform::{self, SingleInstanceMutex, StopEvent},
     state::{CursorState, VolumeCursor},
-    usn,
+    usn, workspace,
 };
 
 const RECONCILE_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const FULL_SNAPSHOT_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const IDLE_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
+const WORKSPACE_WAIT_SLICE: Duration = Duration::from_secs(1);
 const MAX_DELTA_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_USN_RECORDS_PER_PASS: usize = 4096;
 
@@ -32,17 +33,14 @@ where
         platform::register_startup()?;
         return Ok(0);
     }
-
     if arguments.iter().any(|value| value == "--unregister-startup") {
         platform::unregister_startup()?;
         return Ok(0);
     }
-
     if arguments.iter().any(|value| value == "--stop-service-worker") {
         let _ = platform::signal_stop_event()?;
         return Ok(0);
     }
-
     if arguments.iter().any(|value| value == "--idle-probe") {
         return run_idle_probe();
     }
@@ -52,7 +50,6 @@ where
     if !service_worker && !once {
         return Ok(2);
     }
-
     run_worker(once)
 }
 
@@ -73,6 +70,7 @@ fn run_worker(once: bool) -> io::Result<i32> {
     };
 
     let stop_event = StopEvent::create_for_worker()?;
+    let wake_event = workspace::WakeEvent::create_for_worker()?;
     platform::enter_background_mode();
     let data_dir = data_directory()?;
     fs::create_dir_all(&data_dir)?;
@@ -80,22 +78,35 @@ fn run_worker(once: bool) -> io::Result<i32> {
     let mut state = CursorState::load(&cursor_path)?;
 
     loop {
+        // If Xplorer opened a folder while the worker was not running, consume that durable hint
+        // before doing any unrelated volume reconciliation.
+        let _ = workspace::refresh_hot_workspace(&data_dir, Some(&stop_event));
+
         reconcile(&data_dir, &mut state, &stop_event);
         state.save(&cursor_path)?;
-
-        // A stop request may arrive while a paced full-volume snapshot is in progress. Check again
-        // before entering the normal 30-minute idle wait so Settings -> Background indexing: Off
-        // takes effect promptly even on very large disks.
         if stop_event.wait(Duration::ZERO)? {
             return Ok(0);
         }
-
         if once {
             return Ok(0);
         }
+
         platform::trim_idle_working_set();
-        if stop_event.wait(RECONCILE_INTERVAL)? {
-            return Ok(0);
+        let deadline = Instant::now() + RECONCILE_INTERVAL;
+        loop {
+            if stop_event.wait(Duration::ZERO)? {
+                return Ok(0);
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            let remaining = deadline.saturating_duration_since(now);
+            let wait_for = remaining.min(WORKSPACE_WAIT_SLICE);
+            if wake_event.wait(wait_for)? {
+                let _ = workspace::refresh_hot_workspace(&data_dir, Some(&stop_event));
+                platform::trim_idle_working_set();
+            }
         }
     }
 }
@@ -180,10 +191,6 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                 });
             }
             None => {
-                // Some Windows/NTFS configurations do not let an unelevated per-user process read
-                // the USN journal. The old fallback rebuilt the ENTIRE volume every 30 minutes,
-                // which could turn the deliberately slow indexer into a nearly continuous scan on
-                // a large disk. Keep the cheap 30-minute wake-up, but full-snapshot only daily.
                 if previous.journal_supported || snapshot_due {
                     rebuild_snapshot(drive, data_dir, state, now, None, stop_event);
                 } else {
@@ -208,7 +215,6 @@ fn rebuild_snapshot(
     if index::scan_volume(drive, data_dir, Some(stop_event)).is_err() {
         return;
     }
-
     if stop_event.wait(Duration::ZERO).unwrap_or(true) {
         return;
     }
