@@ -6,13 +6,16 @@ SetCompressor /SOLID lzma
 !include "LogicLib.nsh"
 
 !ifndef APP_VERSION
-  !define APP_VERSION "0.4.0-alpha.1"
+  !define APP_VERSION "1.0.0-alpha.1"
 !endif
 !ifndef PAYLOAD_DIR
   !error "PAYLOAD_DIR must point at the published Xplorer directory"
 !endif
 !ifndef OUT_FILE
   !define OUT_FILE "Xplorer-Setup-x64.exe"
+!endif
+!ifndef ICON_FILE
+  !error "ICON_FILE must point at Xplorer.ico"
 !endif
 
 !define PRODUCT_NAME "Xplorer"
@@ -26,7 +29,9 @@ OutFile "${OUT_FILE}"
 InstallDir "$LOCALAPPDATA\Programs\Xplorer"
 InstallDirRegKey HKCU "${INSTALL_KEY}" "InstallDir"
 BrandingText "Xplorer native file manager"
-VIProductVersion "0.4.0.0"
+Icon "${ICON_FILE}"
+UninstallIcon "${ICON_FILE}"
+VIProductVersion "1.0.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Xplorer"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=1033 "CompanyName" "${COMPANY_NAME}"
@@ -55,20 +60,6 @@ Function StopRunningXplorer
   nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /F'
 FunctionEnd
 
-Function BackupNativeUserData
-  RMDir /r "$UpgradeBackup"
-  CreateDirectory "$UpgradeBackup"
-
-  ; Move only Xplorer's native data, not the old Tauri program payload that happened to share
-  ; %LOCALAPPDATA%\Xplorer. This keeps upgrades safe without dragging obsolete binaries forward.
-  ClearErrors
-  Rename "$LOCALAPPDATA\Xplorer\settings.json" "$UpgradeBackup\settings.json"
-  ClearErrors
-  Rename "$LOCALAPPDATA\Xplorer\Themes" "$UpgradeBackup\Themes"
-  ClearErrors
-  Rename "$LOCALAPPDATA\Xplorer\Index" "$UpgradeBackup\Index"
-FunctionEnd
-
 Function RestoreNativeUserData
   CreateDirectory "$LOCALAPPDATA\Xplorer"
 
@@ -82,6 +73,24 @@ Function RestoreNativeUserData
   RMDir "$UpgradeBackup"
 FunctionEnd
 
+Function BackupNativeUserData
+  ; Recover a stale backup from an interrupted earlier upgrade before creating a fresh one. Never
+  ; blindly delete the backup directory: it may contain the user's only copy of settings/themes.
+  IfFileExists "$UpgradeBackup\*.*" 0 +2
+    Call RestoreNativeUserData
+
+  CreateDirectory "$UpgradeBackup"
+
+  ; Move only Xplorer's native data, not the old Tauri program payload that happened to share
+  ; %LOCALAPPDATA%\Xplorer. This keeps upgrades safe without dragging obsolete binaries forward.
+  ClearErrors
+  Rename "$LOCALAPPDATA\Xplorer\settings.json" "$UpgradeBackup\settings.json"
+  ClearErrors
+  Rename "$LOCALAPPDATA\Xplorer\Themes" "$UpgradeBackup\Themes"
+  ClearErrors
+  Rename "$LOCALAPPDATA\Xplorer\Index" "$UpgradeBackup\Index"
+FunctionEnd
+
 Function RemoveLegacyShellKeys
   ; Old Tauri installers used the Xplorer key name. New native integration owns Xplorer.Native.
   DeleteRegKey HKCU "Software\Classes\Directory\shell\Xplorer"
@@ -89,15 +98,28 @@ Function RemoveLegacyShellKeys
   DeleteRegKey HKCU "Software\Classes\Directory\Background\shell\Xplorer"
 FunctionEnd
 
-Section "Xplorer" SEC_MAIN
-  SetShellVarContext current
-  Call StopRunningXplorer
-  Call BackupNativeUserData
-
+Function FindExistingUninstaller
+  StrCpy $ExistingUninstall ""
   ReadRegStr $ExistingUninstall HKCU "${UNINSTALL_KEY}" "QuietUninstallString"
   ${If} $ExistingUninstall == ""
     ReadRegStr $ExistingUninstall HKCU "${UNINSTALL_KEY}" "UninstallString"
   ${EndIf}
+
+  ; Older releases may have been installed for all users. Reading HKLM is safe without elevation;
+  ; if its uninstaller requires elevation Windows will handle that when the executable launches.
+  ${If} $ExistingUninstall == ""
+    ReadRegStr $ExistingUninstall HKLM "${UNINSTALL_KEY}" "QuietUninstallString"
+  ${EndIf}
+  ${If} $ExistingUninstall == ""
+    ReadRegStr $ExistingUninstall HKLM "${UNINSTALL_KEY}" "UninstallString"
+  ${EndIf}
+FunctionEnd
+
+Section "Xplorer" SEC_MAIN
+  SetShellVarContext current
+  Call StopRunningXplorer
+  Call BackupNativeUserData
+  Call FindExistingUninstaller
 
   ${If} $ExistingUninstall != ""
     DetailPrint "Removing the previously installed Xplorer before upgrade..."
@@ -121,14 +143,14 @@ Section "Xplorer" SEC_MAIN
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayVersion" "${APP_VERSION}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${COMPANY_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\xplorer.exe"
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Xplorer.Native.exe"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
   WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '$"$INSTDIR\Uninstall.exe$" /S'
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 
   CreateDirectory "$SMPROGRAMS\Xplorer"
-  CreateShortcut "$SMPROGRAMS\Xplorer\Xplorer.lnk" "$INSTDIR\xplorer.exe"
+  CreateShortcut "$SMPROGRAMS\Xplorer\Xplorer.lnk" "$INSTDIR\xplorer.exe" "" "$INSTDIR\Xplorer.Native.exe"
   CreateShortcut "$SMPROGRAMS\Xplorer\Uninstall Xplorer.lnk" "$INSTDIR\Uninstall.exe"
 
   ; Match the old installed Xplorer experience by enabling the reversible per-user shell verb.
