@@ -13,12 +13,36 @@ namespace Xplorer.Native.Services;
 public static class UiStartupDiagnostics
 {
     private const string DebugEnvironmentVariable = "XPLORER_DEBUG_STARTUP";
+    private static bool _frameworkTracingAttached;
 
     public static bool IsEnabled =>
         string.Equals(
             Environment.GetEnvironmentVariable(DebugEnvironmentVariable),
             "1",
             StringComparison.Ordinal);
+
+    public static void AttachFrameworkTracing(Application application)
+    {
+        if (!IsEnabled || _frameworkTracingAttached) return;
+
+        try
+        {
+            var debug = application.DebugSettings;
+            debug.FailFastOnErrors = false;
+            debug.IsBindingTracingEnabled = true;
+            debug.IsXamlResourceReferenceTracingEnabled = true;
+            debug.BindingFailed += (_, args) =>
+                CrashLogService.Log($"WinUI binding failure: {args.Message}");
+            debug.XamlResourceReferenceFailed += (_, args) =>
+                CrashLogService.Log($"WinUI XAML resource failure: {args.Message}");
+            _frameworkTracingAttached = true;
+            CrashLogService.Log("WinUI framework binding/resource tracing enabled.");
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.LogException("Could not enable WinUI framework tracing", ex);
+        }
+    }
 
     public static void RunPreflight()
     {
