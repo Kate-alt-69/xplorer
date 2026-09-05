@@ -23,8 +23,17 @@ public static class ThemeSecurityService
             throw new InvalidDataException("Xplorer theme files are limited to 64 KiB.");
 
         var bytes = await File.ReadAllBytesAsync(path).ConfigureAwait(false);
+        return ScanBytes(bytes, Path.GetFileName(path));
+    }
+
+    /// <summary>
+    /// Scan the exact immutable byte buffer Xplorer will hash/stage. Keeping the scan on the same
+    /// buffer closes the race where a downloaded file could change between an AV pass and import.
+    /// </summary>
+    public static ScanResult ScanBytes(byte[] bytes, string contentName)
+    {
         if (bytes.Length > MaximumThemeBytes)
-            throw new InvalidDataException("The selected theme changed while it was being scanned and is now too large.");
+            throw new InvalidDataException("Xplorer theme files are limited to 64 KiB.");
 
         nint context = 0;
         try
@@ -42,7 +51,7 @@ public static class ThemeSecurityService
                 context,
                 bytes,
                 (uint)bytes.Length,
-                Path.GetFileName(path),
+                string.IsNullOrWhiteSpace(contentName) ? "XplorerTheme.xml" : contentName,
                 0,
                 out var result);
             if (scanHr < 0)
