@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -9,13 +10,40 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
+    private const uint WmDeviceChange = 0x0219;
+    private const uint DbtDevNodesChanged = 0x0007;
+    private const uint DbtDeviceArrival = 0x8000;
+    private const uint DbtDeviceRemoveComplete = 0x8004;
+    private const nuint DriveSubclassId = 0x58504C44; // "XPLD"
+
+    private readonly DriveSubclassProc _driveSubclassProc;
     private bool _nativeDriveUxHooked;
+    private bool _driveSubclassInstalled;
+    private int _driveRefreshQueued;
 
     private void InitializeNativeDriveUx()
     {
         if (_nativeDriveUxHooked) return;
         _nativeDriveUxHooked = true;
         DriveList.RightTapped += DriveList_RightTapped;
+
+        // Use the real WM_DEVICECHANGE notification instead of polling. SetWindowSubclass supports
+        // several independent subclass ids, so this safely coexists with the temporary shell-menu
+        // message bridge used while an IContextMenu popup is open.
+        _driveSubclassInstalled = SetWindowSubclass(
+            _hwnd,
+            _driveSubclassProc,
+            DriveSubclassId,
+            0);
+
+        Closed += (_, _) =>
+        {
+            if (_driveSubclassInstalled)
+            {
+                RemoveWindowSubclass(_hwnd, _driveSubclassProc, DriveSubclassId);
+                _driveSubclassInstalled = false;
+            }
+        };
     }
 
     /// <summary>
@@ -79,4 +107,63 @@ public sealed partial class MainWindow
         StatusText.Text = "Drive is no longer available.";
         await NavigateAsync(_homePath, pushHistory: false);
     }
+
+    private nint DriveWindowSubclassProc(
+        nint hWnd,
+        uint message,
+        nuint wParam,
+        nint lParam,
+        nuint subclassId,
+        nuint refData)
+    {
+        if (message == WmDeviceChange)
+        {
+            var change = unchecked((uint)wParam);
+            if (change is DbtDevNodesChanged or DbtDeviceArrival or DbtDeviceRemoveComplete)
+                QueueDriveRefresh();
+        }
+
+        return DefSubclassProc(hWnd, message, wParam, lParam);
+    }
+
+    private void QueueDriveRefresh()
+    {
+        // Device arrival/removal often emits several WM_DEVICECHANGE messages. Collapse the burst
+        // into one dispatcher turn, and do DriveInfo I/O outside the native window procedure.
+        if (Interlocked.Exchange(ref _driveRefreshQueued, 1) != 0) return;
+
+        DispatcherQueue.TryEnqueue(async () =>
+        {
+            Interlocked.Exchange(ref _driveRefreshQueued, 0);
+            RefreshDrives();
+
+            if (!Directory.Exists(CurrentPath))
+                await NavigateAsync(_homePath, pushHistory: false);
+        });
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate nint DriveSubclassProc(
+        nint hWnd,
+        uint message,
+        nuint wParam,
+        nint lParam,
+        nuint subclassId,
+        nuint refData);
+
+    [DllImport("comctl32.dll")]
+    private static extern bool SetWindowSubclass(
+        nint hWnd,
+        DriveSubclassProc pfnSubclass,
+        nuint uIdSubclass,
+        nuint dwRefData);
+
+    [DllImport("comctl32.dll")]
+    private static extern bool RemoveWindowSubclass(
+        nint hWnd,
+        DriveSubclassProc pfnSubclass,
+        nuint uIdSubclass);
+
+    [DllImport("comctl32.dll")]
+    private static extern nint DefSubclassProc(nint hWnd, uint uMsg, nuint wParam, nint lParam);
 }
