@@ -37,6 +37,7 @@ public sealed partial class MainWindow
         HookSearchRailButton();
         HookInspectorRailButton();
         InitializeSizeMap();
+        InitializeNativeDriveUx();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
