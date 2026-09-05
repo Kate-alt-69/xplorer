@@ -127,13 +127,39 @@ public sealed partial class MainWindow : Window
             _searchBox is not null &&
             string.Equals(searchQuery, _searchBox.Text.Trim(), StringComparison.Ordinal))
         {
-            _searchTotalCount = entries.Count;
-            entries = entries.Where(item => MatchesSearch(item, searchQuery)).ToList();
+            IndexedSearchService.SearchResult? indexed = null;
+            if (_settingsService.Current.BackgroundIndexing)
+            {
+                indexed = await Task.Run(() =>
+                    IndexedSearchService.TrySearch(fullPath, searchQuery, showHidden, showExtensions));
+            }
+
+            if (generation != _navigationGeneration ||
+                ActiveTabState?.Id != tabId ||
+                _searchBox is null ||
+                !string.Equals(searchQuery, _searchBox.Text.Trim(), StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (indexed is not null)
+            {
+                entries = indexed.Items.ToList();
+                _searchTotalCount = indexed.TotalMatches;
+                _searchUsingIndex = true;
+            }
+            else
+            {
+                _searchTotalCount = entries.Count;
+                entries = entries.Where(item => MatchesSearch(item, searchQuery)).ToList();
+                _searchUsingIndex = false;
+            }
         }
         else
         {
             searchQuery = string.Empty;
             _searchTotalCount = 0;
+            _searchUsingIndex = false;
         }
 
         Items.Clear();
