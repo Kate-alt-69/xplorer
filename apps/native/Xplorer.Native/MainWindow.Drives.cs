@@ -9,6 +9,20 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
+    private bool _nativeDriveUxHooked;
+
+    private void InitializeNativeDriveUx()
+    {
+        if (_nativeDriveUxHooked) return;
+        _nativeDriveUxHooked = true;
+
+        DriveList.RightTapped += DriveList_RightTapped;
+
+        // The existing Refresh button already reloads the active folder. Refresh the device list in
+        // the same click as well so a newly attached/removed volume never needs an app restart.
+        RefreshButton.Click += (_, _) => RefreshDrives();
+    }
+
     /// <summary>
     /// Drive RMB stays a real Windows Shell menu. In particular, Xplorer never synthesizes an
     /// "Eject" command for fixed/internal disks: Explorer itself decides which storage verbs are
