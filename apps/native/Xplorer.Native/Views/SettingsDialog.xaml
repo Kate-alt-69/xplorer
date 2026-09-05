@@ -7,10 +7,10 @@
     CloseButtonText="Cancel"
     DefaultButton="Primary">
 
-    <Grid MinWidth="560" MaxWidth="680" MinHeight="380">
+    <Grid MinWidth="420" MaxWidth="680" MinHeight="300" MaxHeight="600">
         <TabView IsAddTabButtonVisible="False">
             <TabViewItem Header="General">
-                <ScrollViewer>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Padding="16" Spacing="14">
                         <ComboBox x:Name="ThemeComboBox" Header="Theme" SelectedIndex="0">
                             <ComboBoxItem Content="System" />
@@ -37,42 +37,46 @@
             </TabViewItem>
 
             <TabViewItem Header="Explorer">
-                <StackPanel Padding="16" Spacing="14">
-                    <ComboBox x:Name="ViewModeComboBox" Header="Default view" SelectedIndex="0">
-                        <ComboBoxItem Content="Medium" />
-                        <ComboBoxItem Content="Large" />
-                        <ComboBoxItem Content="Details" />
-                    </ComboBox>
-                    <ComboBox x:Name="SortModeComboBox" Header="Default sort" SelectedIndex="0">
-                        <ComboBoxItem Content="Name" />
-                        <ComboBoxItem Content="Date modified" />
-                        <ComboBoxItem Content="Type" />
-                        <ComboBoxItem Content="Size" />
-                    </ComboBox>
-                    <ToggleSwitch
-                        x:Name="PerFolderViewSwitch"
-                        Header="Remember view and sort per folder"
-                        OffContent="Global"
-                        OnContent="Per folder" />
-                    <TextBlock
-                        Text="Global is the default: view and sort changes apply everywhere. Turn this on only if you want folders to remember their own layout."
-                        Opacity="0.7"
-                        TextWrapping="Wrap" />
-                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Padding="16" Spacing="14">
+                        <ComboBox x:Name="ViewModeComboBox" Header="Default view" SelectedIndex="0">
+                            <ComboBoxItem Content="Medium" />
+                            <ComboBoxItem Content="Large" />
+                            <ComboBoxItem Content="Details" />
+                        </ComboBox>
+                        <ComboBox x:Name="SortModeComboBox" Header="Default sort" SelectedIndex="0">
+                            <ComboBoxItem Content="Name" />
+                            <ComboBoxItem Content="Date modified" />
+                            <ComboBoxItem Content="Type" />
+                            <ComboBoxItem Content="Size" />
+                        </ComboBox>
+                        <ToggleSwitch
+                            x:Name="PerFolderViewSwitch"
+                            Header="Remember view and sort per folder"
+                            OffContent="Global"
+                            OnContent="Per folder" />
+                        <TextBlock
+                            Text="Global is the default: view and sort changes apply everywhere. Turn this on only if you want folders to remember their own layout."
+                            Opacity="0.7"
+                            TextWrapping="Wrap" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabViewItem>
 
             <TabViewItem Header="Terminal">
-                <StackPanel Padding="16" Spacing="12">
-                    <TextBlock
-                        Text="Xplorer launches terminal sessions through Windows Terminal (wt.exe), not a raw Console Host window. Leave Command empty to use your Windows Terminal default profile."
-                        TextWrapping="Wrap" />
-                    <TextBox x:Name="TerminalCommandBox" Header="Custom command" PlaceholderText="Example: wsl.exe or pwsh.exe" />
-                    <TextBox x:Name="TerminalArgumentsBox" Header="Arguments" PlaceholderText="Optional arguments" />
-                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Padding="16" Spacing="12">
+                        <TextBlock
+                            Text="Xplorer launches terminal sessions through Windows Terminal (wt.exe), not a raw Console Host window. Leave Command empty to use your Windows Terminal default profile."
+                            TextWrapping="Wrap" />
+                        <TextBox x:Name="TerminalCommandBox" Header="Custom command" PlaceholderText="Example: wsl.exe or pwsh.exe" />
+                        <TextBox x:Name="TerminalArgumentsBox" Header="Arguments" PlaceholderText="Optional arguments" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabViewItem>
 
             <TabViewItem Header="System">
-                <ScrollViewer>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Padding="16" Spacing="12">
                         <TextBlock Text="Windows integration" FontSize="14" FontWeight="SemiBold" />
                         <TextBlock

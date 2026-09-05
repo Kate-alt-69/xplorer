@@ -34,6 +34,7 @@ UninstallIcon "${ICON_FILE}"
 VIProductVersion "1.0.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Xplorer"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${APP_VERSION}"
+VIAddVersionKey /LANG=1033 "FileVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=1033 "CompanyName" "${COMPANY_NAME}"
 VIAddVersionKey /LANG=1033 "FileDescription" "Xplorer native Windows installer"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "AGPL-3.0"
@@ -47,6 +48,7 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "AGPL-3.0"
 !insertmacro MUI_LANGUAGE "English"
 
 Var ExistingUninstall
+Var ExistingUninstallNeedsSilent
 Var UpgradeBackup
 
 Function .onInit
@@ -100,9 +102,14 @@ FunctionEnd
 
 Function FindExistingUninstaller
   StrCpy $ExistingUninstall ""
+  StrCpy $ExistingUninstallNeedsSilent "0"
+
   ReadRegStr $ExistingUninstall HKCU "${UNINSTALL_KEY}" "QuietUninstallString"
   ${If} $ExistingUninstall == ""
     ReadRegStr $ExistingUninstall HKCU "${UNINSTALL_KEY}" "UninstallString"
+    ${If} $ExistingUninstall != ""
+      StrCpy $ExistingUninstallNeedsSilent "1"
+    ${EndIf}
   ${EndIf}
 
   ; Older releases may have been installed for all users. Reading HKLM is safe without elevation;
@@ -112,6 +119,9 @@ Function FindExistingUninstaller
   ${EndIf}
   ${If} $ExistingUninstall == ""
     ReadRegStr $ExistingUninstall HKLM "${UNINSTALL_KEY}" "UninstallString"
+    ${If} $ExistingUninstall != ""
+      StrCpy $ExistingUninstallNeedsSilent "1"
+    ${EndIf}
   ${EndIf}
 FunctionEnd
 
@@ -123,7 +133,11 @@ Section "Xplorer" SEC_MAIN
 
   ${If} $ExistingUninstall != ""
     DetailPrint "Removing the previously installed Xplorer before upgrade..."
-    ExecWait '$ExistingUninstall /S' $0
+    ${If} $ExistingUninstallNeedsSilent == "1"
+      ExecWait '$ExistingUninstall /S' $0
+    ${Else}
+      ExecWait '$ExistingUninstall' $0
+    ${EndIf}
     ${If} $0 != 0
       Call RestoreNativeUserData
       MessageBox MB_ICONSTOP|MB_OK "The existing Xplorer installation could not be removed (exit code $0). Your Xplorer data was restored and this upgrade was stopped."
@@ -144,8 +158,8 @@ Section "Xplorer" SEC_MAIN
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${COMPANY_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Xplorer.Native.exe"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '$"$INSTDIR\Uninstall.exe$" /S'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 
@@ -153,9 +167,9 @@ Section "Xplorer" SEC_MAIN
   CreateShortcut "$SMPROGRAMS\Xplorer\Xplorer.lnk" "$INSTDIR\xplorer.exe" "" "$INSTDIR\Xplorer.Native.exe"
   CreateShortcut "$SMPROGRAMS\Xplorer\Uninstall Xplorer.lnk" "$INSTDIR\Uninstall.exe"
 
-  ; Match the old installed Xplorer experience by enabling the reversible per-user shell verb.
-  ; The maintenance switch also persists the toggle so Settings accurately reflects the registry.
-  ExecWait '$"$INSTDIR\Xplorer.Native.exe$" --register-shell' $0
+  ; Enable the reversible per-user shell verb for an installed build. The maintenance command
+  ; updates settings.json as well, keeping the Settings toggle consistent with the registry.
+  ExecWait '"$INSTDIR\Xplorer.Native.exe" --register-shell' $0
   ${If} $0 != 0
     DetailPrint "Shell integration could not be enabled automatically; Xplorer itself is installed."
   ${EndIf}
@@ -165,10 +179,10 @@ Section "Uninstall"
   SetShellVarContext current
 
   IfFileExists "$INSTDIR\Xplorer.Native.exe" 0 +2
-    nsExec::ExecToLog '$"$INSTDIR\Xplorer.Native.exe$" --cleanup-integration'
+    nsExec::ExecToLog '"$INSTDIR\Xplorer.Native.exe" --cleanup-integration'
   IfFileExists "$INSTDIR\xplorer.exe" 0 +3
-    nsExec::ExecToLog '$"$INSTDIR\xplorer.exe$" --stop-service-worker'
-    nsExec::ExecToLog '$"$INSTDIR\xplorer.exe$" --unregister-startup'
+    nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --stop-service-worker'
+    nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --unregister-startup'
 
   Call un.StopRunningXplorer
 

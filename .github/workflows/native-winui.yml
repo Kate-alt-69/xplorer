@@ -100,28 +100,53 @@ jobs:
       - name: Smoke-test installer reinstall and data preservation
         shell: pwsh
         run: |
+          function Invoke-BoundedProcess {
+            param(
+              [Parameter(Mandatory = $true)][string]$FilePath,
+              [string]$Arguments,
+              [Parameter(Mandatory = $true)][string]$Label,
+              [int]$TimeoutSeconds = 90
+            )
+
+            $process = Start-Process -FilePath $FilePath -ArgumentList $Arguments -PassThru
+            try {
+              if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                throw "$Label timed out after $TimeoutSeconds seconds."
+              }
+              $process.Refresh()
+              if ($process.ExitCode -ne 0) {
+                throw "$Label failed with exit code $($process.ExitCode)."
+              }
+            }
+            finally {
+              $process.Dispose()
+            }
+          }
+
           $setup = (Resolve-Path 'dist/Xplorer-Setup-x64.exe').Path
           $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Xplorer'
           $dataDir = Join-Path $env:LOCALAPPDATA 'Xplorer'
           $themeDir = Join-Path $dataDir 'Themes'
           $sentinel = Join-Path $themeDir 'ci-preserve.txt'
+          $shellVerb = 'HKCU:\Software\Classes\Directory\shell\Xplorer.Native'
 
-          $first = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
-          if ($first.ExitCode -ne 0) { throw "First installer run failed: $($first.ExitCode)" }
+          Invoke-BoundedProcess -FilePath $setup -Arguments '/S' -Label 'First installer run'
           if (-not (Test-Path (Join-Path $installDir 'xplorer.exe'))) { throw 'Installed Rust host missing.' }
           if (-not (Test-Path (Join-Path $installDir 'Xplorer.Native.exe'))) { throw 'Installed WinUI executable missing.' }
+          if (-not (Test-Path $shellVerb)) { throw 'Installed shell integration is missing.' }
 
           New-Item -ItemType Directory -Force -Path $themeDir | Out-Null
           Set-Content -Path $sentinel -Value 'preserve-me' -NoNewline
 
-          $second = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
-          if ($second.ExitCode -ne 0) { throw "Upgrade/reinstall failed: $($second.ExitCode)" }
+          Invoke-BoundedProcess -FilePath $setup -Arguments '/S' -Label 'Upgrade/reinstall'
           if (-not (Test-Path $sentinel)) { throw 'Installer upgrade removed Xplorer user data.' }
+          if (-not (Test-Path $shellVerb)) { throw 'Upgrade lost Xplorer shell integration.' }
 
           $uninstaller = Join-Path $installDir 'Uninstall.exe'
-          $remove = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
-          if ($remove.ExitCode -ne 0) { throw "Uninstaller failed: $($remove.ExitCode)" }
+          Invoke-BoundedProcess -FilePath $uninstaller -Arguments '/S' -Label 'Uninstaller'
           if (Test-Path (Join-Path $installDir 'xplorer.exe')) { throw 'Uninstaller left program files behind.' }
+          if (Test-Path $shellVerb) { throw 'Uninstaller left Xplorer shell integration behind.' }
           if (-not (Test-Path $sentinel)) { throw 'Uninstaller deleted preserved user data.' }
           Remove-Item -Recurse -Force $dataDir -ErrorAction SilentlyContinue
 
