@@ -175,6 +175,20 @@ jobs:
             }
           }
 
+          function Wait-PathRemoved {
+            param(
+              [Parameter(Mandatory = $true)][string]$Path,
+              [int]$TimeoutMilliseconds = 5000
+            )
+
+            $deadline = [DateTime]::UtcNow.AddMilliseconds($TimeoutMilliseconds)
+            do {
+              if (-not (Test-Path $Path)) { return $true }
+              Start-Sleep -Milliseconds 100
+            } while ([DateTime]::UtcNow -lt $deadline)
+            return -not (Test-Path $Path)
+          }
+
           $setup = (Resolve-Path 'dist/Xplorer-Setup-x64.exe').Path
           $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Xplorer'
           $dataDir = Join-Path $env:LOCALAPPDATA 'Xplorer'
@@ -200,7 +214,8 @@ jobs:
 
           $uninstaller = Join-Path $installDir 'Uninstall.exe'
           Invoke-BoundedProcess -FilePath $uninstaller -Arguments '/S' -Label 'Uninstaller'
-          if (Test-Path (Join-Path $installDir 'xplorer.exe')) { throw 'Uninstaller left program files behind.' }
+          if (-not (Wait-PathRemoved -Path (Join-Path $installDir 'xplorer.exe'))) { throw 'Uninstaller left the Rust host behind.' }
+          if (-not (Wait-PathRemoved -Path (Join-Path $installDir 'Xplorer.Native.exe'))) { throw 'Uninstaller left the native UI behind.' }
           if (Test-Path $shellVerb) { throw 'Uninstaller left Xplorer shell integration behind.' }
           if (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue) { throw 'Uninstaller left the background worker startup registration behind.' }
           if (-not (Test-Path $sentinel)) { throw 'Uninstaller deleted preserved user data.' }
