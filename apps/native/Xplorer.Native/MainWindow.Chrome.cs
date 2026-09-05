@@ -128,6 +128,8 @@ public sealed partial class MainWindow
 
     private void SetNativeCaptionTheme(bool light)
     {
+        NativeMenuThemeService.Apply(!light);
+
         // Windows 10 1809/1903 used attribute ids 19/20 for immersive dark captions. Trying both
         // is harmless and keeps the native title bar visually coherent without replacing it.
         var dark = light ? 0 : 1;
