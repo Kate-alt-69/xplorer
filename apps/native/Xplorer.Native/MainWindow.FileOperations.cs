@@ -2,7 +2,6 @@ using System.Linq;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Windows.Storage;
 using Windows.System;
 using Xplorer.Native.Models;
 using Xplorer.Native.Services;
@@ -51,13 +50,10 @@ public sealed partial class MainWindow
             }
         }
 
-        // The original XAML handler opened GetSelectedItem(), which can be a different row/tile in
-        // Extended selection. Rewire both views so a double-click always opens the item under the
-        // pointer, matching Explorer even when several items were previously selected.
-        FileGrid.DoubleTapped -= FileList_DoubleTapped;
-        FileDetails.DoubleTapped -= FileList_DoubleTapped;
-        FileGrid.DoubleTapped += FileList_ItemDoubleTapped;
-        FileDetails.DoubleTapped += FileList_ItemDoubleTapped;
+        // FileGrid/FileDetails already route DoubleTapped to FileList_ExactDoubleTapped in XAML.
+        // The old rewrite also attached FileList_ItemDoubleTapped here at runtime, leaving two
+        // activation paths on the same control. Depending on routed-event ordering that could open a
+        // file twice or navigate twice. Keep one exact pointer-target handler only.
 
         InstallAccelerator(VirtualKey.C, VirtualKeyModifiers.Control, () => CopySelectionToClipboard(false));
         InstallAccelerator(VirtualKey.X, VirtualKeyModifiers.Control, () => CopySelectionToClipboard(true));
@@ -70,31 +66,6 @@ public sealed partial class MainWindow
             VirtualKeyModifiers.Control | VirtualKeyModifiers.Shift,
             CreateNewFolderAsync);
         InitializeKeyboardShortcuts();
-    }
-
-    private async void FileList_ItemDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        var item = (e.OriginalSource as FrameworkElement)?.DataContext as FileSystemItem;
-        if (item is null) return;
-
-        if (sender is ListViewBase list && !list.SelectedItems.Contains(item))
-            list.SelectedItem = item;
-
-        if (item.IsDirectory)
-        {
-            await NavigateAsync(item.FullPath);
-            return;
-        }
-
-        try
-        {
-            var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-            await Launcher.LaunchFileAsync(file);
-        }
-        catch
-        {
-            StatusText.Text = $"Could not open {item.Name}";
-        }
     }
 
     private IReadOnlyList<FileSystemItem> GetSelectedOperationItems()
