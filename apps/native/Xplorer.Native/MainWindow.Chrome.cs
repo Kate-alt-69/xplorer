@@ -29,16 +29,16 @@ public sealed partial class MainWindow
         _settingsService.Saved += ChromeSettings_Saved;
         Closed += (_, _) => _settingsService.Saved -= ChromeSettings_Saved;
 
-        // Search used to exist as a complete native implementation but was never initialized by
-        // the WinUI rewrite. That left Ctrl+F and the Search rail icon as dead UI and also made the
-        // address row visually diverge from the original Xplorer layout. Install it once the visual
-        // tree is live, then hook the rail button immediately because Root.Loaded is already firing.
+        // Keep the native runtime pieces active and then finish the controls that need a loaded
+        // visual tree (rail discovery/flyout anchors). Initializers are idempotent so constructor
+        // and loaded-time wiring cannot accidentally register duplicate handlers.
         InitializeNativeSearch();
         HookSearchRailButton();
         HookInspectorRailButton();
         InitializeSizeMap();
         InitializeNativeDriveUx();
         InitializeNativeDragDrop();
+        NormalizeChromeCommands();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
@@ -55,6 +55,24 @@ public sealed partial class MainWindow
             RefreshSearchPresentation();
             RefreshChromeLabels();
         });
+    }
+
+    /// <summary>
+    /// Xplorer has one command surface for each job: file operations stay in the top command bar,
+    /// Terminal stays in the bottom navigation bar, and Settings stays in the extension rail. The
+    /// rewrite XAML still contains legacy Terminal/Settings AppBarButtons for compatibility, so hide
+    /// those duplicates after load instead of leaving two competing entry points or overflow items.
+    /// </summary>
+    private void NormalizeChromeCommands()
+    {
+        foreach (var button in OperationBar.PrimaryCommands.OfType<AppBarButton>())
+        {
+            if (string.Equals(button.Label, "Terminal", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(button.Label, "Settings", StringComparison.OrdinalIgnoreCase))
+            {
+                button.Visibility = Visibility.Collapsed;
+            }
+        }
     }
 
     /// <summary>
