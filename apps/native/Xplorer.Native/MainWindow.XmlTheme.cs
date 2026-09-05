@@ -7,7 +7,7 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
-    private const double MinimumInspectorRailWidth = 48;
+    private const double MinimumInspectorRailWidth = 56;
 
     private FileSystemWatcher? _xmlThemeWatcher;
     private FileSystemWatcher? _settingsThemeWatcher;
