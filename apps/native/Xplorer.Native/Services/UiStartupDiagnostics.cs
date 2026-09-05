@@ -49,6 +49,10 @@ public static class UiStartupDiagnostics
         if (!IsEnabled) return;
 
         CrashLogService.Log("UI preflight started.");
+        CrashLogService.Log(
+            $"MRT base directory env: MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY='{Environment.GetEnvironmentVariable("MICROSOFT_WINDOWSAPPRUNTIME_BASE_DIRECTORY") ?? "<unset>"}'");
+        LogRuntimeFile("resources.pri");
+        LogRuntimeFile("Xplorer.Native.pri");
         LogRuntimeFile("Microsoft.ui.xaml.dll");
         LogRuntimeFile("Microsoft.UI.Xaml.Controls.pri");
         LogRuntimeFile("Microsoft.UI.pri");
@@ -139,9 +143,10 @@ public static class UiStartupDiagnostics
                 return;
             }
 
+            var file = new FileInfo(path);
             var info = FileVersionInfo.GetVersionInfo(path);
             CrashLogService.Log(
-                $"UI preflight runtime file: {fileName}; FileVersion={info.FileVersion ?? "<none>"}; ProductVersion={info.ProductVersion ?? "<none>"}; Size={new FileInfo(path).Length}");
+                $"UI preflight runtime file: {fileName}; FileVersion={info.FileVersion ?? "<none>"}; ProductVersion={info.ProductVersion ?? "<none>"}; Size={file.Length}");
         }
         catch (Exception ex)
         {
