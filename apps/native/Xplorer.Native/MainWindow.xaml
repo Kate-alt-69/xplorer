@@ -65,16 +65,37 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TabView
-            x:Name="Tabs"
-            Grid.Row="0"
-            Height="38"
-            IsAddTabButtonVisible="True"
-            CanReorderTabs="True"
-            TabWidthMode="SizeToContent"
-            SelectionChanged="Tabs_SelectionChanged"
-            TabCloseRequested="Tabs_TabCloseRequested"
-            AddTabButtonClick="Tabs_AddTabButtonClick" />
+        <!--
+            Do not use WinUI TabView here. On Windows 10 unpackaged/self-contained deployments,
+            TabView can depend on Microsoft.UI.Xaml generic theme resources that MRT fails to
+            resolve even when the framework PRI files are present. This simple strip uses only
+            primitives that are already proven to instantiate on Windows 10 and keeps tab state
+            entirely in MainWindow.xaml.cs.
+        -->
+        <Grid x:Name="Tabs" Grid.Row="0" Height="38" Padding="6,2" ColumnSpacing="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ScrollViewer
+                Grid.Column="0"
+                HorizontalScrollBarVisibility="Auto"
+                HorizontalScrollMode="Enabled"
+                VerticalScrollBarVisibility="Disabled"
+                VerticalScrollMode="Disabled">
+                <StackPanel x:Name="TabStrip" Orientation="Horizontal" Spacing="2" />
+            </ScrollViewer>
+            <Button
+                x:Name="AddTabButton"
+                Grid.Column="1"
+                Width="32"
+                Height="32"
+                Padding="0"
+                Click="AddTabButton_Click"
+                ToolTipService.ToolTip="New tab (Ctrl+T)">
+                <FontIcon Glyph="&#xE710;" FontSize="14" />
+            </Button>
+        </Grid>
 
         <Grid Grid.Row="1" Padding="10,6" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
