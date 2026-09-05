@@ -119,9 +119,13 @@ public sealed partial class MainWindow
         if (name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             return "That name contains a character Windows does not allow.";
 
-        var stem = Path.GetFileNameWithoutExtension(name);
-        if (ReservedWindowsNames.Contains(stem))
-            return $"'{stem}' is a reserved Windows device name.";
+        // DOS device names stay reserved even when one or more extensions follow them, e.g.
+        // CON.txt and CON.backup.txt. Path.GetFileNameWithoutExtension only strips the last suffix
+        // and would therefore miss the latter form.
+        var firstDot = name.IndexOf('.');
+        var deviceStem = firstDot < 0 ? name : name[..firstDot];
+        if (ReservedWindowsNames.Contains(deviceStem))
+            return $"'{deviceStem}' is a reserved Windows device name.";
 
         return null;
     }
