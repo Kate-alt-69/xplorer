@@ -8,7 +8,10 @@
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
     <UseWinUI>true</UseWinUI>
     <WindowsPackageType>None</WindowsPackageType>
+    <AppxPackage>false</AppxPackage>
+    <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <DefaultLanguage>en-US</DefaultLanguage>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -21,6 +24,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
+    <!-- Force creation of the app PRI for unpackaged/self-contained WinUI.  WinUI custom controls
+         resolve their default styles through the application's MRT resource map; without an app PRI,
+         Windows 10 can construct basic controls but TabView/XamlControlsResources fail while looking
+         for ms-appx:///Microsoft.UI.Xaml/Themes/themeresources.xaml. -->
+    <PRIResource Include="Strings\en-US\Resources.resw" />
   </ItemGroup>
 
   <Target Name="CopyXplorerRustHost" AfterTargets="Build" Condition="Exists('$(XplorerHostPath)')">
