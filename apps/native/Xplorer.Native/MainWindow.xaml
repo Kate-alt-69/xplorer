@@ -151,11 +151,11 @@
             </CommandBar.SecondaryCommands>
         </CommandBar>
 
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="3" MinWidth="0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="220" />
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="42" />
+                <ColumnDefinition Width="56" />
             </Grid.ColumnDefinitions>
 
             <Border
@@ -226,6 +226,7 @@
             <Grid
                 x:Name="FileArea"
                 Grid.Column="1"
+                MinWidth="0"
                 Background="Transparent"
                 RightTapped="FileArea_RightTapped">
                 <GridView
@@ -237,7 +238,7 @@
                     ItemTemplate="{StaticResource MediumTileTemplate}"
                     SelectionMode="Extended"
                     IsMultiSelectCheckBoxEnabled="False"
-                    DoubleTapped="FileList_DoubleTapped"
+                    DoubleTapped="FileList_ExactDoubleTapped"
                     RightTapped="FileList_MultiRightTapped"
                     SelectionChanged="FileList_SelectionChanged"
                     ContainerContentChanging="FileList_ContainerContentChanging">
@@ -257,7 +258,7 @@
                     Background="Transparent"
                     ItemsSource="{x:Bind Items}"
                     SelectionMode="Extended"
-                    DoubleTapped="FileList_DoubleTapped"
+                    DoubleTapped="FileList_ExactDoubleTapped"
                     RightTapped="FileList_MultiRightTapped"
                     SelectionChanged="FileList_SelectionChanged"
                     ContainerContentChanging="FileList_ContainerContentChanging">
@@ -310,16 +311,17 @@
 
             <StackPanel
                 Grid.Column="2"
-                Spacing="4"
-                Padding="4,8"
+                Spacing="6"
+                Padding="8,8"
+                HorizontalAlignment="Stretch"
                 Background="{ThemeResource XplorerRailBrush}">
-                <Button Width="34" Height="34" ToolTipService.ToolTip="Inspector" IsEnabled="False">
+                <Button Width="36" Height="36" HorizontalAlignment="Center" ToolTipService.ToolTip="Inspector" IsEnabled="False">
                     <FontIcon Glyph="&#xE890;" />
                 </Button>
-                <Button Width="34" Height="34" ToolTipService.ToolTip="Search">
+                <Button Width="36" Height="36" HorizontalAlignment="Center" ToolTipService.ToolTip="Search">
                     <FontIcon Glyph="&#xE721;" />
                 </Button>
-                <Button Width="34" Height="34" ToolTipService.ToolTip="Settings" Click="SettingsButton_Click">
+                <Button Width="36" Height="36" HorizontalAlignment="Center" ToolTipService.ToolTip="Settings" Click="SettingsButton_Click">
                     <FontIcon Glyph="&#xE713;" />
                 </Button>
             </StackPanel>
