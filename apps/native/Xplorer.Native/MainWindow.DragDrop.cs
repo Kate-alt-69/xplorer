@@ -180,7 +180,10 @@ public sealed partial class MainWindow
                 ? await ShellFileOperationService.MoveAsync(_hwnd, sourcePaths, destination)
                 : await ShellFileOperationService.CopyAsync(_hwnd, sourcePaths, destination);
 
-            e.AcceptedOperation = operation;
+            // Do not report a successful Move/Copy back to the drag source when the Windows Shell
+            // operation was cancelled or failed. Some drag sources use DropResult to decide whether
+            // to update their own UI/state, so lying here can make a failed drop look destructive.
+            e.AcceptedOperation = result.Succeeded ? operation : DataPackageOperation.None;
             await NavigateAsync(CurrentPath, pushHistory: false);
             StatusText.Text = FormatOperationResult(
                 result,
