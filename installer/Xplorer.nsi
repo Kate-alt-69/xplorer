@@ -17,6 +17,9 @@ SetCompressor /SOLID lzma
 !ifndef ICON_FILE
   !error "ICON_FILE must point at Xplorer.ico"
 !endif
+!ifndef VC_REDIST_FILE
+  !error "VC_REDIST_FILE must point at vc_redist.x64.exe"
+!endif
 
 !define PRODUCT_NAME "Xplorer"
 !define COMPANY_NAME "K8 / Xplorer"
@@ -35,6 +38,7 @@ UninstallIcon "${ICON_FILE}"
 VIProductVersion "1.0.0.0"
 VIAddVersionKey /LANG=1033 "ProductName" "Xplorer"
 VIAddVersionKey /LANG=1033 "ProductVersion" "${APP_VERSION}"
+VIAddVersionKey /LANG=1033 "FileVersion" "${APP_VERSION}"
 VIAddVersionKey /LANG=1033 "CompanyName" "${COMPANY_NAME}"
 VIAddVersionKey /LANG=1033 "FileDescription" "Xplorer native Windows installer"
 VIAddVersionKey /LANG=1033 "LegalCopyright" "AGPL-3.0"
@@ -101,34 +105,34 @@ Function RemoveLegacyShellKeys
 FunctionEnd
 
 Function RegisterNativeShellKeys
-  ; Register shell verbs directly from the installer. Do not depend on WinUI startup just to make
-  ; an HKCU registry entry: if the visible UI has a startup regression, install/repair must still work.
+  ; Register shell verbs directly from the installer. Quoting uses NSIS' single-quoted string form;
+  ; the previous $\" form was emitted literally as $"...$" and broke both verbs and worker startup.
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "MUIVerb" "Open in Xplorer"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "Icon" '$"$INSTDIR\Xplorer.Native.exe$"'
+  WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "Icon" '"$INSTDIR\Xplorer.Native.exe"'
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "XplorerOwner" "${SHELL_OWNER}"
-  WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native\command" "" '$"$INSTDIR\xplorer.exe$" $"%1$"'
+  WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native\command" "" '"$INSTDIR\xplorer.exe" "%1"'
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native\command" "XplorerOwner" "${SHELL_OWNER}"
 
   WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native" "" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native" "MUIVerb" "Open in Xplorer"
-  WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native" "Icon" '$"$INSTDIR\Xplorer.Native.exe$"'
+  WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native" "Icon" '"$INSTDIR\Xplorer.Native.exe"'
   WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native" "XplorerOwner" "${SHELL_OWNER}"
-  WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native\command" "" '$"$INSTDIR\xplorer.exe$" $"%1$"'
+  WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native\command" "" '"$INSTDIR\xplorer.exe" "%1"'
   WriteRegStr HKCU "Software\Classes\Drive\shell\Xplorer.Native\command" "XplorerOwner" "${SHELL_OWNER}"
 
   WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native" "" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native" "MUIVerb" "Open in Xplorer"
-  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native" "Icon" '$"$INSTDIR\Xplorer.Native.exe$"'
+  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native" "Icon" '"$INSTDIR\Xplorer.Native.exe"'
   WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native" "XplorerOwner" "${SHELL_OWNER}"
-  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native\command" "" '$"$INSTDIR\xplorer.exe$" $"%V$"'
+  WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native\command" "" '"$INSTDIR\xplorer.exe" "%V"'
   WriteRegStr HKCU "Software\Classes\Directory\Background\shell\Xplorer.Native\command" "XplorerOwner" "${SHELL_OWNER}"
 
   WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native" "" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native" "MUIVerb" "Open in Xplorer"
-  WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native" "Icon" '$"$INSTDIR\Xplorer.Native.exe$"'
+  WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native" "Icon" '"$INSTDIR\Xplorer.Native.exe"'
   WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native" "XplorerOwner" "${SHELL_OWNER}"
-  WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native\command" "" '$"$INSTDIR\xplorer.exe$" $"$DESKTOP$"'
+  WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native\command" "" '"$INSTDIR\xplorer.exe" "$DESKTOP"'
   WriteRegStr HKCU "Software\Classes\DesktopBackground\Shell\Xplorer.Native\command" "XplorerOwner" "${SHELL_OWNER}"
 FunctionEnd
 
@@ -148,6 +152,27 @@ FunctionEnd
 
 Section "Xplorer" SEC_MAIN
   SetShellVarContext current
+
+  ; WinUI's unpackaged deployment still requires the VC++ runtime. Install/repair it before we
+  ; touch the existing Xplorer installation so cancelling or failing the prerequisite leaves the
+  ; currently installed app and user data intact.
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=vc_redist.x64.exe "${VC_REDIST_FILE}"
+  DetailPrint "Ensuring Microsoft Visual C++ x64 runtime..."
+  ExecWait '"$PLUGINSDIR\vc_redist.x64.exe" /install /quiet /norestart' $0
+  ${If} $0 == 3010
+    SetRebootFlag true
+  ${ElseIf} $0 == 1641
+    SetRebootFlag true
+  ${ElseIf} $0 == 1638
+    DetailPrint "A compatible Visual C++ runtime is already installed."
+  ${ElseIf} $0 != 0
+    MessageBox MB_ICONSTOP|MB_OK "Microsoft Visual C++ Runtime setup failed (exit code $0). Xplorer was not changed."
+    Abort
+  ${EndIf}
+  Delete "$PLUGINSDIR\vc_redist.x64.exe"
+
   Call StopRunningXplorer
   Call BackupNativeUserData
   Call FindExistingUninstaller
@@ -175,8 +200,8 @@ Section "Xplorer" SEC_MAIN
   WriteRegStr HKCU "${UNINSTALL_KEY}" "Publisher" "${COMPANY_NAME}"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTALL_KEY}" "DisplayIcon" "$INSTDIR\Xplorer.Native.exe"
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '$"$INSTDIR\Uninstall.exe$"'
-  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '$"$INSTDIR\Uninstall.exe$" /S'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKCU "${UNINSTALL_KEY}" "QuietUninstallString" '"$INSTDIR\Uninstall.exe" /S'
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoModify" 1
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
 
@@ -188,18 +213,18 @@ Section "Xplorer" SEC_MAIN
 
   ; Background indexing is enabled by default in the native settings model. Register and start the
   ; zero-UI Rust worker during installation so it does not depend on the first successful UI launch.
-  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '$"$INSTDIR\xplorer.exe$" --service-worker'
-  Exec '$"$INSTDIR\xplorer.exe$" --service-worker'
+  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer.exe" --service-worker'
+  Exec '"$INSTDIR\xplorer.exe" --service-worker'
 SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
 
   IfFileExists "$INSTDIR\Xplorer.Native.exe" 0 +2
-    nsExec::ExecToLog '$"$INSTDIR\Xplorer.Native.exe$" --cleanup-integration'
+    nsExec::ExecToLog '"$INSTDIR\Xplorer.Native.exe" --cleanup-integration'
   IfFileExists "$INSTDIR\xplorer.exe" 0 +3
-    nsExec::ExecToLog '$"$INSTDIR\xplorer.exe$" --stop-service-worker'
-    nsExec::ExecToLog '$"$INSTDIR\xplorer.exe$" --unregister-startup'
+    nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --stop-service-worker'
+    nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --unregister-startup'
 
   Call un.StopRunningXplorer
 

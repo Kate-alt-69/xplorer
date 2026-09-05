@@ -7,7 +7,9 @@ param(
 
     [string]$Version = '1.0.0-alpha.1',
 
-    [switch]$SkipNativeBuild
+    [switch]$SkipNativeBuild,
+
+    [string]$VCRedistPath = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -49,6 +51,62 @@ if (-not (Test-Path $installerIcon)) {
     throw "Installer icon is missing: $installerIcon."
 }
 
+# Unpackaged WinUI depends on the Microsoft Visual C++ runtime even when the Windows App SDK
+# itself is deployed self-contained. Bundle the official x64 redistributable so a clean Windows
+# 10 machine does not just terminate Xplorer.Native.exe before managed startup/logging begins.
+if ([string]::IsNullOrWhiteSpace($VCRedistPath)) {
+    $prereqDir = Join-Path $repoRoot 'dist\prereqs'
+    New-Item -ItemType Directory -Force -Path $prereqDir | Out-Null
+    $vcRedist = Join-Path $prereqDir 'vc_redist.x64.exe'
+
+    if (-not (Test-Path $vcRedist)) {
+        Write-Host '==> Downloading Microsoft Visual C++ x64 Redistributable'
+        try {
+            [Net.ServicePointManager]::SecurityProtocol = `
+                [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        }
+        catch {
+            # PowerShell 7+ uses the platform HTTP stack; this compatibility tweak mainly helps 5.1.
+        }
+
+        $downloadError = $null
+        for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+                Invoke-WebRequest `
+                    -UseBasicParsing `
+                    -Uri 'https://aka.ms/vc14/vc_redist.x64.exe' `
+                    -OutFile $vcRedist
+                $downloadError = $null
+                break
+            }
+            catch {
+                $downloadError = $_
+                Remove-Item $vcRedist -Force -ErrorAction SilentlyContinue
+                if ($attempt -lt 3) { Start-Sleep -Seconds (2 * $attempt) }
+            }
+        }
+        if ($downloadError) {
+            throw "Could not download the Microsoft Visual C++ x64 Redistributable: $downloadError"
+        }
+    }
+}
+else {
+    if (-not (Test-Path $VCRedistPath)) {
+        throw "VCRedistPath does not exist: $VCRedistPath"
+    }
+    $vcRedist = (Resolve-Path $VCRedistPath).Path
+}
+
+if ((Get-Item $vcRedist).Length -lt 1MB) {
+    throw "Visual C++ Redistributable looks incomplete: $vcRedist"
+}
+$signature = Get-AuthenticodeSignature $vcRedist
+$signer = $signature.SignerCertificate.Subject
+if (-not $signer -or $signer -notmatch 'Microsoft' -or $signature.Status -in @('NotSigned', 'HashMismatch')) {
+    throw "Visual C++ Redistributable signature check failed ($($signature.Status)): $vcRedist"
+}
+Write-Host "==> VC++ prerequisite: $vcRedist"
+
 $makensis = $null
 $command = Get-Command makensis.exe -ErrorAction SilentlyContinue
 if ($command) { $makensis = $command.Source }
@@ -68,10 +126,12 @@ Remove-Item $output -Force -ErrorAction SilentlyContinue
 
 Write-Host "==> Building Xplorer installer $Version"
 & $makensis `
+    '/WX' `
     "/DAPP_VERSION=$Version" `
     "/DPAYLOAD_DIR=$payload" `
     "/DOUT_FILE=$output" `
     "/DICON_FILE=$installerIcon" `
+    "/DVC_REDIST_FILE=$vcRedist" `
     $installerScript
 if ($LASTEXITCODE -ne 0) {
     throw "makensis failed with exit code $LASTEXITCODE."

@@ -12,26 +12,63 @@ use std::{
 };
 
 const UI_EXECUTABLE: &str = "Xplorer.Native.exe";
-const STARTUP_GRACE_PERIOD: Duration = Duration::from_millis(900);
+const STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(3);
+const DEBUG_STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(15);
 const STARTUP_POLL_INTERVAL: Duration = Duration::from_millis(75);
 const MB_OK: u32 = 0;
 const MB_ICONERROR: u32 = 0x0000_0010;
+const VC_RUNTIME_DLLS: &[&str] = &["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"];
 
 #[link(name = "user32")]
 unsafe extern "system" {
     fn MessageBoxW(window: *mut c_void, text: *const u16, caption: *const u16, kind: u32) -> i32;
 }
 
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn LoadLibraryW(file_name: *const u16) -> *mut c_void;
+    fn FreeLibrary(module: *mut c_void) -> i32;
+}
+
 /// Rust owns the public xplorer.exe process. Worker switches are handled in-process without
 /// touching .NET; ordinary launches forward to the sibling WinUI executable. Keep the host alive
-/// for a very short grace period so an immediately-crashing UI produces a visible diagnostic
-/// instead of looking like xplorer.exe simply did nothing.
+/// briefly so an immediately-crashing UI produces a visible diagnostic instead of looking like
+/// xplorer.exe simply did nothing. --debug/-debug extends that observation window and logs every
+/// launch stage without forwarding the debug switch into the WinUI command line.
 pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
+    let debug = arguments.iter().any(|argument| is_debug_argument(argument));
+    let arguments: Vec<OsString> = arguments
+        .into_iter()
+        .filter(|argument| !is_debug_argument(argument))
+        .collect();
+
     let executable = env::current_exe()?;
     let directory = executable.parent().ok_or_else(|| {
         io::Error::new(io::ErrorKind::NotFound, "xplorer.exe has no executable directory")
     })?;
     let ui = directory.join(UI_EXECUTABLE);
+
+    if debug {
+        log_host_message(
+            &format!(
+                "Debug launch requested. Host={}; UI={}; args={:?}",
+                executable.display(),
+                ui.display(),
+                arguments
+            ),
+        );
+    }
+
+    let missing_runtime = missing_vc_runtime_dlls();
+    if !missing_runtime.is_empty() {
+        let detail = format!(
+            "Microsoft Visual C++ runtime is missing or incomplete: {}. Re-run the latest Xplorer installer to repair the prerequisite.",
+            missing_runtime.join(", ")
+        );
+        log_host_message(&detail);
+        show_launch_failure(&ui, &detail);
+        return Ok(5);
+    }
 
     if !ui.is_file() {
         if launch_explorer_fallback(&arguments).is_ok() {
@@ -44,18 +81,30 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     let mut child = match Command::new(&ui).args(&arguments).spawn() {
         Ok(child) => child,
         Err(error) => {
-            log_host_failure(directory, &format!("Could not spawn {}: {error}", ui.display()));
+            log_host_message(&format!("Could not spawn {}: {error}", ui.display()));
             show_launch_failure(&ui, &error.to_string());
             return Err(error);
         }
     };
 
+    if debug {
+        log_host_message(&format!("Spawned {UI_EXECUTABLE} as PID {}.", child.id()));
+    }
+
+    let grace_period = if debug {
+        DEBUG_STARTUP_GRACE_PERIOD
+    } else {
+        STARTUP_GRACE_PERIOD
+    };
     let mut waited = Duration::ZERO;
-    while waited < STARTUP_GRACE_PERIOD {
+    while waited < grace_period {
         if let Some(status) = child.try_wait()? {
             let code = status.code().unwrap_or(4);
-            let detail = format!("{UI_EXECUTABLE} exited during startup with code {code}.");
-            log_host_failure(directory, &detail);
+            let detail = format!(
+                "{UI_EXECUTABLE} exited during startup with code {code} (0x{:08X}).",
+                code as u32
+            );
+            log_host_message(&detail);
             show_launch_failure(&ui, &detail);
             return Ok(code);
         }
@@ -63,7 +112,37 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
         waited += STARTUP_POLL_INTERVAL;
     }
 
+    if debug {
+        log_host_message(&format!(
+            "{UI_EXECUTABLE} remained alive for {:.1}s; Rust host startup watch completed.",
+            grace_period.as_secs_f32()
+        ));
+    }
+
     Ok(0)
+}
+
+fn is_debug_argument(argument: &OsStr) -> bool {
+    matches!(
+        argument.to_string_lossy().to_ascii_lowercase().as_str(),
+        "--debug" | "-debug" | "--diagnose"
+    )
+}
+
+fn missing_vc_runtime_dlls() -> Vec<&'static str> {
+    let mut missing = Vec::new();
+    for name in VC_RUNTIME_DLLS {
+        let wide_name = wide(name);
+        let module = unsafe { LoadLibraryW(wide_name.as_ptr()) };
+        if module.is_null() {
+            missing.push(*name);
+        } else {
+            unsafe {
+                FreeLibrary(module);
+            }
+        }
+    }
+    missing
 }
 
 fn launch_explorer_fallback(arguments: &[OsString]) -> io::Result<()> {
@@ -81,7 +160,7 @@ fn launch_explorer_fallback(arguments: &[OsString]) -> io::Result<()> {
     Ok(())
 }
 
-fn log_host_failure(_install_directory: &Path, message: &str) {
+fn log_host_message(message: &str) {
     let Some(local_app_data) = env::var_os("LOCALAPPDATA") else {
         return;
     };
@@ -109,14 +188,18 @@ fn show_launch_failure(path: &Path, detail: &str) {
     let log_path = env::var_os("LOCALAPPDATA")
         .map(PathBuf::from)
         .map(|path| path.join("Xplorer").join("Logs").join("startup.log"));
-    let text = match log_path {
-        Some(log_path) => format!(
-            "Xplorer's native UI could not stay running.\n\n{}\n\nUI: {}\n\nStartup log: {}",
+    let host_log_path = env::var_os("LOCALAPPDATA")
+        .map(PathBuf::from)
+        .map(|path| path.join("Xplorer").join("Logs").join("host.log"));
+    let text = match (log_path, host_log_path) {
+        (Some(log_path), Some(host_log_path)) => format!(
+            "Xplorer's native UI could not stay running.\n\n{}\n\nUI: {}\n\nManaged startup log: {}\nRust host log: {}",
             detail,
             path.display(),
-            log_path.display()
+            log_path.display(),
+            host_log_path.display()
         ),
-        None => format!("Xplorer's native UI could not stay running.\n\n{}\n\nUI: {}", detail, path.display()),
+        _ => format!("Xplorer's native UI could not stay running.\n\n{}\n\nUI: {}", detail, path.display()),
     };
     show_error_message(&text, "Xplorer startup error");
 }
