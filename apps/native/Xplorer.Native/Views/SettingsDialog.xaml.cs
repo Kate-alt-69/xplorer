@@ -65,13 +65,20 @@ public sealed partial class SettingsDialog : ContentDialog
             if (string.Equals(selectedTheme, "Custom XML", StringComparison.OrdinalIgnoreCase))
                 _ = ThemeService.Load(selectedThemeFile);
 
-            // External integration can partially mutate Windows state before throwing. Mark each
-            // operation as attempted before calling it so a failure midway still triggers rollback.
-            shellIntegrationAttempted = true;
-            ShellIntegrationService.Apply(desiredShellIntegration);
+            // Registry/process integration is external mutable state. Only touch it if the user
+            // actually changed the corresponding switch; saving an unrelated theme/view preference
+            // must not restart the worker or fail because a registry key is temporarily unavailable.
+            if (desiredShellIntegration != previousShellIntegration)
+            {
+                shellIntegrationAttempted = true;
+                ShellIntegrationService.Apply(desiredShellIntegration);
+            }
 
-            backgroundIndexingAttempted = true;
-            IndexWorkerService.Apply(desiredBackgroundIndexing);
+            if (desiredBackgroundIndexing != previousBackgroundIndexing)
+            {
+                backgroundIndexingAttempted = true;
+                IndexWorkerService.Apply(desiredBackgroundIndexing);
+            }
 
             settings.Theme = selectedTheme;
             settings.ThemeFileName = selectedThemeFile;
