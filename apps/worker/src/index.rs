@@ -69,9 +69,6 @@ pub fn snapshot_is_current(data_dir: &Path, drive: u8) -> bool {
         && u32::from_le_bytes(header[8..12].try_into().unwrap()) == SNAPSHOT_VERSION
 }
 
-/// Build the immutable volume snapshot. An interrupted crawl keeps a bounded checkpoint containing
-/// the DFS frontier plus the valid byte offset in C.xidx.tmp. On the next worker start we truncate
-/// back to that checkpoint and continue from the unfinished directory instead of restarting at C:\.
 pub fn scan_volume(
     drive: u8,
     data_dir: &Path,
@@ -92,7 +89,6 @@ pub fn scan_volume(
         Ok(Some(resume)) => resume,
         Ok(None) => start_new_scan(drive, &root, &temp_path, &resume_file)?,
         Err(_) => {
-            // A malformed/stale checkpoint must never poison future worker startups.
             let _ = fs::remove_file(&temp_path);
             let _ = fs::remove_file(&resume_file);
             start_new_scan(drive, &root, &temp_path, &resume_file)?
@@ -105,8 +101,6 @@ pub fn scan_volume(
     let mut directories_since_checkpoint = RESUME_CHECKPOINT_DIRECTORY_INTERVAL;
 
     let scan_result: io::Result<()> = (|| {
-        // Give the actively viewed workspace first claim on the low-rate worker even while the
-        // first full-volume snapshot is still crawling for hours.
         let _ = workspace::refresh_hot_workspace(data_dir, stop_event);
 
         while let Some(directory) = pending.pop() {
@@ -143,9 +137,6 @@ pub fn scan_volume(
     })();
 
     if let Err(error) = scan_result {
-        // The checkpoint points to a fully flushed boundary *before* the current checkpoint block.
-        // Keep temp + resume on an intentional stop so the next startup can continue. For ordinary
-        // I/O/corruption failures, discard them and let the next pass start cleanly.
         drop(writer);
         if error.kind() != io::ErrorKind::Interrupted {
             let _ = fs::remove_file(&temp_path);
@@ -275,7 +266,7 @@ fn save_resume_checkpoint(
     }
     writer.write_all(&(count as u32).to_le_bytes())?;
 
-    for path in pending.iter().chain(std::iter::once(current)) {
+    for path in pending.iter().map(PathBuf::as_path).chain(std::iter::once(current)) {
         let relative = path.strip_prefix(root).map_err(|_| {
             io::Error::new(io::ErrorKind::InvalidData, "resume directory escaped volume root")
         })?;
@@ -377,8 +368,6 @@ fn scan_one_directory(
         stats.records = stats.records.saturating_add(1);
 
         if stats.records & 0x3f == 0 {
-            // Only the active Xplorer workspace is checked here. Unrelated system USN traffic keeps
-            // waiting for the normal reconciliation window, so this does not turn into a hot poll.
             let _ = workspace::refresh_hot_workspace(excluded_data_dir, stop_event);
         }
 
