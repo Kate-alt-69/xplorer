@@ -43,6 +43,14 @@ public sealed partial class MainWindow
             var themePath = ThemeService.ResolveThemePath(_settingsService.Current.ThemeFileName);
             ConfigureXmlThemeWatcher(themePath);
             var theme = ThemeService.Load(_settingsService.Current.ThemeFileName);
+
+            // Runtime XAML is needed only because ItemsWrapGrid dimensions cannot be changed through
+            // ItemsPanelTemplate after creation. Build BOTH templates before mutating any visible UI;
+            // if WinUI rejects either generated template the old theme remains intact instead of a
+            // half-applied background/sidebar with the previous item layout.
+            var mediumItemsPanel = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
+            var largeItemsPanel = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
+
             Root.Background = new SolidColorBrush(theme.Background);
             Tabs.Height = theme.TabHeight;
             SetXmlAccent(theme.Accent);
@@ -77,15 +85,14 @@ public sealed partial class MainWindow
                 }
             }
 
-            Root.Resources["MediumItemsPanel"] = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
-            Root.Resources["LargeItemsPanel"] = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
+            Root.Resources["MediumItemsPanel"] = mediumItemsPanel;
+            Root.Resources["LargeItemsPanel"] = largeItemsPanel;
             ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
         }
         catch (Exception ex)
         {
-            // A bad user theme must leave Xplorer usable. Revert the layout/resources that can be
-            // restored without invoking XamlReader again, while continuing to watch the bad file so
-            // fixing it in an editor hot-reloads automatically.
+            // A bad user theme must leave Xplorer usable. Revert the item templates without invoking
+            // XamlReader again, while continuing to watch the bad file so fixing it hot-reloads.
             RestoreCompiledItemPanels();
             StatusText.Text = $"XML theme ignored: {ex.Message}";
         }
