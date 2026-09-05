@@ -31,6 +31,12 @@ public sealed class SettingsService
 
     public XplorerSettings Current { get; private set; }
 
+    /// <summary>
+    /// Raised only after the settings file has been replaced successfully. MainWindow uses this to
+    /// apply auto-saved Settings-dialog changes immediately without waiting for FileSystemWatcher.
+    /// </summary>
+    public event EventHandler? Saved;
+
     private XplorerSettings Load()
     {
         try
@@ -46,11 +52,6 @@ public sealed class SettingsService
         }
     }
 
-    /// <summary>
-    /// Reloads a complete settings file only after it can be parsed successfully. FileSystemWatcher
-    /// can observe the temporary gap of an atomic replace, so a transient read must never replace
-    /// live settings with defaults.
-    /// </summary>
     public bool TryReload()
     {
         try
@@ -77,8 +78,6 @@ public sealed class SettingsService
         settings.TerminalCommand ??= string.Empty;
         settings.TerminalArguments ??= string.Empty;
 
-        // System.Text.Json recreates dictionaries with its default comparer. Rebuild this one so
-        // Windows paths remain case-insensitive after restart just like they are during first run.
         var normalizedOverrides = new Dictionary<string, FolderViewSettings>(StringComparer.OrdinalIgnoreCase);
         if (settings.FolderOverrides is not null)
         {
@@ -87,14 +86,8 @@ public sealed class SettingsService
                 if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null) continue;
 
                 string folder;
-                try
-                {
-                    folder = Path.GetFullPath(pair.Key.Trim());
-                }
-                catch
-                {
-                    continue;
-                }
+                try { folder = Path.GetFullPath(pair.Key.Trim()); }
+                catch { continue; }
 
                 normalizedOverrides[folder] = new FolderViewSettings
                 {
@@ -131,10 +124,7 @@ public sealed class SettingsService
         folder = NormalizeFolderKey(folder);
         if (Current.RememberViewPerFolder &&
             Current.FolderOverrides.TryGetValue(folder, out var folderSettings))
-        {
             return folderSettings.ViewMode;
-        }
-
         return Current.DefaultViewMode;
     }
 
@@ -143,10 +133,7 @@ public sealed class SettingsService
         folder = NormalizeFolderKey(folder);
         if (Current.RememberViewPerFolder &&
             Current.FolderOverrides.TryGetValue(folder, out var folderSettings))
-        {
             return folderSettings.SortMode;
-        }
-
         return Current.DefaultSortMode;
     }
 
@@ -154,15 +141,9 @@ public sealed class SettingsService
     {
         viewMode = NormalizeChoice(viewMode, AllowedViewModes, Current.DefaultViewMode);
         if (Current.RememberViewPerFolder)
-        {
-            var folderSettings = GetOrCreateFolderOverride(folder);
-            folderSettings.ViewMode = viewMode;
-        }
+            GetOrCreateFolderOverride(folder).ViewMode = viewMode;
         else
-        {
             Current.DefaultViewMode = viewMode;
-        }
-
         await SaveAsync();
     }
 
@@ -170,15 +151,9 @@ public sealed class SettingsService
     {
         sortMode = NormalizeChoice(sortMode, AllowedSortModes, Current.DefaultSortMode);
         if (Current.RememberViewPerFolder)
-        {
-            var folderSettings = GetOrCreateFolderOverride(folder);
-            folderSettings.SortMode = sortMode;
-        }
+            GetOrCreateFolderOverride(folder).SortMode = sortMode;
         else
-        {
             Current.DefaultSortMode = sortMode;
-        }
-
         await SaveAsync();
     }
 
@@ -198,14 +173,8 @@ public sealed class SettingsService
 
     private static string NormalizeFolderKey(string folder)
     {
-        try
-        {
-            return Path.GetFullPath(folder);
-        }
-        catch
-        {
-            return folder;
-        }
+        try { return Path.GetFullPath(folder); }
+        catch { return folder; }
     }
 
     public void Save()
@@ -216,6 +185,7 @@ public sealed class SettingsService
         {
             File.WriteAllText(tempPath, json);
             File.Move(tempPath, _settingsPath, overwrite: true);
+            Saved?.Invoke(this, EventArgs.Empty);
         }
         finally
         {
@@ -231,6 +201,7 @@ public sealed class SettingsService
         {
             await File.WriteAllTextAsync(tempPath, json);
             File.Move(tempPath, _settingsPath, overwrite: true);
+            Saved?.Invoke(this, EventArgs.Empty);
         }
         finally
         {

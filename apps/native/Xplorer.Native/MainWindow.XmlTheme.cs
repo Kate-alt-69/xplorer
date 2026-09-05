@@ -7,6 +7,8 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
+    private const double MinimumInspectorRailWidth = 48;
+
     private FileSystemWatcher? _xmlThemeWatcher;
     private FileSystemWatcher? _settingsThemeWatcher;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _themeReloadTimer;
@@ -19,21 +21,20 @@ public sealed partial class MainWindow
     private Brush? _defaultBottomBarBackground;
     private double? _defaultTabHeight;
     private bool _reloadSettingsBeforeTheme;
+    private bool _pendingThemeAtStartup;
+    private bool _pendingThemePromptShown;
 
     public void InitializeXmlThemeSupport()
     {
-        // Capture the real compiled/native values once. XML reset must restore Xplorer's visual
-        // language, not null out backgrounds and accidentally fall back to plain WinUI grey.
         _defaultMediumItemsPanel ??= Root.Resources["MediumItemsPanel"] as ItemsPanelTemplate;
         _defaultLargeItemsPanel ??= Root.Resources["LargeItemsPanel"] as ItemsPanelTemplate;
         _defaultRootBackground ??= Root.Background;
         _defaultTabHeight ??= Tabs.Height;
 
-        var shellGrid = Root.Children
-            .OfType<Grid>()
-            .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
+        var shellGrid = FindShellGrid();
         if (shellGrid is not null)
         {
+            EnsureInspectorRailFits(shellGrid);
             foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
             {
                 if (Grid.GetColumn(child) == 0 && child is Border sidebar)
@@ -52,8 +53,17 @@ public sealed partial class MainWindow
         }
 
         ThemeService.EnsureDefaultThemeFile();
+        ThemePreviewCoordinator.PreviewRequested += PreviewThemeDefinition;
+        ThemePreviewCoordinator.RestoreRequested += RestorePersistedTheme;
+        _settingsService.Saved += SettingsService_Saved;
+
         ApplyXmlTheme();
         ConfigureSettingsThemeWatcher();
+
+        _pendingThemeAtStartup = ThemeImportService.HasPendingPreview();
+        if (_pendingThemeAtStartup)
+            Activated += PendingThemeStartup_Activated;
+
         Closed += (_, _) => DisposeThemeWatchers();
     }
 
@@ -68,59 +78,157 @@ public sealed partial class MainWindow
                 return;
             }
 
-            // Watch the requested path before parsing it. A malformed file remains recoverable by
-            // simply fixing/saving that same file in an editor.
             var themePath = ThemeService.ResolveThemePath(_settingsService.Current.ThemeFileName);
             ConfigureXmlThemeWatcher(themePath);
             var theme = ThemeService.Load(_settingsService.Current.ThemeFileName);
-
-            // Build both runtime templates before mutating visible state. If either parser call
-            // fails, the previous complete theme remains visible instead of a half-applied one.
-            var mediumItemsPanel = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
-            var largeItemsPanel = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
-
-            Root.Background = new SolidColorBrush(theme.Background);
-            Tabs.Height = theme.TabHeight;
-            SetXmlAccent(theme.Accent);
-
-            var shellGrid = Root.Children
-                .OfType<Grid>()
-                .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
-            if (shellGrid is not null)
-            {
-                shellGrid.ColumnDefinitions[0].Width = new GridLength(theme.SidebarWidth);
-                shellGrid.ColumnDefinitions[2].Width = new GridLength(theme.InspectorWidth);
-
-                foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
-                {
-                    if (Grid.GetColumn(child) == 0 && child is Border sidebar)
-                        sidebar.Background = new SolidColorBrush(theme.Surface);
-                    else if (Grid.GetColumn(child) == 2 && child is Panel rail)
-                        rail.Background = new SolidColorBrush(theme.Rail);
-                }
-            }
-
-            foreach (var child in Root.Children.OfType<FrameworkElement>())
-            {
-                switch (child)
-                {
-                    case CommandBar commandBar when Grid.GetRow(commandBar) == 2:
-                        commandBar.Background = new SolidColorBrush(theme.Surface);
-                        break;
-                    case Grid bottomBar when Grid.GetRow(bottomBar) == 4:
-                        bottomBar.Background = new SolidColorBrush(theme.Rail);
-                        break;
-                }
-            }
-
-            Root.Resources["MediumItemsPanel"] = mediumItemsPanel;
-            Root.Resources["LargeItemsPanel"] = largeItemsPanel;
-            ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
+            ApplyThemeDefinition(theme);
         }
         catch (Exception ex)
         {
             RestoreCompiledItemPanels();
             StatusText.Text = $"XML theme ignored: {ex.Message}";
+        }
+    }
+
+    private void ApplyThemeDefinition(XplorerThemeDefinition theme)
+    {
+        var mediumItemsPanel = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
+        var largeItemsPanel = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
+
+        Root.Background = new SolidColorBrush(theme.Background);
+        Tabs.Height = theme.TabHeight;
+        SetXmlAccent(theme.Accent);
+
+        var shellGrid = FindShellGrid();
+        if (shellGrid is not null)
+        {
+            shellGrid.ColumnDefinitions[0].Width = new GridLength(theme.SidebarWidth);
+            shellGrid.ColumnDefinitions[2].Width = new GridLength(Math.Max(MinimumInspectorRailWidth, theme.InspectorWidth));
+
+            foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
+            {
+                if (Grid.GetColumn(child) == 0 && child is Border sidebar)
+                    sidebar.Background = new SolidColorBrush(theme.Surface);
+                else if (Grid.GetColumn(child) == 2 && child is Panel rail)
+                    rail.Background = new SolidColorBrush(theme.Rail);
+            }
+        }
+
+        foreach (var child in Root.Children.OfType<FrameworkElement>())
+        {
+            switch (child)
+            {
+                case CommandBar commandBar when Grid.GetRow(commandBar) == 2:
+                    commandBar.Background = new SolidColorBrush(theme.Surface);
+                    break;
+                case Grid bottomBar when Grid.GetRow(bottomBar) == 4:
+                    bottomBar.Background = new SolidColorBrush(theme.Rail);
+                    break;
+            }
+        }
+
+        Root.Resources["MediumItemsPanel"] = mediumItemsPanel;
+        Root.Resources["LargeItemsPanel"] = largeItemsPanel;
+        ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
+    }
+
+    private void PreviewThemeDefinition(XplorerThemeDefinition theme)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            try
+            {
+                ConfigureXmlThemeWatcher(null);
+                ApplyThemeDefinition(theme);
+                StatusText.Text = "Temporary theme preview — restart Xplorer to keep or discard it";
+            }
+            catch (Exception ex)
+            {
+                ApplyXmlTheme();
+                StatusText.Text = $"Theme preview failed safely: {ex.Message}";
+            }
+        });
+    }
+
+    private void RestorePersistedTheme()
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            ApplyTheme();
+            ApplyXmlTheme();
+        });
+    }
+
+    private void SettingsService_Saved(object? sender, EventArgs e)
+    {
+        DispatcherQueue.TryEnqueue(() => _ = ApplySavedSettingsAsync());
+    }
+
+    private async Task ApplySavedSettingsAsync()
+    {
+        try
+        {
+            ApplyTheme();
+            ApplyXmlTheme();
+            await NavigateAsync(CurrentPath, pushHistory: false);
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"Setting saved but live refresh failed: {ex.Message}";
+        }
+    }
+
+    private async void PendingThemeStartup_Activated(object sender, WindowActivatedEventArgs args)
+    {
+        if (!_pendingThemeAtStartup || _pendingThemePromptShown) return;
+        _pendingThemePromptShown = true;
+        Activated -= PendingThemeStartup_Activated;
+
+        try
+        {
+            await Task.Delay(100);
+            var pending = await ThemeImportService.LoadPendingAsync();
+            if (pending is null) return;
+
+            var missingText = pending.MissingProperties.Count == 0
+                ? string.Empty
+                : $"\n\nThe theme leaves {pending.MissingProperties.Count} supported value(s) at Xplorer defaults.";
+            var scanText = pending.Scan.Performed
+                ? "\n\nThe staged XML passed the local Windows AMSI antimalware pipeline again."
+                : "\n\nThe local AMSI provider did not perform a scan this time; Xplorer still revalidated the strict data-only XML schema.";
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Root.XamlRoot,
+                Title = "Keep imported theme?",
+                Content = $"A temporary preview of '{pending.State.DisplayName}' was active in your last Xplorer session. Do you want to make it your current theme?{missingText}{scanText}",
+                PrimaryButtonText = "Use theme",
+                CloseButtonText = "Discard",
+                DefaultButton = ContentDialogButton.Primary,
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result == ContentDialogResult.Primary)
+            {
+                var fileName = await ThemeImportService.CommitPendingAsync(_settingsService);
+                ApplyTheme();
+                ApplyXmlTheme();
+                StatusText.Text = $"Theme saved: {fileName}";
+            }
+            else
+            {
+                ThemeImportService.DiscardPending();
+                ApplyTheme();
+                ApplyXmlTheme();
+                StatusText.Text = "Imported theme discarded; previous theme restored";
+            }
+        }
+        catch (Exception ex)
+        {
+            ThemeImportService.DiscardPending();
+            ApplyTheme();
+            ApplyXmlTheme();
+            StatusText.Text = $"Pending theme was rejected safely: {ex.Message}";
         }
     }
 
@@ -154,13 +262,11 @@ public sealed partial class MainWindow
         SetXmlAccent(XplorerThemeDefinition.Default.Accent);
         Tabs.Height = _defaultTabHeight ?? 38;
 
-        var shellGrid = Root.Children
-            .OfType<Grid>()
-            .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
+        var shellGrid = FindShellGrid();
         if (shellGrid is not null)
         {
             shellGrid.ColumnDefinitions[0].Width = new GridLength(220);
-            shellGrid.ColumnDefinitions[2].Width = new GridLength(42);
+            shellGrid.ColumnDefinitions[2].Width = new GridLength(MinimumInspectorRailWidth);
             foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
             {
                 if (Grid.GetColumn(child) == 0 && child is Border sidebar)
@@ -182,6 +288,17 @@ public sealed partial class MainWindow
 
         RestoreCompiledItemPanels();
         ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
+    }
+
+    private Grid? FindShellGrid() => Root.Children
+        .OfType<Grid>()
+        .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
+
+    private static void EnsureInspectorRailFits(Grid shellGrid)
+    {
+        var width = shellGrid.ColumnDefinitions[2].Width;
+        if (width.IsAbsolute && width.Value < MinimumInspectorRailWidth)
+            shellGrid.ColumnDefinitions[2].Width = new GridLength(MinimumInspectorRailWidth);
     }
 
     private void RestoreCompiledItemPanels()
@@ -210,7 +327,6 @@ public sealed partial class MainWindow
     }
 
     private void ThemeSettingsChanged(object sender, FileSystemEventArgs e) => ScheduleThemeReload(reloadSettings: true);
-
     private void ThemeSettingsRenamed(object sender, RenamedEventArgs e) => ScheduleThemeReload(reloadSettings: true);
 
     private void ConfigureXmlThemeWatcher(string? path)
@@ -235,7 +351,6 @@ public sealed partial class MainWindow
     }
 
     private void XmlThemeFileChanged(object sender, FileSystemEventArgs e) => ScheduleThemeReload(reloadSettings: false);
-
     private void XmlThemeFileRenamed(object sender, RenamedEventArgs e) => ScheduleThemeReload(reloadSettings: false);
 
     private void ScheduleThemeReload(bool reloadSettings)
@@ -271,6 +386,11 @@ public sealed partial class MainWindow
 
     private void DisposeThemeWatchers()
     {
+        ThemePreviewCoordinator.PreviewRequested -= PreviewThemeDefinition;
+        ThemePreviewCoordinator.RestoreRequested -= RestorePersistedTheme;
+        _settingsService.Saved -= SettingsService_Saved;
+        Activated -= PendingThemeStartup_Activated;
+
         _xmlThemeWatcher?.Dispose();
         _settingsThemeWatcher?.Dispose();
         _themeReloadTimer?.Stop();

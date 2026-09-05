@@ -20,14 +20,16 @@ public static class ThemeService
         "Xplorer",
         "Themes");
 
+    public sealed record InspectionResult(
+        XplorerThemeDefinition Definition,
+        IReadOnlyList<string> MissingProperties);
+
     public static string EnsureDefaultThemeFile()
     {
         Directory.CreateDirectory(ThemeDirectory);
         var path = Path.Combine(ThemeDirectory, DefaultThemeFileName);
         if (!File.Exists(path))
-        {
             File.WriteAllText(path, DefaultThemeXml);
-        }
         return path;
     }
 
@@ -46,10 +48,21 @@ public static class ThemeService
         return Path.Combine(ThemeDirectory, normalized);
     }
 
-    public static XplorerThemeDefinition Load(string fileName)
+    public static XplorerThemeDefinition Load(string fileName) => Analyze(fileName).Definition;
+
+    public static InspectionResult Analyze(string fileName)
     {
         EnsureDefaultThemeFile();
         var path = ResolveThemePath(fileName);
+        var document = ReadDocument(path);
+        var root = ValidateRoot(document);
+        var definition = ParseDefinition(root);
+        var missing = FindMissingProperties(root);
+        return new InspectionResult(definition, missing);
+    }
+
+    private static XDocument ReadDocument(string path)
+    {
         var info = new FileInfo(path);
         if (!info.Exists)
             throw new FileNotFoundException("The selected Xplorer XML theme does not exist.", path);
@@ -67,7 +80,11 @@ public static class ThemeService
 
         using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
         using var reader = XmlReader.Create(stream, settings);
-        var document = XDocument.Load(reader, LoadOptions.None);
+        return XDocument.Load(reader, LoadOptions.None);
+    }
+
+    private static XElement ValidateRoot(XDocument document)
+    {
         var root = document.Root ?? throw new InvalidDataException("Theme XML has no root element.");
         if (root.Name != XName.Get("XplorerTheme"))
             throw new InvalidDataException("Theme root must be an un-namespaced <XplorerTheme> element.");
@@ -76,7 +93,11 @@ public static class ThemeService
 
         RejectUnknownAttributes(root, "version");
         RejectUnknownChildren(root, "Colors", "Layout", "Files");
+        return root;
+    }
 
+    private static XplorerThemeDefinition ParseDefinition(XElement root)
+    {
         var result = XplorerThemeDefinition.Default;
         if (root.Element("Colors") is { } colors)
         {
@@ -98,8 +119,8 @@ public static class ThemeService
             result = result with
             {
                 SidebarWidth = ReadDouble(layout, "SidebarWidth", result.SidebarWidth, 140, 480),
-                // The rail has 4 px padding on each side around 34 px buttons, so <42 clips them.
-                InspectorWidth = ReadDouble(layout, "InspectorWidth", result.InspectorWidth, 42, 96),
+                // The rail owns 34 px buttons plus padding/border/scrollbar breathing room.
+                InspectorWidth = ReadDouble(layout, "InspectorWidth", result.InspectorWidth, 48, 112),
                 TabHeight = ReadDouble(layout, "TabHeight", result.TabHeight, 32, 64),
             };
         }
@@ -111,7 +132,6 @@ public static class ThemeService
             result = result with
             {
                 MediumTileWidth = ReadDouble(files, "MediumTileWidth", result.MediumTileWidth, 84, 220),
-                // Template icon rows are 68/102 px; keep enough room below for the two-line label.
                 MediumTileHeight = ReadDouble(files, "MediumTileHeight", result.MediumTileHeight, 96, 220),
                 LargeTileWidth = ReadDouble(files, "LargeTileWidth", result.LargeTileWidth, 120, 300),
                 LargeTileHeight = ReadDouble(files, "LargeTileHeight", result.LargeTileHeight, 132, 300),
@@ -119,6 +139,24 @@ public static class ThemeService
         }
 
         return result;
+    }
+
+    private static IReadOnlyList<string> FindMissingProperties(XElement root)
+    {
+        var missing = new List<string>();
+        AddMissing(root.Element("Colors"), "Colors", missing, "Background", "Surface", "Rail", "Accent");
+        AddMissing(root.Element("Layout"), "Layout", missing, "SidebarWidth", "InspectorWidth", "TabHeight");
+        AddMissing(root.Element("Files"), "Files", missing, "MediumTileWidth", "MediumTileHeight", "LargeTileWidth", "LargeTileHeight");
+        return missing;
+    }
+
+    private static void AddMissing(XElement? section, string sectionName, List<string> missing, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (section?.Element(name) is null)
+                missing.Add($"{sectionName}.{name}");
+        }
     }
 
     private static Color ReadColor(XElement parent, string name, Color fallback)
@@ -132,13 +170,9 @@ public static class ThemeService
 
         uint value;
         if (text.Length == 6 && uint.TryParse(text, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value))
-        {
             return Color.FromArgb(0xff, (byte)(value >> 16), (byte)(value >> 8), (byte)value);
-        }
         if (text.Length == 8 && uint.TryParse(text, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out value))
-        {
             return Color.FromArgb((byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value);
-        }
 
         throw new InvalidDataException($"<{name}> must be #RRGGBB or #AARRGGBB.");
     }
@@ -204,7 +238,7 @@ public static class ThemeService
           </Colors>
           <Layout>
             <SidebarWidth>220</SidebarWidth>
-            <InspectorWidth>42</InspectorWidth>
+            <InspectorWidth>48</InspectorWidth>
             <TabHeight>38</TabHeight>
           </Layout>
           <Files>
@@ -236,7 +270,7 @@ public sealed record XplorerThemeDefinition(
         Color.FromArgb(0xff, 0x15, 0x15, 0x1b),
         Color.FromArgb(0xff, 0x6d, 0x6a, 0xfb),
         220,
-        42,
+        48,
         38,
         116,
         104,
