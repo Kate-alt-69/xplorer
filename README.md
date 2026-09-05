@@ -6,6 +6,8 @@ This branch deliberately does **not** ship a WebView frontend, AI chat, agents, 
 
 > Branch: `rewrite/native-winui`
 >
+> Native milestone: `1.0.0-alpha.1`.
+>
 > The older React/Tauri implementation still exists in Git history and on the original development branches, but it is intentionally removed from this native rewrite branch.
 
 ## Current native direction
@@ -27,7 +29,7 @@ This branch deliberately does **not** ship a WebView frontend, AI chat, agents, 
 - Strict data-only XML themes with hot reload; no arbitrary executable XAML.
 - No `explorer.exe` replacement, injection, or global process hooks.
 
-## Build the portable x64 ZIP
+## Build the Windows installer
 
 ### Requirements
 
@@ -35,6 +37,26 @@ This branch deliberately does **not** ship a WebView frontend, AI chat, agents, 
 - Rust stable (`rustup` + Cargo)
 - .NET 10 SDK
 - Visual Studio / Windows SDK prerequisites needed by WinUI 3 builds
+- NSIS 3.x (`makensis.exe`)
+
+From the repository root, run:
+
+```powershell
+PowerShell -ExecutionPolicy Bypass -File .\scripts\build-installer.ps1 `
+  -Configuration Release `
+  -Runtime win-x64 `
+  -Version 1.0.0-alpha.1
+```
+
+This builds the native payload first and then creates:
+
+```text
+dist\Xplorer-Setup-x64.exe
+```
+
+The installer is per-user and installs the program under `%LOCALAPPDATA%\Programs\Xplorer`. It is designed to upgrade an existing Xplorer installation rather than simply placing a second copy beside it: it stops running Xplorer processes, invokes an existing registered Xplorer uninstaller when present, migrates to the native program directory, recreates Start Menu/shell integration, and preserves native user data under `%LOCALAPPDATA%\Xplorer` (settings, XML themes and metadata indexes). Uninstall removes Xplorer-owned program files, shell registrations and worker startup state while preserving that user-data directory.
+
+## Build the portable x64 ZIP
 
 From the repository root, run:
 
@@ -49,7 +71,7 @@ dist\Xplorer-win-x64\
 dist\Xplorer-win-x64.zip
 ```
 
-Run the built application with:
+Run the portable build with:
 
 ```powershell
 .\dist\Xplorer-win-x64\xplorer.exe
@@ -64,7 +86,7 @@ Useful worker commands:
 .\dist\Xplorer-win-x64\xplorer.exe --stop-service-worker
 ```
 
-The GitHub Actions workflow `.github/workflows/native-winui.yml` runs the same portable x64 packaging path and uploads `Xplorer-win-x64.zip` as a workflow artifact.
+The GitHub Actions workflow `.github/workflows/native-winui.yml` builds both the portable ZIP and NSIS installer, then smoke-tests install → reinstall/upgrade → uninstall while checking that Xplorer user data survives.
 
 ## Repository layout
 
@@ -74,6 +96,7 @@ xplorer/
 │   ├── native/           # WinUI 3 desktop file manager
 │   ├── worker/           # Rust public host + metadata index worker
 │   └── web/              # Separate Xplorer website / marketplace
+├── installer/            # NSIS upgrade installer + branding
 ├── packages/             # Extension SDK, CLI and related packages
 ├── infra/                # Marketplace infrastructure
 └── scripts/              # Build / repository tooling
