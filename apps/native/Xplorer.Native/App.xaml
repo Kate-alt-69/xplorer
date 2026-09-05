@@ -7,7 +7,8 @@
             <!-- Keep App.xaml control-free: XamlControlsResources is installed after activation. -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
-                    <!-- Original Xplorer glass palette from the web UI. -->
+                    <!-- Original Xplorer glass palette. Keep these opaque where UI chrome needs
+                         predictable native composition; the root keeps the old diagonal gradient. -->
                     <LinearGradientBrush x:Key="ApplicationPageBackgroundThemeBrush" StartPoint="0,0" EndPoint="1,1">
                         <GradientStop Offset="0" Color="#0A0A1A" />
                         <GradientStop Offset="0.25" Color="#0F0F2E" />
@@ -15,69 +16,78 @@
                         <GradientStop Offset="0.75" Color="#0A1A2E" />
                         <GradientStop Offset="1" Color="#0A0A1A" />
                     </LinearGradientBrush>
-                    <SolidColorBrush x:Key="XplorerSurfaceBrush" Color="#F2111122" />
-                    <SolidColorBrush x:Key="XplorerSurfaceLightBrush" Color="#F2161630" />
-                    <SolidColorBrush x:Key="XplorerRailBrush" Color="#F20F1020" />
+                    <SolidColorBrush x:Key="XplorerSurfaceBrush" Color="#FF111122" />
+                    <SolidColorBrush x:Key="XplorerSurfaceLightBrush" Color="#FF161630" />
+                    <SolidColorBrush x:Key="XplorerRailBrush" Color="#FF111122" />
+                    <SolidColorBrush x:Key="XplorerPopoverBrush" Color="#FF1A1B2E" />
                     <SolidColorBrush x:Key="XplorerTextBrush" Color="#EBFFFFFF" />
                     <SolidColorBrush x:Key="XplorerTextSecondaryBrush" Color="#99FFFFFF" />
                     <SolidColorBrush x:Key="XplorerTextMutedBrush" Color="#66FFFFFF" />
                     <SolidColorBrush x:Key="XplorerBorderBrush" Color="#1AFFFFFF" />
                     <SolidColorBrush x:Key="XplorerBorderLightBrush" Color="#24FFFFFF" />
                     <SolidColorBrush x:Key="XplorerBlueBrush" Color="#FF6366F1" />
+                    <SolidColorBrush x:Key="XplorerPurpleBrush" Color="#FFA78BFA" />
+                    <SolidColorBrush x:Key="XplorerRedBrush" Color="#FFF87171" />
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="#FF6366F1" />
                     <SolidColorBrush x:Key="XplorerAccentSoftBrush" Color="#336366F1" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#33FFFFFF" />
                     <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#FFFF99A4" />
 
-                    <!-- Native controls use the same glass hover/selection language. -->
-                    <SolidColorBrush x:Key="ButtonBackground" Color="#0FFFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#18FFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#24FFFFFF" />
+                    <!-- Native controls inherit the same compact glass hover/selection language. -->
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#18161630" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#2A161630" />
                     <SolidColorBrush x:Key="ButtonForeground" Color="#EBFFFFFF" />
-                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#1AFFFFFF" />
-                    <SolidColorBrush x:Key="TextControlBackground" Color="#B3111122" />
-                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#D1161630" />
-                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#E6161630" />
-                    <SolidColorBrush x:Key="TextControlBorderBrush" Color="#1FFFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackground" Color="#D9111122" />
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#F0161630" />
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FF161630" />
+                    <SolidColorBrush x:Key="TextControlBorderBrush" Color="#24FFFFFF" />
                     <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#3DFFFFFF" />
                     <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#996366F1" />
                     <SolidColorBrush x:Key="TextControlForeground" Color="#EBFFFFFF" />
                     <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="#00111122" />
-                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#40161630" />
-                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#F2161630" />
-                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="#FF1B1B38" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#FF161630" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#FF0A0A1A" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="#FF0F0F2E" />
                     <SolidColorBrush x:Key="TabViewButtonBackground" Color="#00111122" />
-                    <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#40161630" />
-                    <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#60161630" />
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#FF161630" />
+                    <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#FF1D1D3D" />
                     <SolidColorBrush x:Key="TabViewScrollButtonBackground" Color="#00111122" />
-                    <SolidColorBrush x:Key="TabViewScrollButtonBackgroundPointerOver" Color="#40161630" />
-                    <SolidColorBrush x:Key="TabViewScrollButtonBackgroundPressed" Color="#60161630" />
+                    <SolidColorBrush x:Key="TabViewScrollButtonBackgroundPointerOver" Color="#FF161630" />
+                    <SolidColorBrush x:Key="TabViewScrollButtonBackgroundPressed" Color="#FF1D1D3D" />
                     <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#20161630" />
-                    <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#336366F1" />
-                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#486366F1" />
-                    <SolidColorBrush x:Key="ListViewItemSelectionIndicatorBrush" Color="#FF6366F1" />
+                    <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#33A78BFA" />
+                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#48A78BFA" />
+                    <SolidColorBrush x:Key="ListViewItemSelectionIndicatorBrush" Color="#FFA78BFA" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="Light">
+                    <!-- This mirrors the original web Xplorer light theme rather than falling back
+                         to a partially-dark Default dictionary. -->
                     <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#FFF8FAFC" />
                     <SolidColorBrush x:Key="XplorerSurfaceBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="XplorerSurfaceLightBrush" Color="#FFF1F5F9" />
-                    <SolidColorBrush x:Key="XplorerRailBrush" Color="#FFF8FAFC" />
+                    <SolidColorBrush x:Key="XplorerRailBrush" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="XplorerPopoverBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="XplorerTextBrush" Color="#FF1E293B" />
                     <SolidColorBrush x:Key="XplorerTextSecondaryBrush" Color="#FF64748B" />
                     <SolidColorBrush x:Key="XplorerTextMutedBrush" Color="#FF94A3B8" />
                     <SolidColorBrush x:Key="XplorerBorderBrush" Color="#FFE2E8F0" />
                     <SolidColorBrush x:Key="XplorerBorderLightBrush" Color="#FFCBD5E1" />
                     <SolidColorBrush x:Key="XplorerBlueBrush" Color="#FF3B82F6" />
+                    <SolidColorBrush x:Key="XplorerPurpleBrush" Color="#FF8B5CF6" />
+                    <SolidColorBrush x:Key="XplorerRedBrush" Color="#FFDC2626" />
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="#FF3B82F6" />
                     <SolidColorBrush x:Key="XplorerAccentSoftBrush" Color="#243B82F6" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="#26000000" />
                     <SolidColorBrush x:Key="SystemFillColorCriticalBrush" Color="#FFC42B1C" />
-                    <SolidColorBrush x:Key="ButtonBackground" Color="#0A000000" />
-                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#10000000" />
-                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#18000000" />
+
+                    <SolidColorBrush x:Key="ButtonBackground" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FFF1F5F9" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FFE2E8F0" />
                     <SolidColorBrush x:Key="ButtonForeground" Color="#FF1E293B" />
-                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#FFE2E8F0" />
+                    <SolidColorBrush x:Key="ButtonBorderBrush" Color="#00FFFFFF" />
                     <SolidColorBrush x:Key="TextControlBackground" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#FFF8FAFC" />
                     <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FFFFFFFF" />
@@ -85,6 +95,10 @@
                     <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#FF94A3B8" />
                     <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#FF3B82F6" />
                     <SolidColorBrush x:Key="TextControlForeground" Color="#FF1E293B" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundPointerOver" Color="#FFF1F5F9" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelected" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackgroundSelectedPointerOver" Color="#FFF8FAFC" />
                     <SolidColorBrush x:Key="TabViewButtonBackground" Color="#00FFFFFF" />
                     <SolidColorBrush x:Key="TabViewButtonBackgroundPointerOver" Color="#FFF1F5F9" />
                     <SolidColorBrush x:Key="TabViewButtonBackgroundPressed" Color="#FFE2E8F0" />
@@ -92,9 +106,9 @@
                     <SolidColorBrush x:Key="TabViewScrollButtonBackgroundPointerOver" Color="#FFF1F5F9" />
                     <SolidColorBrush x:Key="TabViewScrollButtonBackgroundPressed" Color="#FFE2E8F0" />
                     <SolidColorBrush x:Key="ListViewItemBackgroundPointerOver" Color="#FFF1F5F9" />
-                    <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#243B82F6" />
-                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#303B82F6" />
-                    <SolidColorBrush x:Key="ListViewItemSelectionIndicatorBrush" Color="#FF3B82F6" />
+                    <SolidColorBrush x:Key="ListViewItemBackgroundSelected" Color="#248B5CF6" />
+                    <SolidColorBrush x:Key="ListViewItemBackgroundSelectedPointerOver" Color="#308B5CF6" />
+                    <SolidColorBrush x:Key="ListViewItemSelectionIndicatorBrush" Color="#FF8B5CF6" />
                 </ResourceDictionary>
 
                 <ResourceDictionary x:Key="HighContrast">
@@ -102,12 +116,15 @@
                     <SolidColorBrush x:Key="XplorerSurfaceBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="XplorerSurfaceLightBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="XplorerRailBrush" Color="{ThemeResource SystemColorWindowColor}" />
+                    <SolidColorBrush x:Key="XplorerPopoverBrush" Color="{ThemeResource SystemColorWindowColor}" />
                     <SolidColorBrush x:Key="XplorerTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerTextSecondaryBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerTextMutedBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerBorderBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerBorderLightBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerBlueBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="XplorerPurpleBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+                    <SolidColorBrush x:Key="XplorerRedBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
                     <SolidColorBrush x:Key="XplorerAccentBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="XplorerAccentSoftBrush" Color="{ThemeResource SystemColorHighlightColor}" />
                     <SolidColorBrush x:Key="CardStrokeColorDefaultBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
