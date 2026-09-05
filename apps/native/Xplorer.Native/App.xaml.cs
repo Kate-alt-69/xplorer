@@ -30,6 +30,7 @@ public partial class App : Application
         {
             InitializeComponent();
             CrashLogService.Log("App.InitializeComponent completed.");
+            UiStartupDiagnostics.AttachFrameworkTracing(this);
         }
         catch (Exception ex)
         {
