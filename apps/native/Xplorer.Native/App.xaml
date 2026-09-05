@@ -4,16 +4,9 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Application.Resources>
         <ResourceDictionary>
-            <!-- WinUI controls such as TabView, CommandBar, GridView and ListView rely on the
-                 framework's default control resources. Keeping only Xplorer's own brushes can
-                 compile successfully but still fail at MainWindow.InitializeComponent() on a
-                 machine where those styles are not already available from another resource scope. -->
-            <ResourceDictionary.MergedDictionaries>
-                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
-            </ResourceDictionary.MergedDictionaries>
-
-            <!-- Xplorer-owned colors stay app-local so theme lookup never depends on an optional
-                 app resource dictionary. Default is the dark palette used by WinUI's Default key. -->
+            <!-- Keep App.xaml dependency-minimal. XamlControlsResources is installed from App.cs
+                 after this dictionary has loaded successfully, so a machine-specific framework
+                 resource failure can be logged/recovered instead of killing App.InitializeComponent. -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Default">
                     <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#111116" />
