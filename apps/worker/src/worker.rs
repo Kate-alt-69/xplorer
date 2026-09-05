@@ -180,10 +180,17 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                 });
             }
             None => {
-                if previous.journal_supported
-                    || now.saturating_sub(previous.last_scan_unix) >= RECONCILE_INTERVAL.as_secs()
-                {
+                // Some Windows/NTFS configurations do not let an unelevated per-user process read
+                // the USN journal. The old fallback rebuilt the ENTIRE volume every 30 minutes,
+                // which could turn the deliberately slow indexer into a nearly continuous scan on
+                // a large disk. Keep the cheap 30-minute wake-up, but full-snapshot only daily.
+                if previous.journal_supported || snapshot_due {
                     rebuild_snapshot(drive, data_dir, state, now, None, stop_event);
+                } else {
+                    state.upsert(VolumeCursor {
+                        last_seen_unix: now,
+                        ..previous
+                    });
                 }
             }
         }
