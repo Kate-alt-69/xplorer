@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Xplorer.Native.Models;
+using Xplorer.Native.Services;
 
 namespace Xplorer.Native;
 
@@ -15,21 +16,25 @@ public sealed partial class MainWindow
     private string _activeSearchQuery = string.Empty;
     private bool _suppressSearchChange;
     private bool _searchRailHooked;
+    private bool _searchUsingIndex;
 
     /// <summary>
-    /// Adds a small, deterministic current-folder search box beside the address bar. This is a
-    /// normal filename/type filter: no model, embeddings, network request, or background AI runtime.
+    /// Adds a deterministic local search box beside the address bar. When the Rust metadata index
+    /// for the current volume is available it searches recursively without touching file contents;
+    /// otherwise it falls back to the immediate directory listing.
     /// </summary>
     private void InitializeNativeSearch()
     {
         if (_searchBox is not null || AddressBox.Parent is not Grid addressRow) return;
 
-        addressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        addressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
         _searchBox = new TextBox
         {
-            Width = 260,
+            Width = 300,
             MinWidth = 180,
-            PlaceholderText = "Search this folder",
+            PlaceholderText = _settingsService.Current.BackgroundIndexing
+                ? "Search this folder recursively"
+                : "Search this folder",
             VerticalContentAlignment = VerticalAlignment.Center,
         };
         Grid.SetColumn(_searchBox, addressRow.ColumnDefinitions.Count - 1);
@@ -105,6 +110,7 @@ public sealed partial class MainWindow
         {
             _searchBox.Text = string.Empty;
             _activeSearchQuery = string.Empty;
+            _searchUsingIndex = false;
             Interlocked.Increment(ref _searchGeneration);
         }
         finally
@@ -124,6 +130,7 @@ public sealed partial class MainWindow
         if (string.IsNullOrEmpty(query))
         {
             _searchTotalCount = 0;
+            _searchUsingIndex = false;
             await NavigateAsync(CurrentPath, pushHistory: false);
             return;
         }
@@ -135,8 +142,13 @@ public sealed partial class MainWindow
 
         var showHidden = _settingsService.Current.ShowHiddenFiles;
         var showExtensions = _settingsService.Current.ShowFileExtensions;
-        var sortMode = _settingsService.GetSortMode(path);
-        var entries = await Task.Run(() => EnumerateFolder(path, showHidden, showExtensions, sortMode));
+
+        IndexedSearchService.SearchResult? indexed = null;
+        if (_settingsService.Current.BackgroundIndexing)
+        {
+            indexed = await Task.Run(() =>
+                IndexedSearchService.TrySearch(path, query, showHidden, showExtensions));
+        }
 
         if (generation != _searchGeneration ||
             _searchBox is null ||
@@ -146,8 +158,29 @@ public sealed partial class MainWindow
             return;
         }
 
-        var matches = entries.Where(item => MatchesSearch(item, query)).ToList();
-        _searchTotalCount = entries.Count;
+        IReadOnlyList<FileSystemItem> matches;
+        if (indexed is not null)
+        {
+            matches = indexed.Items;
+            _searchTotalCount = indexed.TotalMatches;
+            _searchUsingIndex = true;
+        }
+        else
+        {
+            var sortMode = _settingsService.GetSortMode(path);
+            var entries = await Task.Run(() => EnumerateFolder(path, showHidden, showExtensions, sortMode));
+            if (generation != _searchGeneration ||
+                _searchBox is null ||
+                !string.Equals(query, _searchBox.Text.Trim(), StringComparison.Ordinal) ||
+                !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            matches = entries.Where(item => MatchesSearch(item, query)).ToList();
+            _searchTotalCount = entries.Count;
+            _searchUsingIndex = false;
+        }
 
         Items.Clear();
         foreach (var item in matches) Items.Add(item);
@@ -176,8 +209,20 @@ public sealed partial class MainWindow
         if (string.IsNullOrEmpty(_activeSearchQuery)) return;
 
         var selected = GetSelectedCount();
+        string summary;
+        if (_searchUsingIndex)
+        {
+            summary = _searchTotalCount > Items.Count
+                ? $"Showing {Items.Count} of {_searchTotalCount} indexed matches"
+                : $"{Items.Count} indexed matches";
+        }
+        else
+        {
+            summary = $"{Items.Count} of {_searchTotalCount} items";
+        }
+
         StatusText.Text = selected > 0
-            ? $"{Items.Count} of {_searchTotalCount} items  •  {selected} selected  •  Search: {_activeSearchQuery}"
-            : $"{Items.Count} of {_searchTotalCount} items  •  Search: {_activeSearchQuery}";
+            ? $"{summary}  •  {selected} selected  •  Search: {_activeSearchQuery}"
+            : $"{summary}  •  Search: {_activeSearchQuery}";
     }
 }
