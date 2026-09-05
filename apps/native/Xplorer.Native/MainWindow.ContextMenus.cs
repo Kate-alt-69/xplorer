@@ -11,7 +11,10 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
+    private const long FileActivationDedupWindowMs = 180;
     private bool _shellMenuLifetimeHooked;
+    private string? _lastActivatedPath;
+    private long _lastActivationDispatchTick;
 
     /// <summary>
     /// Explorer-style RMB behavior: right-clicking an item outside the selection makes it the
@@ -70,8 +73,24 @@ public sealed partial class MainWindow
         await ActivateFileSystemItemAsync(item);
     }
 
+    /// <summary>
+    /// One activation gate is shared by the routed DoubleTapped path and the Windows 10 ItemClick
+    /// fallback. Both events can be raised for the same physical double-click; without this guard a
+    /// file can launch twice and a folder can push duplicate navigation history entries.
+    /// </summary>
     private async Task ActivateFileSystemItemAsync(FileSystemItem item)
     {
+        var now = Environment.TickCount64;
+        if (string.Equals(_lastActivatedPath, item.FullPath, StringComparison.OrdinalIgnoreCase) &&
+            now - _lastActivationDispatchTick >= 0 &&
+            now - _lastActivationDispatchTick <= FileActivationDedupWindowMs)
+        {
+            return;
+        }
+
+        _lastActivatedPath = item.FullPath;
+        _lastActivationDispatchTick = now;
+
         if (item.IsDirectory)
         {
             await NavigateAsync(item.FullPath);
