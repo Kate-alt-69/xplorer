@@ -16,7 +16,7 @@ public sealed partial class MainWindow
     private const uint DbtDeviceRemoveComplete = 0x8004;
     private const nuint DriveSubclassId = 0x58504C44; // "XPLD"
 
-    private readonly DriveSubclassProc _driveSubclassProc;
+    private DriveSubclassProc? _driveSubclassProc;
     private bool _nativeDriveUxHooked;
     private bool _driveSubclassInstalled;
     private int _driveRefreshQueued;
@@ -30,6 +30,7 @@ public sealed partial class MainWindow
         // Use the real WM_DEVICECHANGE notification instead of polling. SetWindowSubclass supports
         // several independent subclass ids, so this safely coexists with the temporary shell-menu
         // message bridge used while an IContextMenu popup is open.
+        _driveSubclassProc = DriveWindowSubclassProc;
         _driveSubclassInstalled = SetWindowSubclass(
             _hwnd,
             _driveSubclassProc,
@@ -38,7 +39,7 @@ public sealed partial class MainWindow
 
         Closed += (_, _) =>
         {
-            if (_driveSubclassInstalled)
+            if (_driveSubclassInstalled && _driveSubclassProc is not null)
             {
                 RemoveWindowSubclass(_hwnd, _driveSubclassProc, DriveSubclassId);
                 _driveSubclassInstalled = false;
