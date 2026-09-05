@@ -6,7 +6,7 @@
 
     <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
-            <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6D6AFB" />
+            <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6366F1" />
             <ItemsPanelTemplate x:Key="MediumItemsPanel">
                 <ItemsWrapGrid Orientation="Horizontal" ItemWidth="116" ItemHeight="104" />
             </ItemsPanelTemplate>
@@ -21,12 +21,19 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="60" Height="60">
-                        <FontIcon Glyph="{Binding FallbackGlyph}" FontSize="40" Opacity="0.9" />
-                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                        <FontIcon
+                            Glyph="{Binding FallbackGlyph}"
+                            Foreground="{Binding IconBrush}"
+                            FontSize="40"
+                            Opacity="0.96" />
+                        <Border CornerRadius="7" Background="Transparent">
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                        </Border>
                     </Grid>
                     <TextBlock
                         Grid.Row="1"
                         Text="{Binding DisplayName}"
+                        Foreground="{ThemeResource XplorerTextBrush}"
                         TextAlignment="Center"
                         TextWrapping="Wrap"
                         TextTrimming="CharacterEllipsis"
@@ -42,12 +49,19 @@
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Width="92" Height="92">
-                        <FontIcon Glyph="{Binding FallbackGlyph}" FontSize="66" Opacity="0.9" />
-                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                        <FontIcon
+                            Glyph="{Binding FallbackGlyph}"
+                            Foreground="{Binding IconBrush}"
+                            FontSize="66"
+                            Opacity="0.96" />
+                        <Border CornerRadius="9" Background="Transparent">
+                            <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                        </Border>
                     </Grid>
                     <TextBlock
                         Grid.Row="1"
                         Text="{Binding DisplayName}"
+                        Foreground="{ThemeResource XplorerTextBrush}"
                         TextAlignment="Center"
                         TextWrapping="Wrap"
                         TextTrimming="CharacterEllipsis"
@@ -69,6 +83,7 @@
             x:Name="Tabs"
             Grid.Row="0"
             Height="38"
+            Background="{ThemeResource XplorerSurfaceBrush}"
             IsAddTabButtonVisible="True"
             CanReorderTabs="True"
             TabWidthMode="SizeToContent"
@@ -76,7 +91,11 @@
             TabCloseRequested="Tabs_TabCloseRequested"
             AddTabButtonClick="Tabs_AddTabButtonClick" />
 
-        <Grid Grid.Row="1" Padding="10,6" ColumnSpacing="8">
+        <Grid
+            Grid.Row="1"
+            Padding="10,6"
+            ColumnSpacing="8"
+            Background="{ThemeResource XplorerSurfaceBrush}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -84,12 +103,27 @@
             <TextBox
                 x:Name="AddressBox"
                 Grid.Column="0"
+                Height="32"
+                Background="{ThemeResource XplorerSurfaceLightBrush}"
+                BorderBrush="{ThemeResource XplorerBorderLightBrush}"
+                Foreground="{ThemeResource XplorerTextBrush}"
                 VerticalContentAlignment="Center"
                 KeyDown="AddressBox_KeyDown" />
-            <Button Grid.Column="1" Content="Go" Click="GoButton_Click" />
+            <Button
+                Grid.Column="1"
+                MinWidth="42"
+                Height="32"
+                Content="Go"
+                Foreground="{ThemeResource XplorerTextBrush}"
+                Click="GoButton_Click" />
         </Grid>
 
-        <CommandBar Grid.Row="2" DefaultLabelPosition="Right" IsDynamicOverflowEnabled="True">
+        <CommandBar
+            Grid.Row="2"
+            Background="{ThemeResource XplorerSurfaceBrush}"
+            Foreground="{ThemeResource XplorerTextBrush}"
+            DefaultLabelPosition="Collapsed"
+            IsDynamicOverflowEnabled="True">
             <AppBarButton Icon="Copy" Label="Copy" />
             <AppBarButton Icon="Cut" Label="Cut" />
             <AppBarButton Icon="Paste" Label="Paste" />
@@ -124,16 +158,26 @@
                 <ColumnDefinition Width="42" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,1,0">
+            <Border
+                Grid.Column="0"
+                Background="{ThemeResource XplorerSurfaceBrush}"
+                BorderBrush="{ThemeResource XplorerBorderBrush}"
+                BorderThickness="0,0,1,0">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <TextBlock Margin="14,12,14,8" Text="DRIVES" FontSize="12" FontWeight="SemiBold" Opacity="0.75" />
+                    <TextBlock
+                        Margin="14,12,14,8"
+                        Text="DRIVES"
+                        Foreground="{ThemeResource XplorerTextSecondaryBrush}"
+                        FontSize="11"
+                        FontWeight="SemiBold" />
                     <ListView
                         x:Name="DriveList"
                         Grid.Row="1"
+                        Background="Transparent"
                         ItemsSource="{x:Bind Drives}"
                         IsItemClickEnabled="True"
                         ItemClick="DriveList_ItemClick"
@@ -145,17 +189,32 @@
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <FontIcon Glyph="&#xEDA2;" FontSize="16" />
+                                    <FontIcon
+                                        Glyph="&#xEDA2;"
+                                        FontSize="16"
+                                        Foreground="{ThemeResource XplorerBlueBrush}" />
                                     <StackPanel Grid.Column="1" Spacing="4">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-                                            <TextBlock Grid.Column="1" Text="{Binding FreeSpaceText}" FontSize="11" Opacity="0.7" />
+                                            <TextBlock
+                                                Text="{Binding DisplayName}"
+                                                Foreground="{ThemeResource XplorerTextBrush}"
+                                                TextTrimming="CharacterEllipsis" />
+                                            <TextBlock
+                                                Grid.Column="1"
+                                                Text="{Binding FreeSpaceText}"
+                                                Foreground="{ThemeResource XplorerTextSecondaryBrush}"
+                                                FontSize="11" />
                                         </Grid>
-                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding UsedPercent}" Height="3" Foreground="{StaticResource XplorerAccentBrush}" />
+                                        <ProgressBar
+                                            Minimum="0"
+                                            Maximum="100"
+                                            Value="{Binding UsedPercent}"
+                                            Height="3"
+                                            Foreground="{StaticResource XplorerAccentBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -171,6 +230,8 @@
                 RightTapped="FileArea_RightTapped">
                 <GridView
                     x:Name="FileGrid"
+                    Padding="8,6"
+                    Background="Transparent"
                     ItemsSource="{x:Bind Items}"
                     ItemsPanel="{StaticResource MediumItemsPanel}"
                     ItemTemplate="{StaticResource MediumTileTemplate}"
@@ -193,6 +254,7 @@
                 <ListView
                     x:Name="FileDetails"
                     Visibility="Collapsed"
+                    Background="Transparent"
                     ItemsSource="{x:Bind Items}"
                     SelectionMode="Extended"
                     DoubleTapped="FileList_DoubleTapped"
@@ -200,7 +262,12 @@
                     SelectionChanged="FileList_SelectionChanged"
                     ContainerContentChanging="FileList_ContainerContentChanging">
                     <ListView.Header>
-                        <Grid Padding="12,7" ColumnSpacing="10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
+                        <Grid
+                            Padding="12,7"
+                            ColumnSpacing="10"
+                            Background="{ThemeResource XplorerSurfaceBrush}"
+                            BorderBrush="{ThemeResource XplorerBorderBrush}"
+                            BorderThickness="0,0,0,1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="32" />
                                 <ColumnDefinition Width="2.2*" />
@@ -208,10 +275,10 @@
                                 <ColumnDefinition Width="1.2*" />
                                 <ColumnDefinition Width="80" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="2" Text="Type" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="3" Text="Date modified" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="Name" Foreground="{ThemeResource XplorerTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" Text="Type" Foreground="{ThemeResource XplorerTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="3" Text="Date modified" Foreground="{ThemeResource XplorerTextBrush}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="4" Text="Size" Foreground="{ThemeResource XplorerTextBrush}" FontWeight="SemiBold" />
                         </Grid>
                     </ListView.Header>
                     <ListView.ItemTemplate>
@@ -225,20 +292,27 @@
                                     <ColumnDefinition Width="80" />
                                 </Grid.ColumnDefinitions>
                                 <Grid Width="26" Height="26" VerticalAlignment="Center">
-                                    <FontIcon Glyph="{Binding FallbackGlyph}" FontSize="20" />
+                                    <FontIcon
+                                        Glyph="{Binding FallbackGlyph}"
+                                        Foreground="{Binding IconBrush}"
+                                        FontSize="20" />
                                     <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
                                 </Grid>
-                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="2" Text="{Binding TypeName}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="3" Text="{Binding ModifiedText}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="4" Text="{Binding SizeText}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="1" Text="{Binding DisplayName}" Foreground="{ThemeResource XplorerTextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="2" Text="{Binding TypeName}" Foreground="{ThemeResource XplorerTextSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="3" Text="{Binding ModifiedText}" Foreground="{ThemeResource XplorerTextSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="4" Text="{Binding SizeText}" Foreground="{ThemeResource XplorerTextSecondaryBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
             </Grid>
 
-            <StackPanel Grid.Column="2" Spacing="4" Padding="4,8">
+            <StackPanel
+                Grid.Column="2"
+                Spacing="4"
+                Padding="4,8"
+                Background="{ThemeResource XplorerRailBrush}">
                 <Button Width="34" Height="34" ToolTipService.ToolTip="Inspector" IsEnabled="False">
                     <FontIcon Glyph="&#xE890;" />
                 </Button>
@@ -251,7 +325,13 @@
             </StackPanel>
         </Grid>
 
-        <Grid Grid.Row="4" Padding="8,4" ColumnSpacing="6" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,1,0,0">
+        <Grid
+            Grid.Row="4"
+            Padding="8,4"
+            ColumnSpacing="6"
+            Background="{ThemeResource XplorerRailBrush}"
+            BorderBrush="{ThemeResource XplorerBorderBrush}"
+            BorderThickness="0,1,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
@@ -277,8 +357,19 @@
                     </StackPanel>
                 </Button>
             </StackPanel>
-            <TextBlock x:Name="StatusText" Grid.Column="1" VerticalAlignment="Center" Margin="10,0" Opacity="0.75" TextTrimming="CharacterEllipsis" />
-            <TextBlock Grid.Column="2" VerticalAlignment="Center" Text="Native WinUI" Opacity="0.55" FontSize="11" />
+            <TextBlock
+                x:Name="StatusText"
+                Grid.Column="1"
+                VerticalAlignment="Center"
+                Margin="10,0"
+                Foreground="{ThemeResource XplorerTextSecondaryBrush}"
+                TextTrimming="CharacterEllipsis" />
+            <TextBlock
+                Grid.Column="2"
+                VerticalAlignment="Center"
+                Text="Native WinUI"
+                Foreground="{ThemeResource XplorerTextMutedBrush}"
+                FontSize="11" />
         </Grid>
     </Grid>
 </Window>
