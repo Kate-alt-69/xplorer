@@ -35,6 +35,25 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Create git-ready source snapshot
+        shell: pwsh
+        run: |
+          git remote set-url origin https://github.com/Kate-alt-69/xplorer.git
+          git config --local --unset-all http.https://github.com/.extraheader 2>$null
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          tar.exe -a -c -f dist/Xplorer-source-git-ready.zip --exclude='./dist' .
+          if ($LASTEXITCODE -ne 0) { throw "Source snapshot archive failed with exit code $LASTEXITCODE." }
+
+      - name: Upload git-ready source snapshot
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xplorer-source-git-ready
+          path: dist/Xplorer-source-git-ready.zip
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Select stable Rust
         run: rustup default stable
