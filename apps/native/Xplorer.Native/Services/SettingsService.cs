@@ -5,11 +5,17 @@ namespace Xplorer.Native.Services;
 
 public sealed class SettingsService
 {
+    private const long MaximumSettingsBytes = 1024 * 1024;
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
         PropertyNameCaseInsensitive = true,
     };
+
+    private static readonly string[] AllowedThemes = ["System", "Dark", "Light", "Custom XML"];
+    private static readonly string[] AllowedViewModes = ["Medium", "Large", "Details"];
+    private static readonly string[] AllowedSortModes = ["Name", "Date modified", "Type", "Size"];
 
     private readonly string _settingsPath;
 
@@ -30,6 +36,7 @@ public sealed class SettingsService
         try
         {
             if (!File.Exists(_settingsPath)) return new XplorerSettings();
+            if (new FileInfo(_settingsPath).Length > MaximumSettingsBytes) return new XplorerSettings();
             var loaded = JsonSerializer.Deserialize<XplorerSettings>(File.ReadAllText(_settingsPath), JsonOptions);
             return loaded is null ? new XplorerSettings() : Normalize(loaded);
         }
@@ -49,6 +56,7 @@ public sealed class SettingsService
         try
         {
             if (!File.Exists(_settingsPath)) return false;
+            if (new FileInfo(_settingsPath).Length > MaximumSettingsBytes) return false;
             var reloaded = JsonSerializer.Deserialize<XplorerSettings>(File.ReadAllText(_settingsPath), JsonOptions);
             if (reloaded is null) return false;
             Current = Normalize(reloaded);
@@ -62,10 +70,10 @@ public sealed class SettingsService
 
     private static XplorerSettings Normalize(XplorerSettings settings)
     {
-        settings.Theme = string.IsNullOrWhiteSpace(settings.Theme) ? "System" : settings.Theme;
-        settings.ThemeFileName = string.IsNullOrWhiteSpace(settings.ThemeFileName) ? "default.xml" : settings.ThemeFileName;
-        settings.DefaultViewMode = string.IsNullOrWhiteSpace(settings.DefaultViewMode) ? "Medium" : settings.DefaultViewMode;
-        settings.DefaultSortMode = string.IsNullOrWhiteSpace(settings.DefaultSortMode) ? "Name" : settings.DefaultSortMode;
+        settings.Theme = NormalizeChoice(settings.Theme, AllowedThemes, "System");
+        settings.ThemeFileName = string.IsNullOrWhiteSpace(settings.ThemeFileName) ? "default.xml" : settings.ThemeFileName.Trim();
+        settings.DefaultViewMode = NormalizeChoice(settings.DefaultViewMode, AllowedViewModes, "Medium");
+        settings.DefaultSortMode = NormalizeChoice(settings.DefaultSortMode, AllowedSortModes, "Name");
         settings.TerminalCommand ??= string.Empty;
         settings.TerminalArguments ??= string.Empty;
 
@@ -77,7 +85,22 @@ public sealed class SettingsService
             foreach (var pair in settings.FolderOverrides)
             {
                 if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null) continue;
-                normalizedOverrides[pair.Key] = pair.Value;
+
+                string folder;
+                try
+                {
+                    folder = Path.GetFullPath(pair.Key.Trim());
+                }
+                catch
+                {
+                    continue;
+                }
+
+                normalizedOverrides[folder] = new FolderViewSettings
+                {
+                    ViewMode = NormalizeChoice(pair.Value.ViewMode, AllowedViewModes, settings.DefaultViewMode),
+                    SortMode = NormalizeChoice(pair.Value.SortMode, AllowedSortModes, settings.DefaultSortMode),
+                };
             }
         }
         settings.FolderOverrides = normalizedOverrides;
@@ -95,8 +118,17 @@ public sealed class SettingsService
         return settings;
     }
 
+    private static string NormalizeChoice(string? value, IReadOnlyList<string> allowed, string fallback)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return fallback;
+        var match = allowed.FirstOrDefault(candidate =>
+            string.Equals(candidate, value.Trim(), StringComparison.OrdinalIgnoreCase));
+        return match ?? fallback;
+    }
+
     public string GetViewMode(string folder)
     {
+        folder = NormalizeFolderKey(folder);
         if (Current.RememberViewPerFolder &&
             Current.FolderOverrides.TryGetValue(folder, out var folderSettings))
         {
@@ -108,6 +140,7 @@ public sealed class SettingsService
 
     public string GetSortMode(string folder)
     {
+        folder = NormalizeFolderKey(folder);
         if (Current.RememberViewPerFolder &&
             Current.FolderOverrides.TryGetValue(folder, out var folderSettings))
         {
@@ -119,6 +152,7 @@ public sealed class SettingsService
 
     public async Task SetViewModeAsync(string folder, string viewMode)
     {
+        viewMode = NormalizeChoice(viewMode, AllowedViewModes, Current.DefaultViewMode);
         if (Current.RememberViewPerFolder)
         {
             var folderSettings = GetOrCreateFolderOverride(folder);
@@ -134,6 +168,7 @@ public sealed class SettingsService
 
     public async Task SetSortModeAsync(string folder, string sortMode)
     {
+        sortMode = NormalizeChoice(sortMode, AllowedSortModes, Current.DefaultSortMode);
         if (Current.RememberViewPerFolder)
         {
             var folderSettings = GetOrCreateFolderOverride(folder);
@@ -149,6 +184,7 @@ public sealed class SettingsService
 
     private FolderViewSettings GetOrCreateFolderOverride(string folder)
     {
+        folder = NormalizeFolderKey(folder);
         if (Current.FolderOverrides.TryGetValue(folder, out var existing)) return existing;
 
         var created = new FolderViewSettings
@@ -160,19 +196,60 @@ public sealed class SettingsService
         return created;
     }
 
+    private static string NormalizeFolderKey(string folder)
+    {
+        try
+        {
+            return Path.GetFullPath(folder);
+        }
+        catch
+        {
+            return folder;
+        }
+    }
+
     public void Save()
     {
-        var tempPath = _settingsPath + ".tmp";
         var json = JsonSerializer.Serialize(Current, JsonOptions);
-        File.WriteAllText(tempPath, json);
-        File.Move(tempPath, _settingsPath, overwrite: true);
+        var tempPath = CreateUniqueTempPath();
+        try
+        {
+            File.WriteAllText(tempPath, json);
+            File.Move(tempPath, _settingsPath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteTemp(tempPath);
+        }
     }
 
     public async Task SaveAsync()
     {
-        var tempPath = _settingsPath + ".tmp";
         var json = JsonSerializer.Serialize(Current, JsonOptions);
-        await File.WriteAllTextAsync(tempPath, json);
-        File.Move(tempPath, _settingsPath, overwrite: true);
+        var tempPath = CreateUniqueTempPath();
+        try
+        {
+            await File.WriteAllTextAsync(tempPath, json);
+            File.Move(tempPath, _settingsPath, overwrite: true);
+        }
+        finally
+        {
+            TryDeleteTemp(tempPath);
+        }
+    }
+
+    private string CreateUniqueTempPath() =>
+        $"{_settingsPath}.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp";
+
+    private static void TryDeleteTemp(string path)
+    {
+        try
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+        catch
+        {
+            // A failed cleanup should not hide the original save result.
+        }
     }
 }
