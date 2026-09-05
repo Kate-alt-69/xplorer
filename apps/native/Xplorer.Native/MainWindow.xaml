@@ -6,6 +6,7 @@
 
     <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
         <Grid.Resources>
+            <SolidColorBrush x:Key="XplorerAccentBrush" Color="#6D6AFB" />
             <ItemsPanelTemplate x:Key="MediumItemsPanel">
                 <ItemsWrapGrid Orientation="Horizontal" ItemWidth="116" ItemHeight="104" />
             </ItemsPanelTemplate>
@@ -106,7 +107,7 @@
                     </MenuFlyout>
                 </AppBarButton.Flyout>
             </AppBarButton>
-            <AppBarButton Label="Size Map">
+            <AppBarButton Label="Size Map" IsEnabled="False" ToolTipService.ToolTip="Size Map is not implemented in the native rewrite yet">
                 <AppBarButton.Icon>
                     <FontIcon Glyph="&#xE9D2;" />
                 </AppBarButton.Icon>
@@ -154,7 +155,7 @@
                                             <TextBlock Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
                                             <TextBlock Grid.Column="1" Text="{Binding FreeSpaceText}" FontSize="11" Opacity="0.7" />
                                         </Grid>
-                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding UsedPercent}" Height="3" />
+                                        <ProgressBar Minimum="0" Maximum="100" Value="{Binding UsedPercent}" Height="3" Foreground="{StaticResource XplorerAccentBrush}" />
                                     </StackPanel>
                                 </Grid>
                             </DataTemplate>
@@ -202,14 +203,14 @@
                         <Grid Padding="12,7" ColumnSpacing="10" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="0,0,0,1">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="32" />
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="160" />
-                                <ColumnDefinition Width="90" />
+                                <ColumnDefinition Width="2.2*" />
+                                <ColumnDefinition Width="1*" />
+                                <ColumnDefinition Width="1.2*" />
+                                <ColumnDefinition Width="80" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="2" Text="Type" FontWeight="SemiBold" />
-                            <TextBlock Grid.Column="3" Text="Date modified" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="Name" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="2" Text="Type" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Grid.Column="3" Text="Date modified" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                             <TextBlock Grid.Column="4" Text="Size" FontWeight="SemiBold" />
                         </Grid>
                     </ListView.Header>
@@ -218,10 +219,10 @@
                             <Grid MinHeight="38" Padding="8,3" ColumnSpacing="10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="32" />
-                                    <ColumnDefinition Width="2*" />
-                                    <ColumnDefinition Width="160" />
-                                    <ColumnDefinition Width="160" />
-                                    <ColumnDefinition Width="90" />
+                                    <ColumnDefinition Width="2.2*" />
+                                    <ColumnDefinition Width="1*" />
+                                    <ColumnDefinition Width="1.2*" />
+                                    <ColumnDefinition Width="80" />
                                 </Grid.ColumnDefinitions>
                                 <Grid Width="26" Height="26" VerticalAlignment="Center">
                                     <FontIcon Glyph="{Binding FallbackGlyph}" FontSize="20" />
@@ -229,8 +230,8 @@
                                 </Grid>
                                 <TextBlock Grid.Column="1" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 <TextBlock Grid.Column="2" Text="{Binding TypeName}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Grid.Column="3" Text="{Binding ModifiedText}" VerticalAlignment="Center" Opacity="0.72" />
-                                <TextBlock Grid.Column="4" Text="{Binding SizeText}" VerticalAlignment="Center" Opacity="0.72" />
+                                <TextBlock Grid.Column="3" Text="{Binding ModifiedText}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Grid.Column="4" Text="{Binding SizeText}" VerticalAlignment="Center" Opacity="0.72" TextTrimming="CharacterEllipsis" />
                             </Grid>
                         </DataTemplate>
                     </ListView.ItemTemplate>
@@ -238,7 +239,7 @@
             </Grid>
 
             <StackPanel Grid.Column="2" Spacing="4" Padding="4,8">
-                <Button Width="34" Height="34" ToolTipService.ToolTip="Inspector">
+                <Button Width="34" Height="34" ToolTipService.ToolTip="Inspector" IsEnabled="False">
                     <FontIcon Glyph="&#xE890;" />
                 </Button>
                 <Button Width="34" Height="34" ToolTipService.ToolTip="Search">
