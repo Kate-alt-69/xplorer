@@ -20,6 +20,10 @@ on:
       - 'scripts/build-installer.ps1'
       - '.github/workflows/native-winui.yml'
 
+concurrency:
+  group: native-winui-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

@@ -112,8 +112,12 @@ public sealed partial class MainWindow
             shellGrid.ColumnDefinitions[2].Width = new GridLength(42);
             foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
             {
-                if (child is Panel panel) panel.Background = null;
-                if (child is Border border) border.Background = null;
+                if (Grid.GetColumn(child) == 0 && child is Border sidebar)
+                    sidebar.Background = null;
+                else if (Grid.GetColumn(child) == 1 && ReferenceEquals(child, FileArea))
+                    FileArea.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
+                else if (Grid.GetColumn(child) == 2 && child is Panel rail)
+                    rail.Background = null;
             }
         }
 
