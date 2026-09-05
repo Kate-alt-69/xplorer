@@ -9,6 +9,8 @@ public sealed partial class MainWindow
 {
     private FileSystemWatcher? _xmlThemeWatcher;
     private FileSystemWatcher? _settingsThemeWatcher;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _themeReloadTimer;
+    private bool _reloadSettingsBeforeTheme;
 
     public void InitializeXmlThemeSupport()
     {
@@ -93,6 +95,10 @@ public sealed partial class MainWindow
             Root.Background = brush;
         }
 
+        // Custom themes install this key into the window ResourceDictionary. Remove it when the
+        // user returns to a built-in theme so the old accent cannot bleed into System/Dark/Light.
+        Root.Resources.Remove("XplorerAccentBrush");
+
         Tabs.Height = 38;
         var shellGrid = Root.Children
             .OfType<Grid>()
@@ -136,11 +142,9 @@ public sealed partial class MainWindow
         _settingsThemeWatcher.Renamed += ThemeSettingsRenamed;
     }
 
-    private void ThemeSettingsChanged(object sender, FileSystemEventArgs e) =>
-        DispatcherQueue.TryEnqueue(ApplyXmlTheme);
+    private void ThemeSettingsChanged(object sender, FileSystemEventArgs e) => ScheduleThemeReload(reloadSettings: true);
 
-    private void ThemeSettingsRenamed(object sender, RenamedEventArgs e) =>
-        DispatcherQueue.TryEnqueue(ApplyXmlTheme);
+    private void ThemeSettingsRenamed(object sender, RenamedEventArgs e) => ScheduleThemeReload(reloadSettings: true);
 
     private void ConfigureXmlThemeWatcher(string? path)
     {
@@ -162,17 +166,49 @@ public sealed partial class MainWindow
         _xmlThemeWatcher.Renamed += XmlThemeFileRenamed;
     }
 
-    private void XmlThemeFileChanged(object sender, FileSystemEventArgs e) =>
-        DispatcherQueue.TryEnqueue(ApplyXmlTheme);
+    private void XmlThemeFileChanged(object sender, FileSystemEventArgs e) => ScheduleThemeReload(reloadSettings: false);
 
-    private void XmlThemeFileRenamed(object sender, RenamedEventArgs e) =>
-        DispatcherQueue.TryEnqueue(ApplyXmlTheme);
+    private void XmlThemeFileRenamed(object sender, RenamedEventArgs e) => ScheduleThemeReload(reloadSettings: false);
+
+    private void ScheduleThemeReload(bool reloadSettings)
+    {
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            _reloadSettingsBeforeTheme |= reloadSettings;
+            if (_themeReloadTimer is null)
+            {
+                _themeReloadTimer = DispatcherQueue.CreateTimer();
+                _themeReloadTimer.Interval = TimeSpan.FromMilliseconds(150);
+                _themeReloadTimer.IsRepeating = false;
+                _themeReloadTimer.Tick += (_, _) =>
+                {
+                    var shouldReloadSettings = _reloadSettingsBeforeTheme;
+                    _reloadSettingsBeforeTheme = false;
+
+                    if (shouldReloadSettings && _settingsService.TryReload())
+                    {
+                        ApplyTheme();
+                        RefreshSearchPresentation();
+                    }
+                    else
+                    {
+                        ApplyXmlTheme();
+                    }
+                };
+            }
+
+            _themeReloadTimer.Stop();
+            _themeReloadTimer.Start();
+        });
+    }
 
     private void DisposeThemeWatchers()
     {
         _xmlThemeWatcher?.Dispose();
         _settingsThemeWatcher?.Dispose();
+        _themeReloadTimer?.Stop();
         _xmlThemeWatcher = null;
         _settingsThemeWatcher = null;
+        _themeReloadTimer = null;
     }
 }

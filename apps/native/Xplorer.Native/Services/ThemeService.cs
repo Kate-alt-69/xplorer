@@ -69,8 +69,8 @@ public static class ThemeService
         using var reader = XmlReader.Create(stream, settings);
         var document = XDocument.Load(reader, LoadOptions.None);
         var root = document.Root ?? throw new InvalidDataException("Theme XML has no root element.");
-        if (root.Name.LocalName != "XplorerTheme")
-            throw new InvalidDataException("Theme root must be <XplorerTheme>.");
+        if (root.Name != XName.Get("XplorerTheme"))
+            throw new InvalidDataException("Theme root must be an un-namespaced <XplorerTheme> element.");
         if ((string?)root.Attribute("version") != "1")
             throw new InvalidDataException("Only XplorerTheme version=\"1\" is supported.");
 
@@ -121,7 +121,10 @@ public static class ThemeService
 
     private static Color ReadColor(XElement parent, string name, Color fallback)
     {
-        var text = parent.Element(name)?.Value.Trim();
+        var element = parent.Element(name);
+        if (element is null) return fallback;
+        ValidateLeaf(element);
+        var text = element.Value.Trim();
         if (string.IsNullOrEmpty(text)) return fallback;
         if (text[0] == '#') text = text[1..];
 
@@ -140,7 +143,10 @@ public static class ThemeService
 
     private static double ReadDouble(XElement parent, string name, double fallback, double min, double max)
     {
-        var text = parent.Element(name)?.Value.Trim();
+        var element = parent.Element(name);
+        if (element is null) return fallback;
+        ValidateLeaf(element);
+        var text = element.Value.Trim();
         if (string.IsNullOrEmpty(text)) return fallback;
         if (!double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var value) ||
             double.IsNaN(value) || double.IsInfinity(value))
@@ -150,20 +156,39 @@ public static class ThemeService
         return Math.Clamp(value, min, max);
     }
 
+    private static void ValidateLeaf(XElement element)
+    {
+        RejectUnknownAttributes(element);
+        if (element.Elements().Any())
+            throw new InvalidDataException($"Theme value <{element.Name.LocalName}> cannot contain child elements.");
+    }
+
     private static void RejectUnknownAttributes(XElement element, params string[] allowed)
     {
         var allowedSet = allowed.ToHashSet(StringComparer.Ordinal);
-        var unknown = element.Attributes().FirstOrDefault(attribute => !allowedSet.Contains(attribute.Name.LocalName));
+        var unknown = element.Attributes().FirstOrDefault(attribute =>
+            attribute.IsNamespaceDeclaration ||
+            attribute.Name.Namespace != XNamespace.None ||
+            !allowedSet.Contains(attribute.Name.LocalName));
         if (unknown is not null)
-            throw new InvalidDataException($"Unknown theme attribute '{unknown.Name.LocalName}'.");
+            throw new InvalidDataException($"Unknown or namespaced theme attribute '{unknown.Name}'.");
     }
 
     private static void RejectUnknownChildren(XElement element, params string[] allowed)
     {
         var allowedSet = allowed.ToHashSet(StringComparer.Ordinal);
-        var unknown = element.Elements().FirstOrDefault(child => !allowedSet.Contains(child.Name.LocalName));
+        var children = element.Elements().ToList();
+        var unknown = children.FirstOrDefault(child =>
+            child.Name.Namespace != XNamespace.None ||
+            !allowedSet.Contains(child.Name.LocalName));
         if (unknown is not null)
-            throw new InvalidDataException($"Unknown theme element <{unknown.Name.LocalName}>.");
+            throw new InvalidDataException($"Unknown or namespaced theme element <{unknown.Name}>.");
+
+        var duplicate = children
+            .GroupBy(child => child.Name.LocalName, StringComparer.Ordinal)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate is not null)
+            throw new InvalidDataException($"Theme element <{duplicate.Key}> can appear only once in its parent.");
     }
 
     private const string DefaultThemeXml = """

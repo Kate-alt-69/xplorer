@@ -7,13 +7,17 @@ on:
     paths:
       - 'apps/native/**'
       - 'apps/worker/**'
+      - 'installer/**'
       - 'scripts/build-native.ps1'
+      - 'scripts/build-installer.ps1'
       - '.github/workflows/native-winui.yml'
   pull_request:
     paths:
       - 'apps/native/**'
       - 'apps/worker/**'
+      - 'installer/**'
       - 'scripts/build-native.ps1'
+      - 'scripts/build-installer.ps1'
       - '.github/workflows/native-winui.yml'
 
 permissions:
@@ -22,7 +26,7 @@ permissions:
 jobs:
   build-x64:
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -36,9 +40,24 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Setup NSIS
+        shell: pwsh
+        run: |
+          $candidates = @(
+            "$env:ProgramFiles\NSIS\makensis.exe",
+            "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          )
+          if (-not ($candidates | Where-Object { Test-Path $_ } | Select-Object -First 1)) {
+            choco install nsis --yes --no-progress
+          }
+
       - name: Build and package native Xplorer
         shell: pwsh
         run: ./scripts/build-native.ps1 -Configuration Release -Runtime win-x64 -Package
+
+      - name: Build upgrade installer
+        shell: pwsh
+        run: ./scripts/build-installer.ps1 -Configuration Release -Runtime win-x64 -Version 0.4.0-alpha.1 -SkipNativeBuild
 
       - name: Measure idle worker memory
         shell: pwsh
@@ -68,14 +87,52 @@ jobs:
           $publicHost = Resolve-Path 'dist/Xplorer-win-x64/xplorer.exe'
           $nativeUi = Resolve-Path 'dist/Xplorer-win-x64/Xplorer.Native.exe'
           $archive = Resolve-Path 'dist/Xplorer-win-x64.zip'
+          $installer = Resolve-Path 'dist/Xplorer-Setup-x64.exe'
           Write-Host "Public host: $publicHost"
           Write-Host "Native UI: $nativeUi"
           Write-Host "Archive: $archive"
+          Write-Host "Installer: $installer"
+
+      - name: Smoke-test installer reinstall and data preservation
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path 'dist/Xplorer-Setup-x64.exe').Path
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs\Xplorer'
+          $dataDir = Join-Path $env:LOCALAPPDATA 'Xplorer'
+          $themeDir = Join-Path $dataDir 'Themes'
+          $sentinel = Join-Path $themeDir 'ci-preserve.txt'
+
+          $first = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          if ($first.ExitCode -ne 0) { throw "First installer run failed: $($first.ExitCode)" }
+          if (-not (Test-Path (Join-Path $installDir 'xplorer.exe'))) { throw 'Installed Rust host missing.' }
+          if (-not (Test-Path (Join-Path $installDir 'Xplorer.Native.exe'))) { throw 'Installed WinUI executable missing.' }
+
+          New-Item -ItemType Directory -Force -Path $themeDir | Out-Null
+          Set-Content -Path $sentinel -Value 'preserve-me' -NoNewline
+
+          $second = Start-Process -FilePath $setup -ArgumentList '/S' -Wait -PassThru
+          if ($second.ExitCode -ne 0) { throw "Upgrade/reinstall failed: $($second.ExitCode)" }
+          if (-not (Test-Path $sentinel)) { throw 'Installer upgrade removed Xplorer user data.' }
+
+          $uninstaller = Join-Path $installDir 'Uninstall.exe'
+          $remove = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw "Uninstaller failed: $($remove.ExitCode)" }
+          if (Test-Path (Join-Path $installDir 'xplorer.exe')) { throw 'Uninstaller left program files behind.' }
+          if (-not (Test-Path $sentinel)) { throw 'Uninstaller deleted preserved user data.' }
+          Remove-Item -Recurse -Force $dataDir -ErrorAction SilentlyContinue
 
       - name: Upload portable x64 package
         uses: actions/upload-artifact@v4
         with:
           name: Xplorer-win-x64
           path: dist/Xplorer-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload x64 installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Xplorer-Setup-x64
+          path: dist/Xplorer-Setup-x64.exe
           if-no-files-found: error
           retention-days: 14

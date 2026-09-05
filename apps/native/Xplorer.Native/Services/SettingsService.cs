@@ -39,6 +39,27 @@ public sealed class SettingsService
         }
     }
 
+    /// <summary>
+    /// Reloads a complete settings file only after it can be parsed successfully. FileSystemWatcher
+    /// can observe the temporary gap of an atomic replace, so a transient read must never replace
+    /// live settings with defaults.
+    /// </summary>
+    public bool TryReload()
+    {
+        try
+        {
+            if (!File.Exists(_settingsPath)) return false;
+            var reloaded = JsonSerializer.Deserialize<XplorerSettings>(File.ReadAllText(_settingsPath), JsonOptions);
+            if (reloaded is null) return false;
+            Current = reloaded;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public string GetViewMode(string folder)
     {
         if (Current.RememberViewPerFolder &&

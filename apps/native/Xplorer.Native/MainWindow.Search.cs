@@ -11,6 +11,7 @@ namespace Xplorer.Native;
 public sealed partial class MainWindow
 {
     private TextBox? _searchBox;
+    private ColumnDefinition? _searchColumn;
     private int _searchGeneration;
     private int _searchTotalCount;
     private string _activeSearchQuery = string.Empty;
@@ -27,16 +28,26 @@ public sealed partial class MainWindow
     {
         if (_searchBox is not null || AddressBox.Parent is not Grid addressRow) return;
 
-        addressRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(300) });
+        // The previous fixed 300 px search column could crush the address bar at narrow window
+        // widths. Split the usable row proportionally and cap search at 300 px instead.
+        if (addressRow.ColumnDefinitions.Count > 1)
+            addressRow.ColumnDefinitions[1].Width = new GridLength(2, GridUnitType.Star);
+
+        _searchColumn = new ColumnDefinition
+        {
+            Width = new GridLength(1, GridUnitType.Star),
+            MinWidth = 120,
+            MaxWidth = 300,
+        };
+        addressRow.ColumnDefinitions.Add(_searchColumn);
         _searchBox = new TextBox
         {
-            Width = 300,
-            MinWidth = 180,
-            PlaceholderText = _settingsService.Current.BackgroundIndexing
-                ? "Search this folder recursively"
-                : "Search this folder",
+            MinWidth = 120,
+            MaxWidth = 300,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Center,
         };
+        RefreshSearchPresentation();
         Grid.SetColumn(_searchBox, addressRow.ColumnDefinitions.Count - 1);
         addressRow.Children.Add(_searchBox);
 
@@ -58,6 +69,14 @@ public sealed partial class MainWindow
         Root.KeyboardAccelerators.Add(accelerator);
 
         Root.Loaded += (_, _) => HookSearchRailButton();
+    }
+
+    private void RefreshSearchPresentation()
+    {
+        if (_searchBox is null) return;
+        _searchBox.PlaceholderText = _settingsService.Current.BackgroundIndexing
+            ? "Search this folder recursively"
+            : "Search this folder";
     }
 
     private void HookSearchRailButton()
