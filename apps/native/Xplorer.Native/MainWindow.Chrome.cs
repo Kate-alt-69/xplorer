@@ -27,6 +27,13 @@ public sealed partial class MainWindow
         _settingsService.Saved += ChromeSettings_Saved;
         Closed += (_, _) => _settingsService.Saved -= ChromeSettings_Saved;
 
+        // Search used to exist as a complete native implementation but was never initialized by
+        // the WinUI rewrite. That left Ctrl+F and the Search rail icon as dead UI and also made the
+        // address row visually diverge from the original Xplorer layout. Install it once the visual
+        // tree is live, then hook the rail button immediately because Root.Loaded is already firing.
+        InitializeNativeSearch();
+        HookSearchRailButton();
+
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
     }
@@ -39,6 +46,7 @@ public sealed partial class MainWindow
         DispatcherQueue.TryEnqueue(() =>
         {
             ApplyBuiltInChromePalette();
+            RefreshSearchPresentation();
             RefreshChromeLabels();
         });
     }
