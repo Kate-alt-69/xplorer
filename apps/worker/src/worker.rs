@@ -96,14 +96,14 @@ fn run_worker(once: bool) -> io::Result<i32> {
 fn reconcile(data_dir: &Path, state: &mut CursorState) {
     let now = unix_now();
     for drive in platform::fixed_drive_letters() {
-        let snapshot_exists = index::snapshot_path(data_dir, drive).is_file();
+        let snapshot_current = index::snapshot_is_current(data_dir, drive);
         let current = platform::query_usn_marker(drive).ok();
         let Some(previous) = state.get(drive) else {
             rebuild_snapshot(drive, data_dir, state, now, current);
             continue;
         };
 
-        if !snapshot_exists {
+        if !snapshot_current {
             rebuild_snapshot(drive, data_dir, state, now, current);
             continue;
         }

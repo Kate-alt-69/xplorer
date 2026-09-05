@@ -1,6 +1,6 @@
 use std::{
     fs::{self, File},
-    io::{self, BufWriter, Write},
+    io::{self, BufWriter, Read, Write},
     os::windows::{ffi::OsStrExt, fs::MetadataExt},
     path::{Path, PathBuf},
     thread,
@@ -10,7 +10,7 @@ use std::{
 use crate::platform;
 
 const SNAPSHOT_MAGIC: &[u8; 8] = b"XPLIDX01";
-const SNAPSHOT_VERSION: u32 = 1;
+const SNAPSHOT_VERSION: u32 = 2;
 const FILE_ATTRIBUTE_HIDDEN: u32 = 0x0000_0002;
 const FILE_ATTRIBUTE_SYSTEM: u32 = 0x0000_0004;
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x0000_0010;
@@ -34,6 +34,19 @@ pub struct ScanStats {
 
 pub fn snapshot_path(data_dir: &Path, drive: u8) -> PathBuf {
     data_dir.join(format!("{}.xidx", drive as char))
+}
+
+pub fn snapshot_is_current(data_dir: &Path, drive: u8) -> bool {
+    let mut file = match File::open(snapshot_path(data_dir, drive)) {
+        Ok(file) => file,
+        Err(_) => return false,
+    };
+    let mut header = [0u8; 12];
+    if file.read_exact(&mut header).is_err() {
+        return false;
+    }
+    header[..8] == SNAPSHOT_MAGIC[..]
+        && u32::from_le_bytes(header[8..12].try_into().unwrap()) == SNAPSHOT_VERSION
 }
 
 pub fn scan_volume(drive: u8, data_dir: &Path) -> io::Result<ScanStats> {
@@ -181,7 +194,8 @@ fn write_record(
     path_units: &[u16],
 ) -> io::Result<()> {
     let path_bytes = (path_units.len() as u32).saturating_mul(2);
-    let record_length = 28u32.saturating_add(path_bytes);
+    // Fixed fields total 32 bytes including RecordLength and PathLength.
+    let record_length = 32u32.saturating_add(path_bytes);
 
     writer.write_all(&record_length.to_le_bytes())?;
     writer.write_all(&[flags, 0, 0, 0])?;
