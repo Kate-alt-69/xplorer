@@ -11,8 +11,13 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
+    private bool _nativeDragDropInitialized;
+
     private void InitializeNativeDragDrop()
     {
+        if (_nativeDragDropInitialized) return;
+        _nativeDragDropInitialized = true;
+
         ConfigureDropTarget(FileArea);
         ConfigureDropTarget(FileGrid);
         ConfigureDropTarget(FileDetails);
