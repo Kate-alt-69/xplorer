@@ -30,13 +30,33 @@ public partial class App : Application
         {
             InitializeComponent();
             CrashLogService.Log("App.InitializeComponent completed.");
-            UiStartupDiagnostics.AttachFrameworkTracing(this);
         }
         catch (Exception ex)
         {
             CrashLogService.LogException("App.InitializeComponent", ex);
             CrashLogService.ShowFatal("application initialization", ex);
             throw;
+        }
+
+        // Many WinUI controls (TabView, CommandBar, ListView, GridView, ContentDialog, ...) resolve
+        // their default styles from XamlControlsResources. Install it after App.xaml itself has
+        // loaded so a framework resource problem is observable instead of becoming an opaque
+        // App.InitializeComponent parse failure. MainWindow still has a code-only recovery path.
+        TryInstallFrameworkControlResources();
+        UiStartupDiagnostics.AttachFrameworkTracing(this);
+    }
+
+    private void TryInstallFrameworkControlResources()
+    {
+        try
+        {
+            var controlResources = new Microsoft.UI.Xaml.Controls.XamlControlsResources();
+            Resources.MergedDictionaries.Insert(0, controlResources);
+            CrashLogService.Log("XamlControlsResources installed programmatically.");
+        }
+        catch (Exception ex)
+        {
+            CrashLogService.LogException("XamlControlsResources installation failed", ex);
         }
     }
 
