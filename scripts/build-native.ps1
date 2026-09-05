@@ -46,7 +46,7 @@ if (Test-Path $PublishDir) {
 New-Item -ItemType Directory -Path $PublishDir -Force | Out-Null
 
 Write-Host '==> Restoring WinUI project'
-& dotnet restore $NativeProject "-p:Platform=$Platform" "-p:RuntimeIdentifier=$Runtime"
+& dotnet restore $NativeProject "-p:Platform=$Platform" "-p:RuntimeIdentifier=$Runtime" '-p:EnableMsixTooling=true'
 if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE." }
 
 Write-Host '==> Publishing self-contained WinUI frontend'
@@ -59,7 +59,10 @@ $publishArgs = @(
     '-o', $PublishDir,
     "-p:Platform=$Platform",
     "-p:RuntimeIdentifier=$Runtime",
-    '-p:WindowsAppSDKSelfContained=true'
+    '-p:WindowsAppSDKSelfContained=true',
+    '-p:EnableMsixTooling=true',
+    '-p:AppxPackage=false',
+    '-p:WindowsPackageType=None'
 )
 if ($Configuration -eq 'Release') {
     $publishArgs += '-p:DebugType=None'
@@ -80,15 +83,43 @@ foreach ($path in $required) {
     }
 }
 
+# WinUI's custom-control styles (notably TabView) are resolved through MRT/PRI even for an
+# unpackaged self-contained app. Windows 11 can mask a missing app PRI because more framework
+# resources are already present in the OS; Windows 10 cannot. Never ship another package that is
+# missing this file.
+$appPriCandidates = @(
+    (Join-Path $PublishDir 'resources.pri'),
+    (Join-Path $PublishDir 'Xplorer.Native.pri')
+)
+$appPri = $appPriCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $appPri) {
+    $priNames = Get-ChildItem -Path $PublishDir -Filter '*.pri' -File -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty Name
+    throw "Publish output has no Xplorer application PRI. Found only: $($priNames -join ', '). WinUI TabView will fail on Windows 10."
+}
+
+# Windows App SDK/MRT versions differ on whether an unpackaged app probes resources.pri or the
+# module-named PRI first. Keep a compatibility alias so either lookup path sees the same merged map.
+$resourcesPri = Join-Path $PublishDir 'resources.pri'
+if (-not (Test-Path $resourcesPri)) {
+    Copy-Item $appPri $resourcesPri -Force
+    Write-Host "==> Added resources.pri compatibility alias from $(Split-Path $appPri -Leaf)"
+}
+Write-Host "==> App PRI: $resourcesPri ($([math]::Round((Get-Item $resourcesPri).Length / 1KB, 1)) KiB)"
+
 $buildInfo = @"
 Xplorer Native
 Configuration: $Configuration
 Runtime: $Runtime
 Public entry point: xplorer.exe
 UI process: Xplorer.Native.exe
+Application PRI: resources.pri
 
 Normal launch:
   .\xplorer.exe
+
+Debug startup/resource probe:
+  .\xplorer.exe --debug
 
 Background metadata worker:
   .\xplorer.exe --service-worker
