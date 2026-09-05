@@ -24,12 +24,11 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="2.4.0" />
-    <!-- Force creation of the app PRI for unpackaged/self-contained WinUI.  WinUI custom controls
-         resolve their default styles through the application's MRT resource map; without an app PRI,
-         Windows 10 can construct basic controls but TabView/XamlControlsResources fail while looking
-         for ms-appx:///Microsoft.UI.Xaml/Themes/themeresources.xaml. -->
-    <PRIResource Include="Strings\en-US\Resources.resw" />
   </ItemGroup>
+
+  <!-- Strings/en-US/Resources.resw is intentionally present in the project tree. The .NET SDK
+       includes *.resw as PRIResource implicitly; together with EnableMsixTooling this forces an
+       application PRI to be generated for the unpackaged/self-contained WinUI resource graph. -->
 
   <Target Name="CopyXplorerRustHost" AfterTargets="Build" Condition="Exists('$(XplorerHostPath)')">
     <Copy SourceFiles="$(XplorerHostPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
