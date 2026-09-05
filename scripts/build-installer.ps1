@@ -16,7 +16,12 @@ Set-StrictMode -Version Latest
 if ($Runtime -ne 'win-x64') {
     throw 'The NSIS installer is currently produced for win-x64 only.'
 }
-if (-not $IsWindows) {
+
+# $IsWindows exists in PowerShell 6+, but not in the Windows PowerShell 5.1 that still ships
+# with Windows 10. Use the platform API so the documented `PowerShell -File ...` command works
+# in both Windows PowerShell and modern pwsh without tripping StrictMode.
+$isWindowsHost = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
+if (-not $isWindowsHost) {
     throw 'The Xplorer Windows installer must be built on Windows.'
 }
 
