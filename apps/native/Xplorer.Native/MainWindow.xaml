@@ -192,7 +192,7 @@
                 TextChanged="SearchBox_TextChanged" />
         </Grid>
 
-        <!-- Keep this a CommandBar so native file-operation wiring and XML themes remain compatible.
+        <!-- Keep this a CommandBar so native file operations and XML themes remain compatible.
              The content side mirrors old Xplorer's Sort/View/Size Map strip; native actions sit right. -->
         <CommandBar
             x:Name="OperationBar"
@@ -255,10 +255,15 @@
                 </StackPanel>
             </CommandBar.Content>
 
-            <AppBarButton Icon="Copy" Label="Copy" />
-            <AppBarButton Icon="Cut" Label="Cut" />
-            <AppBarButton Icon="Paste" Label="Paste" />
-            <AppBarButton Icon="Delete" Label="Delete" />
+            <AppBarButton Label="New folder" Click="NewFolderButton_Click">
+                <AppBarButton.Icon>
+                    <FontIcon Glyph="&#xE710;" />
+                </AppBarButton.Icon>
+            </AppBarButton>
+            <AppBarButton Icon="Copy" Label="Copy" Click="CopyButton_Click" />
+            <AppBarButton Icon="Cut" Label="Cut" Click="CutButton_Click" />
+            <AppBarButton Icon="Paste" Label="Paste" Click="PasteButton_Click" />
+            <AppBarButton Icon="Delete" Label="Delete" Click="DeleteButton_Click" />
         </CommandBar>
 
         <Grid x:Name="ShellGrid" Grid.Row="3" MinWidth="0">
