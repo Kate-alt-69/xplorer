@@ -27,6 +27,7 @@ internal sealed class ExplorerShellMenuService : IDisposable
     private const uint ShellCommandLast = 0x7FFF;
     private const int VkShift = 0x10;
     private const nuint SubclassId = 0x58504C4D; // "XPLM"
+    private const int S_OK = 0;
 
     private static readonly Guid IidShellFolder = new("000214E6-0000-0000-C000-000000000046");
     private static readonly Guid IidContextMenu = new("000214E4-0000-0000-C000-000000000046");
@@ -242,12 +243,23 @@ internal sealed class ExplorerShellMenuService : IDisposable
             if (_activeContextMenu3 is not null)
             {
                 var hr = _activeContextMenu3.HandleMenuMsg2(message, (nint)wParam, lParam, out var result);
-                if (hr >= 0) return result;
+                if (hr == S_OK) return result;
+
+                // Some older/in-proc shell handlers expose IContextMenu3 but decline individual
+                // non-WM_MENUCHAR messages there while still handling them through IContextMenu2.
+                // Explorer-compatible hosts must not treat S_FALSE as "handled" or the handler never
+                // gets the fallback WM_INITMENUPOPUP/owner-draw notification that materializes a
+                // registry cascade. WM_MENUCHAR stays IContextMenu3-only because it needs LRESULT.
+                if (message != WmMenuChar && _activeContextMenu2 is not null)
+                {
+                    var fallbackHr = _activeContextMenu2.HandleMenuMsg(message, (nint)wParam, lParam);
+                    if (fallbackHr == S_OK) return 0;
+                }
             }
             else if (_activeContextMenu2 is not null)
             {
                 var hr = _activeContextMenu2.HandleMenuMsg(message, (nint)wParam, lParam);
-                if (hr >= 0) return 0;
+                if (hr == S_OK) return 0;
             }
         }
 
