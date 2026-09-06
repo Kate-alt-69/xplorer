@@ -29,9 +29,30 @@ public static class ThemeService
         Directory.CreateDirectory(ThemeDirectory);
         var path = Path.Combine(ThemeDirectory, DefaultThemeFileName);
         if (!File.Exists(path))
+        {
             File.WriteAllText(path, DefaultThemeXml);
+            return path;
+        }
+
+        // Migrate only Xplorer's untouched legacy template. A user-edited default.xml is their
+        // theme and must never be silently rewritten just because native chrome dimensions changed.
+        try
+        {
+            var existing = NormalizeTemplate(File.ReadAllText(path));
+            if (string.Equals(existing, NormalizeTemplate(LegacyDefaultThemeXml), StringComparison.Ordinal))
+                File.WriteAllText(path, DefaultThemeXml);
+        }
+        catch
+        {
+            // Loading/validation below will report any real file-system problem. Migration itself
+            // is best-effort and must not turn an otherwise usable Xplorer startup into a failure.
+        }
+
         return path;
     }
+
+    private static string NormalizeTemplate(string value) =>
+        value.Replace("\r\n", "\n", StringComparison.Ordinal).Trim();
 
     public static string ResolveThemePath(string fileName)
     {
@@ -177,7 +198,7 @@ public static class ThemeService
         throw new InvalidDataException($"<{name}> must be #RRGGBB or #AARRGGBB.");
     }
 
-    private static double ReadDouble(XElement parent, string name, double fallback, double min, double max)
+    private static double ReadDouble(XElement parent, string name, double fallback, double man, double max)
     {
         var element = parent.Element(name);
         if (element is null) return fallback;
@@ -227,7 +248,7 @@ public static class ThemeService
             throw new InvalidDataException($"Theme element <{duplicate.Key}> can appear only once in its parent.");
     }
 
-    private const string DefaultThemeXml = """
+    private const string LegacyDefaultThemeXml = """
         <?xml version="1.0" encoding="utf-8"?>
         <XplorerTheme version="1">
           <Colors>
@@ -240,6 +261,29 @@ public static class ThemeService
             <SidebarWidth>220</SidebarWidth>
             <InspectorWidth>48</InspectorWidth>
             <TabHeight>38</TabHeight>
+          </Layout>
+          <Files>
+            <MediumTileWidth>116</MediumTileWidth>
+            <MediumTileHeight>104</MediumTileHeight>
+            <LargeTileWidth>170</LargeTileWidth>
+            <LargeTileHeight>148</LargeTileHeight>
+          </Files>
+        </XplorerTheme>
+        """;
+
+    private const string DefaultThemeXml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <XplorerTheme version="1">
+          <Colors>
+            <Background>#111116</Background>
+            <Surface>#191920</Surface>
+            <Rail>#15151B</Rail>
+            <Accent>#6D6AFB</Accent>
+          </Colors>
+          <Layout>
+            <SidebarWidth>256</SidebarWidth>
+            <InspectorWidth>48</InspectorWidth>
+            <TabHeight>32</TabHeight>
           </Layout>
           <Files>
             <MediumTileWidth>116</MediumTileWidth>
@@ -269,9 +313,9 @@ public sealed record XplorerThemeDefinition(
         Color.FromArgb(0xff, 0x19, 0x19, 0x20),
         Color.FromArgb(0xff, 0x15, 0x15, 0x1b),
         Color.FromArgb(0xff, 0x6d, 0x6a, 0xfb),
-        220,
+        256,
         48,
-        38,
+        32,
         116,
         104,
         170,

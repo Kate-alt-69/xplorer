@@ -81,7 +81,7 @@ public static class UiStartupDiagnostics
             "<TabView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" IsAddTabButtonVisible=\"True\" />");
         ProbeXaml(
             "TabView MainWindow properties",
-            "<TabView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Height=\"38\" IsAddTabButtonVisible=\"True\" CanReorderTabs=\"True\" TabWidthMode=\"SizeToContent\" />");
+            "<TabView xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\" Height=\"32\" IsAddTabButtonVisible=\"True\" CanReorderTabs=\"True\" TabWidthMode=\"SizeToContent\" />");
         ProbeXaml(
             "CommandBar FontIcon",
             "<CommandBar xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\"><AppBarButton><AppBarButton.Icon><FontIcon Glyph=\"&#xE8B0;\" /></AppBarButton.Icon></AppBarButton></CommandBar>");

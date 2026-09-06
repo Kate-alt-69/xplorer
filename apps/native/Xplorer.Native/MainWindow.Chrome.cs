@@ -168,6 +168,9 @@ public sealed partial class MainWindow
 
     private double GetExpandedSidebarWidth()
     {
+        if (_previewThemeDefinition is { } preview)
+            return preview.SidebarWidth;
+
         if (!string.Equals(_settingsService.Current.Theme, "Custom XML", StringComparison.OrdinalIgnoreCase))
             return NativeSidebarWidth;
 

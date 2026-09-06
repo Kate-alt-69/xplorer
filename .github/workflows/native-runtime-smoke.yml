@@ -91,6 +91,7 @@ jobs:
               'UI preflight action OK: application Resources access',
               'UI preflight action OK: default XML theme parse',
               'UI preflight action OK: SettingsDialog compiled XAML',
+              'UI preflight action OK: TerminalWorkspaceDialog compiled XAML',
               'MainWindow constructed.',
               'Theme support initialized.',
               'MainWindow activated.',

@@ -7,7 +7,7 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
-    private const double MinimumInspectorRailWidth = 56;
+    private const double MinimumInspectorRailWidth = NativeExtensionsRailWidth;
 
     private FileSystemWatcher? _xmlThemeWatcher;
     private FileSystemWatcher? _settingsThemeWatcher;
@@ -32,26 +32,10 @@ public sealed partial class MainWindow
         _defaultRootBackground ??= Root.Background;
         _defaultTabHeight ??= Tabs.Height;
 
-        var shellGrid = FindShellGrid();
-        if (shellGrid is not null)
-        {
-            EnsureInspectorRailFits(shellGrid);
-            foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
-            {
-                if (Grid.GetColumn(child) == 0 && child is Border sidebar)
-                    _defaultSidebarBackground ??= sidebar.Background;
-                else if (Grid.GetColumn(child) == 2 && child is Panel rail)
-                    _defaultRailBackground ??= rail.Background;
-            }
-        }
-
-        foreach (var child in Root.Children.OfType<FrameworkElement>())
-        {
-            if (child is CommandBar commandBar && Grid.GetRow(commandBar) == 2)
-                _defaultCommandBarBackground ??= commandBar.Background;
-            else if (child is Grid bottomBar && Grid.GetRow(bottomBar) == 4)
-                _defaultBottomBarBackground ??= bottomBar.Background;
-        }
+        _defaultSidebarBackground ??= SidebarBorder.Background;
+        _defaultRailBackground ??= ExtensionsRail.Background;
+        _defaultCommandBarBackground ??= OperationBar.Background;
+        _defaultBottomBarBackground ??= BottomBar.Background;
 
         ThemeService.EnsureDefaultThemeFile();
         ThemePreviewCoordinator.PreviewRequested += PreviewThemeDefinition;
@@ -109,37 +93,26 @@ public sealed partial class MainWindow
         var mediumItemsPanel = CreateItemsPanel(theme.MediumTileWidth, theme.MediumTileHeight);
         var largeItemsPanel = CreateItemsPanel(theme.LargeTileWidth, theme.LargeTileHeight);
 
+        var surface = new SolidColorBrush(theme.Surface);
+        var rail = new SolidColorBrush(theme.Rail);
+
         Root.Background = new SolidColorBrush(theme.Background);
         Tabs.Height = theme.TabHeight;
+        Tabs.Background = surface;
+        AddressChrome.Background = surface;
+        OperationBar.Background = surface;
+        SidebarBorder.Background = surface;
+        ExtensionsRail.Background = rail;
+        BottomBar.Background = rail;
+        FileArea.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
         SetXmlAccent(theme.Accent);
 
-        var shellGrid = FindShellGrid();
-        if (shellGrid is not null)
-        {
-            shellGrid.ColumnDefinitions[0].Width = new GridLength(theme.SidebarWidth);
-            shellGrid.ColumnDefinitions[2].Width = new GridLength(Math.Max(MinimumInspectorRailWidth, theme.InspectorWidth));
-
-            foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
-            {
-                if (Grid.GetColumn(child) == 0 && child is Border sidebar)
-                    sidebar.Background = new SolidColorBrush(theme.Surface);
-                else if (Grid.GetColumn(child) == 2 && child is Panel rail)
-                    rail.Background = new SolidColorBrush(theme.Rail);
-            }
-        }
-
-        foreach (var child in Root.Children.OfType<FrameworkElement>())
-        {
-            switch (child)
-            {
-                case CommandBar commandBar when Grid.GetRow(commandBar) == 2:
-                    commandBar.Background = new SolidColorBrush(theme.Surface);
-                    break;
-                case Grid bottomBar when Grid.GetRow(bottomBar) == 4:
-                    bottomBar.Background = new SolidColorBrush(theme.Rail);
-                    break;
-            }
-        }
+        SidebarBorder.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        ShellGrid.ColumnDefinitions[0].Width = _sidebarCollapsed
+            ? new GridLength(0)
+            : new GridLength(theme.SidebarWidth);
+        ShellGrid.ColumnDefinitions[2].Width = new GridLength(
+            Math.Max(MinimumInspectorRailWidth, theme.InspectorWidth));
 
         Root.Resources["MediumItemsPanel"] = mediumItemsPanel;
         Root.Resources["LargeItemsPanel"] = largeItemsPanel;
@@ -279,45 +252,26 @@ public sealed partial class MainWindow
             Root.Background = _defaultRootBackground;
 
         SetXmlAccent(XplorerThemeDefinition.Default.Accent);
-        Tabs.Height = _defaultTabHeight ?? 38;
+        Tabs.Height = _defaultTabHeight ?? 32;
 
-        var shellGrid = FindShellGrid();
-        if (shellGrid is not null)
-        {
-            shellGrid.ColumnDefinitions[0].Width = new GridLength(220);
-            shellGrid.ColumnDefinitions[2].Width = new GridLength(MinimumInspectorRailWidth);
-            foreach (var child in shellGrid.Children.OfType<FrameworkElement>())
-            {
-                if (Grid.GetColumn(child) == 0 && child is Border sidebar)
-                    sidebar.Background = _defaultSidebarBackground;
-                else if (Grid.GetColumn(child) == 1 && ReferenceEquals(child, FileArea))
-                    FileArea.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
-                else if (Grid.GetColumn(child) == 2 && child is Panel rail)
-                    rail.Background = _defaultRailBackground;
-            }
-        }
-
-        foreach (var child in Root.Children.OfType<FrameworkElement>())
-        {
-            if (child is CommandBar commandBar && Grid.GetRow(commandBar) == 2)
-                commandBar.Background = _defaultCommandBarBackground;
-            if (child is Grid grid && Grid.GetRow(grid) == 4)
-                grid.Background = _defaultBottomBarBackground;
-        }
+        SidebarBorder.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
+        ShellGrid.ColumnDefinitions[0].Width = _sidebarCollapsed
+            ? new GridLength(0)
+            : new GridLength(NativeSidebarWidth);
+        ShellGrid.ColumnDefinitions[2].Width = new GridLength(NativeExtensionsRailWidth);
+        SidebarBorder.Background = _defaultSidebarBackground;
+        ExtensionsRail.Background = _defaultRailBackground;
+        OperationBar.Background = _defaultCommandBarBackground;
+        BottomBar.Background = _defaultBottomBarBackground;
+        FileArea.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
 
         RestoreCompiledItemPanels();
         ApplyViewMode(_settingsService.GetViewMode(CurrentPath));
-    }
 
-    private Grid? FindShellGrid() => Root.Children
-        .OfType<Grid>()
-        .FirstOrDefault(grid => Grid.GetRow(grid) == 3 && grid.ColumnDefinitions.Count >= 3);
-
-    private static void EnsureInspectorRailFits(Grid shellGrid)
-    {
-        var width = shellGrid.ColumnDefinitions[2].Width;
-        if (width.IsAbsolute && width.Value < MinimumInspectorRailWidth)
-            shellGrid.ColumnDefinitions[2].Width = new GridLength(MinimumInspectorRailWidth);
+        // Built-in chrome owns the actual native palette (including Xplorer's dark gradient). The
+        // old theme reset restored a pre-Loaded generic brush and could flatten the background after
+        // preview/revert, so finish by reapplying the live built-in palette.
+        ApplyBuiltInChromePalette();
     }
 
     private void RestoreCompiledItemPanels()
