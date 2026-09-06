@@ -15,6 +15,7 @@ public sealed partial class MainWindow
     private const double NativeExtensionsRailWidth = 48;
     private bool _chromeLoaded;
     private bool _sidebarCollapsed;
+    private double _sidebarExpandedWidth = NativeSidebarWidth;
 
     /// <summary>
     /// Finishes the visual setup after WinUI has loaded the tree. This deliberately runs after
@@ -35,6 +36,7 @@ public sealed partial class MainWindow
         InitializeNativeDriveUx();
         InitializeNativeDragDrop();
         InitializeEmbeddedTerminal();
+        InitializeInspectorWorkspace();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
@@ -92,9 +94,9 @@ public sealed partial class MainWindow
         if (!_sidebarCollapsed)
         {
             SidebarBorder.Visibility = Visibility.Visible;
-            ShellGrid.ColumnDefinitions[0].Width = new GridLength(NativeSidebarWidth);
+            ShellGrid.ColumnDefinitions[0].Width = new GridLength(_sidebarExpandedWidth);
         }
-        ShellGrid.ColumnDefinitions[2].Width = new GridLength(NativeExtensionsRailWidth);
+        SetExtensionsRailWidth(NativeExtensionsRailWidth);
 
         // Custom XML may have created a window-local accent resource. Bring it back in sync when
         // the user returns to a built-in theme instead of leaving a stale custom accent behind.
@@ -107,6 +109,7 @@ public sealed partial class MainWindow
         }
 
         ApplyBuiltInFileItemPalette(useLight);
+        ApplyBuiltInInspectorPalette(useLight);
         SetNativeCaptionTheme(useLight);
     }
 
@@ -188,7 +191,7 @@ public sealed partial class MainWindow
         }
 
         SidebarBorder.Visibility = Visibility.Visible;
-        ShellGrid.ColumnDefinitions[0].Width = new GridLength(GetExpandedSidebarWidth());
+        ShellGrid.ColumnDefinitions[0].Width = new GridLength(_sidebarExpandedWidth);
     }
 
     private void SidebarResizeGrip_ManipulationDelta(object sender, ManipulationDeltaRoutedEventArgs e)
@@ -199,6 +202,7 @@ public sealed partial class MainWindow
             ? SidebarBorder.ActualWidth
             : ShellGrid.ColumnDefinitions[0].ActualWidth;
         var width = Math.Clamp(current + e.Delta.Translation.X, 168, 480);
+        _sidebarExpandedWidth = width;
         ShellGrid.ColumnDefinitions[0].Width = new GridLength(width);
         e.Handled = true;
     }
@@ -206,7 +210,8 @@ public sealed partial class MainWindow
     private void SidebarResizeGrip_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         if (_sidebarCollapsed) return;
-        ShellGrid.ColumnDefinitions[0].Width = new GridLength(GetExpandedSidebarWidth());
+        _sidebarExpandedWidth = GetExpandedSidebarWidth();
+        ShellGrid.ColumnDefinitions[0].Width = new GridLength(_sidebarExpandedWidth);
         e.Handled = true;
     }
 
@@ -244,82 +249,6 @@ public sealed partial class MainWindow
 
         if (!string.IsNullOrWhiteSpace(target) && Directory.Exists(target))
             await NavigateAsync(target);
-    }
-
-    private void InspectorRailButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button anchor) return;
-
-        var item = GetSelectedItem();
-        if (item is null)
-        {
-            StatusText.Text = "Select a file or folder to inspect.";
-            return;
-        }
-
-        var content = new StackPanel
-        {
-            Width = 330,
-            Spacing = 8,
-            Padding = new Thickness(4),
-        };
-        content.Children.Add(new TextBlock
-        {
-            Text = item.DisplayName,
-            FontSize = 16,
-            FontWeight = Windows.UI.Text.FontWeights.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        });
-        content.Children.Add(CreateInspectorRow("Type", item.TypeName));
-        content.Children.Add(CreateInspectorRow("Size", item.SizeText));
-        content.Children.Add(CreateInspectorRow("Modified", item.ModifiedText));
-        content.Children.Add(new TextBlock
-        {
-            Text = "Path",
-            FontSize = 11,
-            Opacity = 0.62,
-            Margin = new Thickness(0, 4, 0, 0),
-        });
-        content.Children.Add(new TextBlock
-        {
-            Text = item.FullPath,
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            IsTextSelectionEnabled = true,
-        });
-
-        var flyout = new Flyout
-        {
-            Content = content,
-            Placement = Microsoft.UI.Xaml.Controls.Primitives.FlyoutPlacementMode.Left,
-        };
-        flyout.ShowAt(anchor);
-    }
-
-    private static FrameworkElement CreateInspectorRow(string label, string value)
-    {
-        var grid = new Grid { ColumnSpacing = 12 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(86) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var labelBlock = new TextBlock
-        {
-            Text = label,
-            FontSize = 11,
-            Opacity = 0.62,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var valueBlock = new TextBlock
-        {
-            Text = value,
-            FontSize = 12,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(valueBlock, 1);
-        grid.Children.Add(labelBlock);
-        grid.Children.Add(valueBlock);
-        return grid;
     }
 
     private async void ChromeSortName_Click(object sender, RoutedEventArgs e)

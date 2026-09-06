@@ -39,8 +39,11 @@ public static class ThemeService
         try
         {
             var existing = NormalizeTemplate(File.ReadAllText(path));
-            if (string.Equals(existing, NormalizeTemplate(LegacyDefaultThemeXml), StringComparison.Ordinal))
+            if (string.Equals(existing, NormalizeTemplate(LegacyDefaultThemeXml), StringComparison.Ordinal) ||
+                string.Equals(existing, NormalizeTemplate(PreviousNativeDefaultThemeXml), StringComparison.Ordinal))
+            {
                 File.WriteAllText(path, DefaultThemeXml);
+            }
         }
         catch
         {
@@ -113,7 +116,7 @@ public static class ThemeService
             throw new InvalidDataException("Only XplorerTheme version=\"1\" is supported.");
 
         RejectUnknownAttributes(root, "version");
-        RejectUnknownChildren(root, "Colors", "Layout", "Files");
+        RejectUnknownChildren(root, "Colors", "Layout", "Files", "Inspector");
         return root;
     }
 
@@ -141,6 +144,8 @@ public static class ThemeService
             {
                 SidebarWidth = ReadDouble(layout, "SidebarWidth", result.SidebarWidth, 140, 480),
                 // The rail owns 34 px buttons plus padding/border/scrollbar breathing room.
+                // v1 called the extensions rail width "InspectorWidth". Keep accepting that legacy
+                // element so existing themes stay valid; the actual editor Inspector has its own section.
                 InspectorWidth = ReadDouble(layout, "InspectorWidth", result.InspectorWidth, 48, 112),
                 TabHeight = ReadDouble(layout, "TabHeight", result.TabHeight, 32, 64),
             };
@@ -156,6 +161,45 @@ public static class ThemeService
                 MediumTileHeight = ReadDouble(files, "MediumTileHeight", result.MediumTileHeight, 96, 220),
                 LargeTileWidth = ReadDouble(files, "LargeTileWidth", result.LargeTileWidth, 120, 300),
                 LargeTileHeight = ReadDouble(files, "LargeTileHeight", result.LargeTileHeight, 132, 300),
+            };
+        }
+
+        if (root.Element("Inspector") is { } inspector)
+        {
+            RejectUnknownAttributes(inspector);
+            RejectUnknownChildren(
+                inspector,
+                "Width",
+                "Background",
+                "Surface",
+                "Text",
+                "MutedText",
+                "EditorBackground",
+                "EditorForeground",
+                "Gutter",
+                "Selection",
+                "Canvas",
+                "Border",
+                "Accent");
+            result = result with
+            {
+                InspectorWorkspaceWidth = ReadDouble(
+                    inspector, "Width", result.InspectorWorkspaceWidth, 280, 720),
+                InspectorBackground = ReadColor(
+                    inspector, "Background", result.InspectorBackground),
+                InspectorSurface = ReadColor(
+                    inspector, "Surface", result.InspectorSurface),
+                InspectorText = ReadColor(inspector, "Text", result.InspectorText),
+                InspectorMutedText = ReadColor(inspector, "MutedText", result.InspectorMutedText),
+                InspectorEditorBackground = ReadColor(
+                    inspector, "EditorBackground", result.InspectorEditorBackground),
+                InspectorEditorForeground = ReadColor(
+                    inspector, "EditorForeground", result.InspectorEditorForeground),
+                InspectorGutter = ReadColor(inspector, "Gutter", result.InspectorGutter),
+                InspectorSelection = ReadColor(inspector, "Selection", result.InspectorSelection),
+                InspectorCanvas = ReadColor(inspector, "Canvas", result.InspectorCanvas),
+                InspectorBorder = ReadColor(inspector, "Border", result.InspectorBorder),
+                InspectorAccent = ReadColor(inspector, "Accent", result.InspectorAccent),
             };
         }
 
@@ -271,7 +315,7 @@ public static class ThemeService
         </XplorerTheme>
         """;
 
-    private const string DefaultThemeXml = """
+    private const string PreviousNativeDefaultThemeXml = """
         <?xml version="1.0" encoding="utf-8"?>
         <XplorerTheme version="1">
           <Colors>
@@ -293,6 +337,43 @@ public static class ThemeService
           </Files>
         </XplorerTheme>
         """;
+
+    private const string DefaultThemeXml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <XplorerTheme version="1">
+          <Colors>
+            <Background>#111116</Background>
+            <Surface>#191920</Surface>
+            <Rail>#15151B</Rail>
+            <Accent>#6D6AFB</Accent>
+          </Colors>
+          <Layout>
+            <SidebarWidth>256</SidebarWidth>
+            <InspectorWidth>48</InspectorWidth>
+            <TabHeight>32</TabHeight>
+          </Layout>
+          <Files>
+            <MediumTileWidth>116</MediumTileWidth>
+            <MediumTileHeight>104</MediumTileHeight>
+            <LargeTileWidth>170</LargeTileWidth>
+            <LargeTileHeight>148</LargeTileHeight>
+          </Files>
+          <Inspector>
+            <Width>380</Width>
+            <Background>#14141C</Background>
+            <Surface>#1B1B24</Surface>
+            <Text>#F1F5F9</Text>
+            <MutedText>#94A3B8</MutedText>
+            <EditorBackground>#0D0D12</EditorBackground>
+            <EditorForeground>#F1F5F9</EditorForeground>
+            <Gutter>#17171F</Gutter>
+            <Selection>#506D6AFB</Selection>
+            <Canvas>#0B0B0F</Canvas>
+            <Border>#2AFFFFFF</Border>
+            <Accent>#6D6AFB</Accent>
+          </Inspector>
+        </XplorerTheme>
+        """;
 }
 
 public sealed record XplorerThemeDefinition(
@@ -306,7 +387,19 @@ public sealed record XplorerThemeDefinition(
     double MediumTileWidth,
     double MediumTileHeight,
     double LargeTileWidth,
-    double LargeTileHeight)
+    double LargeTileHeight,
+    double InspectorWorkspaceWidth,
+    Color InspectorBackground,
+    Color InspectorSurface,
+    Color InspectorText,
+    Color InspectorMutedText,
+    Color InspectorEditorBackground,
+    Color InspectorEditorForeground,
+    Color InspectorGutter,
+    Color InspectorSelection,
+    Color InspectorCanvas,
+    Color InspectorBorder,
+    Color InspectorAccent)
 {
     public static XplorerThemeDefinition Default { get; } = new(
         Color.FromArgb(0xff, 0x11, 0x11, 0x16),
@@ -319,5 +412,17 @@ public sealed record XplorerThemeDefinition(
         116,
         104,
         170,
-        148);
+        148,
+        380,
+        Color.FromArgb(0xff, 0x14, 0x14, 0x1c),
+        Color.FromArgb(0xff, 0x1b, 0x1b, 0x24),
+        Color.FromArgb(0xff, 0xf1, 0xf5, 0xf9),
+        Color.FromArgb(0xff, 0x94, 0xa3, 0xb8),
+        Color.FromArgb(0xff, 0x0d, 0x0d, 0x12),
+        Color.FromArgb(0xff, 0xf1, 0xf5, 0xf9),
+        Color.FromArgb(0xff, 0x17, 0x17, 0x1f),
+        Color.FromArgb(0x50, 0x6d, 0x6a, 0xfb),
+        Color.FromArgb(0xff, 0x0b, 0x0b, 0x0f),
+        Color.FromArgb(0x2a, 0xff, 0xff, 0xff),
+        Color.FromArgb(0xff, 0x6d, 0x6a, 0xfb));
 }

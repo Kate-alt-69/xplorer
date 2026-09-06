@@ -7,7 +7,7 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
-    private const double MinimumInspectorRailWidth = NativeExtensionsRailWidth;
+    private const double MinimumExtensionsRailWidth = NativeExtensionsRailWidth;
 
     private FileSystemWatcher? _xmlThemeWatcher;
     private FileSystemWatcher? _settingsThemeWatcher;
@@ -111,12 +111,14 @@ public sealed partial class MainWindow
         SetXmlAccent(theme.Accent);
         ApplyFileItemPalette(theme.Surface, theme.Accent);
 
+        _sidebarExpandedWidth = theme.SidebarWidth;
         SidebarBorder.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
         ShellGrid.ColumnDefinitions[0].Width = _sidebarCollapsed
             ? new GridLength(0)
-            : new GridLength(theme.SidebarWidth);
-        ShellGrid.ColumnDefinitions[2].Width = new GridLength(
-            Math.Max(MinimumInspectorRailWidth, theme.InspectorWidth));
+            : new GridLength(_sidebarExpandedWidth);
+
+        ApplyInspectorThemeResources(theme);
+        SetExtensionsRailWidth(Math.Max(MinimumExtensionsRailWidth, theme.InspectorWidth));
 
         Root.Resources["MediumItemsPanel"] = mediumItemsPanel;
         Root.Resources["LargeItemsPanel"] = largeItemsPanel;
@@ -294,11 +296,13 @@ public sealed partial class MainWindow
         SetXmlAccent(XplorerThemeDefinition.Default.Accent);
         Tabs.Height = _defaultTabHeight ?? 32;
 
+        _sidebarExpandedWidth = NativeSidebarWidth;
+        ResetInspectorBuiltInLayout();
         SidebarBorder.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
         ShellGrid.ColumnDefinitions[0].Width = _sidebarCollapsed
             ? new GridLength(0)
-            : new GridLength(NativeSidebarWidth);
-        ShellGrid.ColumnDefinitions[2].Width = new GridLength(NativeExtensionsRailWidth);
+            : new GridLength(_sidebarExpandedWidth);
+        SetExtensionsRailWidth(NativeExtensionsRailWidth);
         SidebarBorder.Background = _defaultSidebarBackground;
         ExtensionsRail.Background = _defaultRailBackground;
         OperationBar.Background = _defaultCommandBarBackground;
