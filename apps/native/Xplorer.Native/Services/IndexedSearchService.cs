@@ -49,10 +49,7 @@ public static class IndexedSearchService
             if (string.IsNullOrWhiteSpace(root) || root.Length < 2 || root[1] != ':') return null;
 
             var drive = char.ToUpperInvariant(root[0]);
-            var indexDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Xplorer",
-                "Index");
+            var indexDirectory = IndexLocationService.ActiveIndexDirectory;
             var snapshotPath = Path.Combine(indexDirectory, $"{drive}.xidx");
             if (!File.Exists(snapshotPath)) return null;
 
@@ -95,7 +92,6 @@ public static class IndexedSearchService
                 AddMatch(effective, root, prefix, tokens, showHidden, showExtensions, items, ref totalMatches);
             }
 
-            // Deltas can describe paths created after the immutable snapshot was written.
             foreach (var delta in deltas.Values)
             {
                 if (delta.Kind != DeltaUpsert) continue;
@@ -116,8 +112,6 @@ public static class IndexedSearchService
         }
         catch
         {
-            // Indexes are an optimization. Any corrupt/old/locked index falls back to normal
-            // current-folder enumeration rather than breaking search.
             return null;
         }
     }
@@ -136,17 +130,13 @@ public static class IndexedSearchService
         if (relative is null || !IsWithinSearchFolder(relative, prefix)) return;
         if (!showHidden && (entry.Flags & FlagHidden) != 0) return;
 
-        var name = Path.GetFileName(relative.TrimEnd(
-            Path.DirectorySeparatorChar,
-            Path.AltDirectorySeparatorChar));
+        var name = Path.GetFileName(relative.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         if (string.IsNullOrWhiteSpace(name)) return;
 
         if (!tokens.All(token =>
                 name.Contains(token, StringComparison.CurrentCultureIgnoreCase)
                 || relative.Contains(token, StringComparison.CurrentCultureIgnoreCase)))
-        {
             return;
-        }
 
         totalMatches++;
         if (items.Count >= MaximumDisplayedResults) return;
@@ -159,17 +149,12 @@ public static class IndexedSearchService
             IsDirectory = isDirectory,
             ShowExtension = showExtensions,
             LastWriteTimeUtc = FromFileTime(entry.LastWriteTime),
-            SizeBytes = isDirectory
-                ? null
-                : entry.Size > long.MaxValue ? long.MaxValue : (long)entry.Size,
+            SizeBytes = isDirectory ? null : entry.Size > long.MaxValue ? long.MaxValue : (long)entry.Size,
         });
     }
 
-    private static bool IsWithinSearchFolder(string relative, string prefix)
-    {
-        if (string.IsNullOrEmpty(prefix)) return true;
-        return relative.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
-    }
+    private static bool IsWithinSearchFolder(string relative, string prefix) =>
+        string.IsNullOrEmpty(prefix) || relative.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
 
     private static Dictionary<string, DeltaEntry>? ReadDeltaOverlay(string path, char drive)
     {
@@ -186,25 +171,15 @@ public static class IndexedSearchService
         if (!magic.AsSpan().SequenceEqual(DeltaMagic)
             || version != DeltaVersion
             || char.ToUpperInvariant((char)storedDrive) != drive)
-        {
             return null;
-        }
 
-        // Capture the current append boundary so an in-progress worker append cannot produce a
-        // false corruption result while this search is reading.
         var readableLength = stream.Length;
         while (stream.Position + sizeof(uint) <= readableLength)
         {
             var start = stream.Position;
             var recordLength = reader.ReadUInt32();
-            if (recordLength < DeltaRecordFixedSize
-                || recordLength > MaximumRecordSize
-                || start + recordLength > readableLength)
-            {
-                // A trailing partial append is expected when search races the worker. Ignore only
-                // that tail; malformed complete records below are treated as corrupt.
+            if (recordLength < DeltaRecordFixedSize || recordLength > MaximumRecordSize || start + recordLength > readableLength)
                 break;
-            }
 
             var kind = reader.ReadByte();
             if (kind is not DeltaUpsert and not DeltaDelete) return null;
@@ -214,7 +189,7 @@ public static class IndexedSearchService
             var attributes = reader.ReadUInt32();
             var size = reader.ReadUInt64();
             var lastWrite = reader.ReadUInt64();
-            _ = reader.ReadInt64(); // source USN
+            _ = reader.ReadInt64();
             var pathUnits = reader.ReadUInt32();
             var pathBytes = checked((int)pathUnits * 2);
             if (DeltaRecordFixedSize + pathBytes != recordLength) return null;
@@ -224,8 +199,7 @@ public static class IndexedSearchService
             var relative = NormalizeRelativeRecord(Encoding.Unicode.GetString(relativeBytes));
             if (relative is null) return null;
 
-            var entry = new IndexEntry(relative, flags, attributes, size, lastWrite);
-            result[relative] = new DeltaEntry(kind, entry);
+            result[relative] = new DeltaEntry(kind, new IndexEntry(relative, flags, attributes, size, lastWrite));
         }
 
         return result;
@@ -238,7 +212,7 @@ public static class IndexedSearchService
         var version = reader.ReadUInt32();
         var storedDrive = reader.ReadUInt16();
         _ = reader.ReadUInt16();
-        _ = reader.ReadUInt64(); // snapshot timestamp
+        _ = reader.ReadUInt64();
         return magic.AsSpan().SequenceEqual(SnapshotMagic)
                && version == SnapshotVersion
                && char.ToUpperInvariant((char)storedDrive) == drive;
@@ -249,12 +223,8 @@ public static class IndexedSearchService
         if (stream.Position + sizeof(uint) > stream.Length) return null;
         var start = stream.Position;
         var recordLength = reader.ReadUInt32();
-        if (recordLength < SnapshotRecordFixedSize
-            || recordLength > MaximumRecordSize
-            || start + recordLength > stream.Length)
-        {
+        if (recordLength < SnapshotRecordFixedSize || recordLength > MaximumRecordSize || start + recordLength > stream.Length)
             return null;
-        }
 
         var flags = reader.ReadByte();
         _ = reader.ReadBytes(3);
@@ -268,19 +238,11 @@ public static class IndexedSearchService
         var relativeBytes = reader.ReadBytes(pathBytes);
         if (relativeBytes.Length != pathBytes) return null;
         var relative = NormalizeRelativeRecord(Encoding.Unicode.GetString(relativeBytes));
-        return relative is null
-            ? null
-            : new IndexEntry(relative, flags, attributes, size, lastWrite);
+        return relative is null ? null : new IndexEntry(relative, flags, attributes, size, lastWrite);
     }
 
     private static FileStream OpenReadShared(string path) =>
-        new(
-            path,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.ReadWrite | FileShare.Delete,
-            64 * 1024,
-            FileOptions.SequentialScan);
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 64 * 1024, FileOptions.SequentialScan);
 
     private static string NormalizeRelativeTrusted(string value) =>
         value.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
@@ -289,30 +251,18 @@ public static class IndexedSearchService
     private static string? NormalizeRelativeRecord(string value)
     {
         if (string.IsNullOrWhiteSpace(value) || value.IndexOf('\0') >= 0) return null;
-
-        var normalized = value
-            .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
+        var normalized = value.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
             .TrimStart(Path.DirectorySeparatorChar);
         if (string.IsNullOrWhiteSpace(normalized) || Path.IsPathRooted(normalized)) return null;
-
         foreach (var segment in normalized.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
-        {
             if (segment is "." or ".." || segment.Contains(':')) return null;
-        }
-
         return normalized;
     }
 
     private static DateTime FromFileTime(ulong fileTime)
     {
         if (fileTime > long.MaxValue) return default;
-        try
-        {
-            return DateTime.FromFileTimeUtc((long)fileTime);
-        }
-        catch (ArgumentOutOfRangeException)
-        {
-            return default;
-        }
+        try { return DateTime.FromFileTimeUtc((long)fileTime); }
+        catch (ArgumentOutOfRangeException) { return default; }
     }
 }
