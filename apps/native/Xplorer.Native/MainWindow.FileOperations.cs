@@ -17,8 +17,9 @@ public sealed partial class MainWindow
     /// </summary>
     public void InitializeNativeFileOperations()
     {
-        // FileGrid/FileDetails already route DoubleTapped to FileList_ExactDoubleTapped in XAML.
-        // Keep one exact pointer-target handler only so a file cannot open twice.
+        // The pointer/keyboard activation compatibility layer is attached once during construction
+        // so both tile and Details views behave consistently on Windows 10 and Windows 11.
+        InitializeFileInteractionParity();
         InstallAccelerator(VirtualKey.C, VirtualKeyModifiers.Control, () => CopySelectionToClipboard(false));
         InstallAccelerator(VirtualKey.X, VirtualKeyModifiers.Control, () => CopySelectionToClipboard(true));
         InstallAsyncAccelerator(VirtualKey.V, VirtualKeyModifiers.Control, PasteFromShellClipboardAsync);
