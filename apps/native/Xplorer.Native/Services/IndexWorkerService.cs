@@ -6,13 +6,15 @@ using Microsoft.Win32;
 namespace Xplorer.Native.Services;
 
 /// <summary>
-/// Owns the lifecycle boundary between WinUI and the tiny Rust background host. Worker mode is
-/// dispatched by the Rust host itself, so --service-worker never loads WinUI or the .NET runtime.
+/// Owns the lifecycle boundary between WinUI and the Rust background index worker. A provisioned
+/// highest-privilege scheduled task is preferred, but browsing never depends on it: failure falls
+/// back to the normal per-user worker and direct-disk viewport path.
 /// </summary>
 public static class IndexWorkerService
 {
     private const string HostExecutableName = "xplorer.exe";
     private const string WorkerExecutableName = "xplorer-bgw.exe";
+    private const string ScheduledTaskName = "Xplorer Index Worker";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "Xplorer Index Worker";
     private const string WakeEventName = @"Local\Xplorer.IndexWorker.Wake.v1";
@@ -26,15 +28,39 @@ public static class IndexWorkerService
 
     public static void EnsureEnabled()
     {
+        try
+        {
+            Directory.CreateDirectory(IndexLocationService.ControlDirectory);
+            File.Delete(DisabledFlagPath);
+        }
+        catch
+        {
+            // Worker enable is still allowed to fall through to the local process path.
+        }
+
+        IndexLocationService.PreferConfiguredIndex();
+        if (IndexLocationService.PrivilegedIndexConfigured && TryStartProvisionedTask())
+            return;
+
+        // A broken/missing task must never strand browsing on a protected stale cache. Use the local
+        // worker/index for this UI session and keep disk enumeration authoritative.
+        IndexLocationService.UseLocalIndexForSession();
         var worker = ResolveWorkerHostPath();
-        RunHostCommand(worker, "--register-startup", waitForExit: true);
-        RunHostCommand(worker, "--service-worker", waitForExit: false);
+        var runtimeArguments = LocalWorkerRuntimeArguments();
+        RunHostCommand(
+            worker,
+            ["--register-startup", .. runtimeArguments],
+            waitForExit: true);
+        RunHostCommand(
+            worker,
+            ["--service-worker", .. runtimeArguments],
+            waitForExit: false);
     }
 
     /// <summary>
-    /// Publish the directory the user is actually looking at. This is intentionally direct IPC:
-    /// no cmd.exe, powershell.exe or conhost.exe is created just to enumerate files. A tiny atomic
-    /// hint file survives worker restarts and a named event wakes an already-running worker.
+    /// Publish the directory the user is actually looking at through a user-owned control channel.
+    /// The elevated worker never trusts this path for its own executable/index location; it only
+    /// treats the hint contents as a folder to inspect.
     /// </summary>
     public static void PrioritizeWorkspace(string folder)
     {
@@ -43,15 +69,12 @@ public static class IndexWorkerService
             var fullPath = Path.GetFullPath(folder);
             if (!Directory.Exists(fullPath)) return;
 
-            var indexDirectory = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Xplorer",
-                "Index");
-            Directory.CreateDirectory(indexDirectory);
+            var controlDirectory = IndexLocationService.ControlDirectory;
+            Directory.CreateDirectory(controlDirectory);
 
-            var hintPath = Path.Combine(indexDirectory, "workspace.hint");
+            var hintPath = Path.Combine(controlDirectory, "workspace.hint");
             var tempPath = Path.Combine(
-                indexDirectory,
+                controlDirectory,
                 $"workspace.hint.{Environment.ProcessId}.{Guid.NewGuid():N}.tmp");
             File.WriteAllText(tempPath, fullPath, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             File.Move(tempPath, hintPath, overwrite: true);
@@ -60,36 +83,75 @@ public static class IndexWorkerService
         catch
         {
             // Workspace priority is an optimization. Current-folder navigation and refresh must
-            // never fail because the worker or its cache directory is unavailable.
+            // never fail because the worker or its control channel is unavailable.
         }
     }
 
     public static void Disable()
     {
+        try
+        {
+            Directory.CreateDirectory(IndexLocationService.ControlDirectory);
+            File.WriteAllText(DisabledFlagPath, "disabled", new UTF8Encoding(false));
+        }
+        catch { }
+
+        SignalWorkerWake();
         var worker = TryResolveWorkerHostPath() ?? TryResolveHostPath();
         if (worker is not null)
         {
-            TryRun(worker, "--unregister-startup", waitForExit: true);
-            TryRun(worker, "--stop-service-worker", waitForExit: true);
+            TryRun(worker, ["--unregister-startup"], waitForExit: true);
+            TryRun(worker, ["--stop-service-worker"], waitForExit: true);
         }
 
-        // Cleanup still works if the worker binary was manually removed before Xplorer is uninstalled.
         using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
         runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
+    }
+
+    private static string DisabledFlagPath => Path.Combine(
+        IndexLocationService.ControlDirectory,
+        "indexing.disabled");
+
+    private static string[] LocalWorkerRuntimeArguments() =>
+    [
+        "--data-dir",
+        IndexLocationService.LocalIndexDirectory,
+        "--control-dir",
+        IndexLocationService.ControlDirectory,
+    ];
+
+    private static bool TryStartProvisionedTask()
+    {
+        try
+        {
+            using var process = Process.Start(new ProcessStartInfo
+            {
+                FileName = Path.Combine(Environment.SystemDirectory, "schtasks.exe"),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden,
+                ArgumentList = { "/Run", "/TN", ScheduledTaskName },
+            });
+            if (process is null) return false;
+            if (!process.WaitForExit(5000)) return false;
+            if (process.ExitCode == 0) return true;
+
+            // Task Scheduler can return a non-zero result when an instance is already active. If a
+            // worker exists, keep the protected index selected and let the wake event do its job.
+            return Process.GetProcessesByName("xplorer-bgw").Length > 0;
+        }
+        catch
+        {
+            return Process.GetProcessesByName("xplorer-bgw").Length > 0;
+        }
     }
 
     private static void SignalWorkerWake()
     {
         var handle = OpenEventW(EventModifyState, false, WakeEventName);
         if (handle == nint.Zero) return;
-        try
-        {
-            _ = SetEvent(handle);
-        }
-        finally
-        {
-            _ = CloseHandle(handle);
-        }
+        try { _ = SetEvent(handle); }
+        finally { _ = CloseHandle(handle); }
     }
 
     private static string ResolveWorkerHostPath() =>
@@ -111,19 +173,13 @@ public static class IndexWorkerService
         return File.Exists(candidate) ? candidate : null;
     }
 
-    private static void TryRun(string host, string argument, bool waitForExit)
+    private static void TryRun(string host, IReadOnlyList<string> arguments, bool waitForExit)
     {
-        try
-        {
-            RunHostCommand(host, argument, waitForExit);
-        }
-        catch
-        {
-            // Disable/uninstall cleanup should be best-effort and must not block the UI.
-        }
+        try { RunHostCommand(host, arguments, waitForExit); }
+        catch { }
     }
 
-    private static void RunHostCommand(string host, string argument, bool waitForExit)
+    private static void RunHostCommand(string host, IReadOnlyList<string> arguments, bool waitForExit)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -132,16 +188,16 @@ public static class IndexWorkerService
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
         };
-        startInfo.ArgumentList.Add(argument);
+        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start {Path.GetFileName(host)}.");
 
         if (!waitForExit) return;
         if (!process.WaitForExit(5000))
-            throw new TimeoutException($"{Path.GetFileName(host)} did not finish {argument} in time.");
+            throw new TimeoutException($"{Path.GetFileName(host)} did not finish the worker command in time.");
         if (process.ExitCode != 0)
-            throw new InvalidOperationException($"{Path.GetFileName(host)} {argument} exited with code {process.ExitCode}.");
+            throw new InvalidOperationException($"{Path.GetFileName(host)} exited with code {process.ExitCode}.");
     }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
