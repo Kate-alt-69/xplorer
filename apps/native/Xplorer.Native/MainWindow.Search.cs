@@ -1,7 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using Windows.System;
 using Xplorer.Native.Models;
 using Xplorer.Native.Services;
@@ -10,51 +9,24 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
-    private TextBox? _searchBox;
-    private ColumnDefinition? _searchColumn;
     private int _searchGeneration;
     private int _searchTotalCount;
     private string _activeSearchQuery = string.Empty;
     private bool _suppressSearchChange;
-    private bool _searchRailHooked;
+    private bool _nativeSearchInitialized;
     private bool _searchUsingIndex;
 
     /// <summary>
-    /// Adds a deterministic local search box beside the address bar. When the Rust metadata index
-    /// for the current volume is available it searches recursively without touching file contents;
-    /// otherwise it falls back to the immediate directory listing.
+    /// Finishes native search behavior for the compiled SearchBox in MainWindow.xaml. The visual
+    /// control itself now exists from the first frame instead of being injected after Loaded; this
+    /// initializer only installs the Ctrl+F accelerator and synchronizes the current placeholder.
     /// </summary>
     private void InitializeNativeSearch()
     {
-        if (_searchBox is not null || AddressBox.Parent is not Grid addressRow) return;
+        if (_nativeSearchInitialized) return;
+        _nativeSearchInitialized = true;
 
-        // The previous fixed 300 px search column could crush the address bar at narrow window
-        // widths. Split the usable row proportionally and cap search at 300 px instead.
-        if (addressRow.ColumnDefinitions.Count > 1)
-            addressRow.ColumnDefinitions[1].Width = new GridLength(2, GridUnitType.Star);
-
-        _searchColumn = new ColumnDefinition
-        {
-            Width = new GridLength(1, GridUnitType.Star),
-            MinWidth = 120,
-            MaxWidth = 300,
-        };
-        addressRow.ColumnDefinitions.Add(_searchColumn);
-        _searchBox = new TextBox
-        {
-            MinWidth = 120,
-            MaxWidth = 300,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            VerticalContentAlignment = VerticalAlignment.Center,
-        };
         RefreshSearchPresentation();
-        Grid.SetColumn(_searchBox, addressRow.ColumnDefinitions.Count - 1);
-        addressRow.Children.Add(_searchBox);
-
-        _searchBox.TextChanged += SearchBox_TextChanged;
-        AddressBox.TextChanged += AddressBox_TextChangedForSearchReset;
-        FileGrid.SelectionChanged += SearchSelectionChanged;
-        FileDetails.SelectionChanged += SearchSelectionChanged;
 
         var accelerator = new KeyboardAccelerator
         {
@@ -67,67 +39,31 @@ public sealed partial class MainWindow
             FocusSearchBox();
         };
         Root.KeyboardAccelerators.Add(accelerator);
-
-        Root.Loaded += (_, _) => HookSearchRailButton();
     }
+
+    private void SearchRailButton_Click(object sender, RoutedEventArgs e) => FocusSearchBox();
 
     private void RefreshSearchPresentation()
     {
-        if (_searchBox is null) return;
-        _searchBox.PlaceholderText = _settingsService.Current.BackgroundIndexing
+        SearchBox.PlaceholderText = _settingsService.Current.BackgroundIndexing
             ? "Search this folder recursively"
             : "Search this folder";
     }
 
-    private void HookSearchRailButton()
-    {
-        if (_searchRailHooked) return;
-
-        foreach (var button in FindVisualDescendants<Button>(Root))
-        {
-            if (!string.Equals(
-                    ToolTipService.GetToolTip(button)?.ToString(),
-                    "Search",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            button.Click += (_, _) => FocusSearchBox();
-            _searchRailHooked = true;
-            break;
-        }
-    }
-
-    private static IEnumerable<T> FindVisualDescendants<T>(DependencyObject root)
-        where T : DependencyObject
-    {
-        var childCount = VisualTreeHelper.GetChildrenCount(root);
-        for (var index = 0; index < childCount; index++)
-        {
-            var child = VisualTreeHelper.GetChild(root, index);
-            if (child is T match) yield return match;
-
-            foreach (var descendant in FindVisualDescendants<T>(child))
-                yield return descendant;
-        }
-    }
-
     private void FocusSearchBox()
     {
-        if (_searchBox is null) return;
-        _searchBox.Focus(FocusState.Programmatic);
-        _searchBox.SelectAll();
+        SearchBox.Focus(FocusState.Programmatic);
+        SearchBox.SelectAll();
     }
 
     private void AddressBox_TextChangedForSearchReset(object sender, TextChangedEventArgs e)
     {
-        if (_searchBox is null || string.IsNullOrEmpty(_searchBox.Text)) return;
+        if (string.IsNullOrEmpty(SearchBox.Text)) return;
 
         _suppressSearchChange = true;
         try
         {
-            _searchBox.Text = string.Empty;
+            SearchBox.Text = string.Empty;
             _activeSearchQuery = string.Empty;
             _searchUsingIndex = false;
             Interlocked.Increment(ref _searchGeneration);
@@ -140,9 +76,9 @@ public sealed partial class MainWindow
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_suppressSearchChange || _searchBox is null) return;
+        if (_suppressSearchChange) return;
 
-        var query = _searchBox.Text.Trim();
+        var query = SearchBox.Text.Trim();
         var generation = Interlocked.Increment(ref _searchGeneration);
         _activeSearchQuery = query;
 
@@ -170,8 +106,7 @@ public sealed partial class MainWindow
         }
 
         if (generation != _searchGeneration ||
-            _searchBox is null ||
-            !string.Equals(query, _searchBox.Text.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(query, SearchBox.Text.Trim(), StringComparison.Ordinal) ||
             !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase))
         {
             return;
@@ -189,8 +124,7 @@ public sealed partial class MainWindow
             var sortMode = _settingsService.GetSortMode(path);
             var entries = await Task.Run(() => EnumerateFolder(path, showHidden, showExtensions, sortMode));
             if (generation != _searchGeneration ||
-                _searchBox is null ||
-                !string.Equals(query, _searchBox.Text.Trim(), StringComparison.Ordinal) ||
+                !string.Equals(query, SearchBox.Text.Trim(), StringComparison.Ordinal) ||
                 !string.Equals(path, CurrentPath, StringComparison.OrdinalIgnoreCase))
             {
                 return;
@@ -216,11 +150,6 @@ public sealed partial class MainWindow
         return tokens.All(token =>
             item.Name.Contains(token, StringComparison.CurrentCultureIgnoreCase) ||
             item.TypeName.Contains(token, StringComparison.CurrentCultureIgnoreCase));
-    }
-
-    private void SearchSelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (!string.IsNullOrEmpty(_activeSearchQuery)) UpdateSearchStatus();
     }
 
     private void UpdateSearchStatus()

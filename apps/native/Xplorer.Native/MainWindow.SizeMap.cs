@@ -7,26 +7,6 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
-    private bool _sizeMapHooked;
-
-    private void InitializeSizeMap()
-    {
-        if (_sizeMapHooked) return;
-
-        foreach (var button in FindVisualDescendants<Button>(Root))
-        {
-            var isSizeMap = FindVisualDescendants<TextBlock>(button)
-                .Any(text => string.Equals(text.Text, "Size Map", StringComparison.OrdinalIgnoreCase));
-            if (!isSizeMap) continue;
-
-            button.IsEnabled = true;
-            ToolTipService.SetToolTip(button, "Show folder space usage");
-            button.Click += SizeMapButton_Click;
-            _sizeMapHooked = true;
-            break;
-        }
-    }
-
     private async void SizeMapButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button anchor) return;

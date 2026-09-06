@@ -140,7 +140,7 @@
             TabCloseRequested="Tabs_TabCloseRequested"
             AddTabButtonClick="Tabs_AddTabButtonClick" />
 
-        <!-- Xplorer-style path bar. Search is injected as the third column by MainWindow.Search.cs. -->
+        <!-- Xplorer-style path + search bar. Both are compiled so the first rendered frame is final. -->
         <Grid
             x:Name="AddressChrome"
             Grid.Row="1"
@@ -153,6 +153,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="2*" />
+                <ColumnDefinition Width="*" MinWidth="120" MaxWidth="300" />
             </Grid.ColumnDefinitions>
             <Button
                 Grid.Column="0"
@@ -173,7 +174,22 @@
                 Foreground="{ThemeResource XplorerTextBrush}"
                 FontSize="12"
                 VerticalContentAlignment="Center"
-                KeyDown="AddressBox_KeyDown" />
+                KeyDown="AddressBox_KeyDown"
+                TextChanged="AddressBox_TextChangedForSearchReset" />
+            <TextBox
+                x:Name="SearchBox"
+                Grid.Column="2"
+                Height="28"
+                MinWidth="120"
+                MaxWidth="300"
+                Padding="9,1"
+                Background="{ThemeResource XplorerSurfaceLightBrush}"
+                BorderBrush="{ThemeResource XplorerBorderLightBrush}"
+                Foreground="{ThemeResource XplorerTextBrush}"
+                FontSize="12"
+                VerticalContentAlignment="Center"
+                PlaceholderText="Search this folder recursively"
+                TextChanged="SearchBox_TextChanged" />
         </Grid>
 
         <!-- Keep this a CommandBar so native file-operation wiring and XML themes remain compatible.
@@ -226,10 +242,11 @@
                     <Rectangle Width="1" Height="16" Fill="{ThemeResource XplorerBorderBrush}" Margin="3,0" />
 
                     <Button
+                        x:Name="SizeMapButton"
                         Style="{StaticResource XplorerChromeButtonStyle}"
                         MinWidth="78"
-                        IsEnabled="False"
-                        ToolTipService.ToolTip="Size Map is not implemented in the native rewrite yet">
+                        ToolTipService.ToolTip="Show folder space usage"
+                        Click="SizeMapButton_Click">
                         <StackPanel Orientation="Horizontal" Spacing="5">
                             <FontIcon Glyph="&#xE9D2;" FontSize="14" />
                             <TextBlock Text="Size Map" FontSize="12" />
@@ -242,13 +259,6 @@
             <AppBarButton Icon="Cut" Label="Cut" />
             <AppBarButton Icon="Paste" Label="Paste" />
             <AppBarButton Icon="Delete" Label="Delete" />
-            <AppBarSeparator />
-            <AppBarButton Label="Terminal" Click="TerminalButton_Click">
-                <AppBarButton.Icon>
-                    <FontIcon Glyph="&#xE756;" />
-                </AppBarButton.Icon>
-            </AppBarButton>
-            <AppBarButton Icon="Setting" Label="Settings" Click="SettingsButton_Click" />
         </CommandBar>
 
         <Grid x:Name="ShellGrid" Grid.Row="3" MinWidth="0">
@@ -572,12 +582,13 @@
                     <Button
                         Style="{StaticResource XplorerRailButtonStyle}"
                         ToolTipService.ToolTip="Inspector"
-                        IsEnabled="False">
+                        Click="InspectorRailButton_Click">
                         <FontIcon Glyph="&#xE890;" FontSize="17" />
                     </Button>
                     <Button
                         Style="{StaticResource XplorerRailButtonStyle}"
-                        ToolTipService.ToolTip="Search">
+                        ToolTipService.ToolTip="Search"
+                        Click="SearchRailButton_Click">
                         <FontIcon Glyph="&#xE721;" FontSize="17" />
                     </Button>
                 </StackPanel>

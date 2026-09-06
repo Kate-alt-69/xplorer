@@ -14,7 +14,6 @@ public sealed partial class MainWindow
     private const double NativeExtensionsRailWidth = 48;
     private bool _chromeLoaded;
     private bool _sidebarCollapsed;
-    private bool _inspectorRailHooked;
 
     /// <summary>
     /// Finishes the visual setup after WinUI has loaded the tree. This deliberately runs after
@@ -29,16 +28,11 @@ public sealed partial class MainWindow
         _settingsService.Saved += ChromeSettings_Saved;
         Closed += (_, _) => _settingsService.Saved -= ChromeSettings_Saved;
 
-        // Keep the native runtime pieces active and then finish the controls that need a loaded
-        // visual tree (rail discovery/flyout anchors). Initializers are idempotent so constructor
-        // and loaded-time wiring cannot accidentally register duplicate handlers.
+        // Search is compiled into XAML now; only its keyboard behavior needs initialization here.
+        // Drive and drag/drop hooks are still native-window services and remain idempotent.
         InitializeNativeSearch();
-        HookSearchRailButton();
-        HookInspectorRailButton();
-        InitializeSizeMap();
         InitializeNativeDriveUx();
         InitializeNativeDragDrop();
-        NormalizeChromeCommands();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
@@ -55,24 +49,6 @@ public sealed partial class MainWindow
             RefreshSearchPresentation();
             RefreshChromeLabels();
         });
-    }
-
-    /// <summary>
-    /// Xplorer has one command surface for each job: file operations stay in the top command bar,
-    /// Terminal stays in the bottom navigation bar, and Settings stays in the extension rail. The
-    /// rewrite XAML still contains legacy Terminal/Settings AppBarButtons for compatibility, so hide
-    /// those duplicates after load instead of leaving two competing entry points or overflow items.
-    /// </summary>
-    private void NormalizeChromeCommands()
-    {
-        foreach (var button in OperationBar.PrimaryCommands.OfType<AppBarButton>())
-        {
-            if (string.Equals(button.Label, "Terminal", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(button.Label, "Settings", StringComparison.OrdinalIgnoreCase))
-            {
-                button.Visibility = Visibility.Collapsed;
-            }
-        }
     }
 
     /// <summary>
@@ -220,27 +196,6 @@ public sealed partial class MainWindow
 
         if (!string.IsNullOrWhiteSpace(target) && Directory.Exists(target))
             await NavigateAsync(target);
-    }
-
-    private void HookInspectorRailButton()
-    {
-        if (_inspectorRailHooked) return;
-
-        foreach (var button in FindVisualDescendants<Button>(Root))
-        {
-            if (!string.Equals(
-                    ToolTipService.GetToolTip(button)?.ToString(),
-                    "Inspector",
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            button.IsEnabled = true;
-            button.Click += InspectorRailButton_Click;
-            _inspectorRailHooked = true;
-            break;
-        }
     }
 
     private void InspectorRailButton_Click(object sender, RoutedEventArgs e)
