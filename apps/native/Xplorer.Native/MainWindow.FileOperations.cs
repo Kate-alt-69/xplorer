@@ -11,50 +11,14 @@ namespace Xplorer.Native;
 public sealed partial class MainWindow
 {
     /// <summary>
-    /// Wires the existing command-bar controls without making file operations depend on XAML
-    /// element names. Copy/Cut use Explorer's CF_HDROP clipboard format, so data can move between
-    /// Xplorer and Explorer. Paste/Delete are executed by the Windows Shell.
+    /// Installs keyboard shortcuts for the statically declared command-bar actions. Copy/Cut use
+    /// Explorer's CF_HDROP clipboard format so data can move between Xplorer and Explorer.
+    /// Paste/Delete are executed by the Windows Shell.
     /// </summary>
     public void InitializeNativeFileOperations()
     {
-        var commandBar = Root.Children.OfType<CommandBar>().FirstOrDefault();
-        if (commandBar is not null)
-        {
-            var newFolderButton = new AppBarButton
-            {
-                Label = "New folder",
-                Icon = new FontIcon { Glyph = "\uE710" },
-            };
-            newFolderButton.Click += async (_, _) => await CreateNewFolderAsync();
-            commandBar.PrimaryCommands.Insert(0, newFolderButton);
-
-            foreach (var command in commandBar.PrimaryCommands)
-            {
-                if (command is not AppBarButton button) continue;
-
-                switch (button.Label)
-                {
-                    case "Copy":
-                        button.Click += (_, _) => CopySelectionToClipboard(move: false);
-                        break;
-                    case "Cut":
-                        button.Click += (_, _) => CopySelectionToClipboard(move: true);
-                        break;
-                    case "Paste":
-                        button.Click += async (_, _) => await PasteFromShellClipboardAsync();
-                        break;
-                    case "Delete":
-                        button.Click += async (_, _) => await DeleteSelectionAsync();
-                        break;
-                }
-            }
-        }
-
         // FileGrid/FileDetails already route DoubleTapped to FileList_ExactDoubleTapped in XAML.
-        // The old rewrite also attached FileList_ItemDoubleTapped here at runtime, leaving two
-        // activation paths on the same control. Depending on routed-event ordering that could open a
-        // file twice or navigate twice. Keep one exact pointer-target handler only.
-
+        // Keep one exact pointer-target handler only so a file cannot open twice.
         InstallAccelerator(VirtualKey.C, VirtualKeyModifiers.Control, () => CopySelectionToClipboard(false));
         InstallAccelerator(VirtualKey.X, VirtualKeyModifiers.Control, () => CopySelectionToClipboard(true));
         InstallAsyncAccelerator(VirtualKey.V, VirtualKeyModifiers.Control, PasteFromShellClipboardAsync);
@@ -67,6 +31,21 @@ public sealed partial class MainWindow
             CreateNewFolderAsync);
         InitializeKeyboardShortcuts();
     }
+
+    private async void NewFolderButton_Click(object sender, RoutedEventArgs e) =>
+        await CreateNewFolderAsync();
+
+    private void CopyButton_Click(object sender, RoutedEventArgs e) =>
+        CopySelectionToClipboard(move: false);
+
+    private void CutButton_Click(object sender, RoutedEventArgs e) =>
+        CopySelectionToClipboard(move: true);
+
+    private async void PasteButton_Click(object sender, RoutedEventArgs e) =>
+        await PasteFromShellClipboardAsync();
+
+    private async void DeleteButton_Click(object sender, RoutedEventArgs e) =>
+        await DeleteSelectionAsync();
 
     private IReadOnlyList<FileSystemItem> GetSelectedOperationItems()
     {
