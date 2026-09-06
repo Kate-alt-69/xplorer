@@ -29,8 +29,11 @@ where
         .map(|value| value.to_string_lossy().into_owned())
         .collect();
 
+    let data_dir = option_path(&arguments, "--data-dir").unwrap_or(data_directory()?);
+    let control_dir = option_path(&arguments, "--control-dir").unwrap_or_else(|| data_dir.clone());
+
     if arguments.iter().any(|value| value == "--register-startup") {
-        platform::register_startup()?;
+        platform::register_startup(&data_dir, &control_dir)?;
         return Ok(0);
     }
     if arguments.iter().any(|value| value == "--unregister-startup") {
@@ -50,7 +53,7 @@ where
     if !service_worker && !once {
         return Ok(2);
     }
-    run_worker(once)
+    run_worker(once, data_dir, control_dir)
 }
 
 fn run_idle_probe() -> io::Result<i32> {
@@ -64,7 +67,13 @@ fn run_idle_probe() -> io::Result<i32> {
     Ok(0)
 }
 
-fn run_worker(once: bool) -> io::Result<i32> {
+fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result<i32> {
+    fs::create_dir_all(&data_dir)?;
+    fs::create_dir_all(&control_dir)?;
+    if indexing_disabled(&control_dir) {
+        return Ok(0);
+    }
+
     let Some(_instance) = SingleInstanceMutex::acquire()? else {
         return Ok(0);
     };
@@ -72,19 +81,21 @@ fn run_worker(once: bool) -> io::Result<i32> {
     let stop_event = StopEvent::create_for_worker()?;
     let wake_event = workspace::WakeEvent::create_for_worker()?;
     platform::enter_background_mode();
-    let data_dir = data_directory()?;
-    fs::create_dir_all(&data_dir)?;
     let cursor_path = data_dir.join("cursor.bin");
     let mut state = CursorState::load(&cursor_path)?;
 
     loop {
-        // If Xplorer opened a folder while the worker was not running, consume that durable hint
-        // before doing any unrelated volume reconciliation.
-        let _ = workspace::refresh_hot_workspace(&data_dir, Some(&stop_event));
+        if indexing_disabled(&control_dir) {
+            return Ok(0);
+        }
+
+        // Hints are intentionally user-owned while the index store may be protected. The worker
+        // treats the hint only as a folder to inspect and never derives an executable/data path from it.
+        let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
 
         reconcile(&data_dir, &mut state, &stop_event);
         state.save(&cursor_path)?;
-        if stop_event.wait(Duration::ZERO)? {
+        if stop_event.wait(Duration::ZERO)? || indexing_disabled(&control_dir) {
             return Ok(0);
         }
         if once {
@@ -94,7 +105,7 @@ fn run_worker(once: bool) -> io::Result<i32> {
         platform::trim_idle_working_set();
         let deadline = Instant::now() + RECONCILE_INTERVAL;
         loop {
-            if stop_event.wait(Duration::ZERO)? {
+            if stop_event.wait(Duration::ZERO)? || indexing_disabled(&control_dir) {
                 return Ok(0);
             }
             let now = Instant::now();
@@ -104,7 +115,10 @@ fn run_worker(once: bool) -> io::Result<i32> {
             let remaining = deadline.saturating_duration_since(now);
             let wait_for = remaining.min(WORKSPACE_WAIT_SLICE);
             if wake_event.wait(wait_for)? {
-                let _ = workspace::refresh_hot_workspace(&data_dir, Some(&stop_event));
+                if indexing_disabled(&control_dir) {
+                    return Ok(0);
+                }
+                let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
                 platform::trim_idle_working_set();
             }
         }
@@ -229,6 +243,24 @@ fn rebuild_snapshot(
         last_scan_unix: now,
         last_seen_unix: now,
     });
+}
+
+fn option_path(arguments: &[String], name: &str) -> Option<PathBuf> {
+    for (index, argument) in arguments.iter().enumerate() {
+        if argument.eq_ignore_ascii_case(name) {
+            return arguments.get(index + 1).filter(|value| !value.starts_with("--")).map(PathBuf::from);
+        }
+        if let Some(value) = argument.strip_prefix(&format!("{name}=")) {
+            if !value.is_empty() {
+                return Some(PathBuf::from(value));
+            }
+        }
+    }
+    None
+}
+
+fn indexing_disabled(control_dir: &Path) -> bool {
+    control_dir.join("indexing.disabled").is_file()
 }
 
 fn data_directory() -> io::Result<PathBuf> {
