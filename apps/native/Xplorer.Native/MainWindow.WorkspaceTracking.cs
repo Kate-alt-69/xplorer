@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml.Controls;
-using Xplorer.Native.Models;
 using Xplorer.Native.Services;
 
 namespace Xplorer.Native;
@@ -10,48 +9,18 @@ public sealed partial class MainWindow
     private FileSystemWatcher? _workspaceWatcher;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _workspaceRefreshTimer;
     private string? _workspacePath;
-    private string? _lastClickedPath;
-    private long _lastClickTick;
 
     /// <summary>
-    /// Adds a native ItemClick fallback for Windows 10, keeps the visible directory live, and
-    /// tells the Rust worker which workspace deserves immediate indexing priority. None of this
-    /// waits for the background index before navigation is allowed.
+    /// Keeps the visible directory live and tells the Rust worker which workspace deserves immediate
+    /// indexing priority. Core item activation is intentionally owned by the file-view input layer,
+    /// so a watcher/indexing failure can never make folders stop opening.
     /// </summary>
     public void InitializeWorkspaceTracking()
     {
-        FileGrid.IsItemClickEnabled = true;
-        FileDetails.IsItemClickEnabled = true;
-        FileGrid.ItemClick += FileList_ItemClickActivation;
-        FileDetails.ItemClick += FileList_ItemClickActivation;
         AddressBox.TextChanged += AddressBox_WorkspaceTextChanged;
 
         TrackWorkspace(CurrentPath, forceHint: true);
         Closed += (_, _) => DisposeWorkspaceTracking();
-    }
-
-    private async void FileList_ItemClickActivation(object sender, ItemClickEventArgs e)
-    {
-        if (e.ClickedItem is not FileSystemItem item) return;
-
-        // WinUI's DoubleTapped routing is inconsistent with Extended selection on some Windows 10
-        // builds. Detect the second native ItemClick as a reliable fallback. The routed
-        // DoubleTapped handler may also fire for the same gesture; both now share the deduplicated
-        // ActivateFileSystemItemAsync path so a file can never launch twice from one double-click.
-        var now = Environment.TickCount64;
-        var threshold = Math.Clamp((long)GetDoubleClickTime(), 250L, 1000L);
-        var isDoubleActivation =
-            string.Equals(_lastClickedPath, item.FullPath, StringComparison.OrdinalIgnoreCase)
-            && now - _lastClickTick >= 0
-            && now - _lastClickTick <= threshold;
-
-        _lastClickedPath = item.FullPath;
-        _lastClickTick = now;
-        if (!isDoubleActivation) return;
-
-        _lastClickedPath = null;
-        _lastClickTick = 0;
-        await ActivateFileSystemItemAsync(item);
     }
 
     private void AddressBox_WorkspaceTextChanged(object sender, TextChangedEventArgs e)
