@@ -5,6 +5,8 @@ mod delta;
 #[cfg(windows)]
 mod diagnostics;
 #[cfg(windows)]
+mod diagnostics_cli;
+#[cfg(windows)]
 mod host;
 #[cfg(windows)]
 mod index;
@@ -23,7 +25,7 @@ mod workspace;
 fn main() {
     let arguments: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
     let result = if diagnostics::has_test_folder(&arguments) {
-        diagnostics::run_test_folder(&arguments)
+        diagnostics_cli::run(&arguments)
     } else if is_worker_command(&arguments) {
         worker::run(arguments.into_iter())
     } else {
