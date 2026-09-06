@@ -9,7 +9,7 @@ namespace Xplorer.Native.Services;
 /// <summary>
 /// Extra diagnostics used only when the Rust host launches the UI with XPLORER_DEBUG_STARTUP=1.
 /// These probes deliberately run before MainWindow.InitializeComponent so a machine-specific
-/// WinUI/resource problem can be distinguished from a bug in Xplorer's compiled MainWindow.xaml.
+/// WinUI/resource problem can be distinguished from a bug in Xplorer's own compiled MainWindow.xaml.
 /// </summary>
 public static class UiStartupDiagnostics
 {
@@ -125,6 +125,10 @@ public static class UiStartupDiagnostics
         ProbeAction("SettingsDialog compiled XAML", static () =>
         {
             _ = new SettingsDialog(new SettingsService());
+        });
+        ProbeAction("TerminalWorkspaceDialog compiled XAML", static () =>
+        {
+            using var dialog = new TerminalWorkspaceDialog(new SettingsService());
         });
 
         CrashLogService.Log("UI preflight completed.");

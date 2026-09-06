@@ -176,7 +176,15 @@ internal sealed class ConPtyTerminalSession : IDisposable
         if (_disposed || !IsRunning || string.IsNullOrEmpty(text)) return;
         var bytes = Encoding.UTF8.GetBytes(text);
 
-        await _writeGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await _writeGate.WaitAsync().ConfigureAwait(false);
+        }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+            return;
+        }
+
         try
         {
             if (_disposed || !IsRunning) return;
@@ -186,12 +194,15 @@ internal sealed class ConPtyTerminalSession : IDisposable
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
         }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+        }
         catch (IOException) when (_disposed || !IsRunning)
         {
         }
         finally
         {
-            _writeGate.Release();
+            try { _writeGate.Release(); } catch (ObjectDisposedException) { }
         }
     }
 
@@ -242,8 +253,17 @@ internal sealed class ConPtyTerminalSession : IDisposable
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
         }
+        catch (ObjectDisposedException) when (_disposed)
+        {
+        }
         catch (IOException) when (_disposed)
         {
+        }
+        catch (Exception ex)
+        {
+            // Surface unexpected PTY failures inside the terminal instead of letting an unobserved
+            // background task fault later in the application lifetime.
+            OutputReceived?.Invoke(this, $"\r\n[Xplorer terminal I/O error: {ex.Message}]\r\n");
         }
         finally
         {
@@ -280,8 +300,10 @@ internal sealed class ConPtyTerminalSession : IDisposable
         }
 
         try { _output.Dispose(); } catch { }
-        _shutdown.Dispose();
-        _writeGate.Dispose();
+
+        // Do not synchronously dispose the cancellation/semaphore primitives here. A pending async
+        // pipe read/write can still be unwinding on a pool thread; both are managed and become
+        // collectible with this session without racing that teardown path.
         GC.SuppressFinalize(this);
     }
 
