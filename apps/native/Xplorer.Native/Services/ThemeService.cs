@@ -198,7 +198,7 @@ public static class ThemeService
         throw new InvalidDataException($"<{name}> must be #RRGGBB or #AARRGGBB.");
     }
 
-    private static double ReadDouble(XElement parent, string name, double fallback, double man, double max)
+    private static double ReadDouble(XElement parent, string name, double fallback, double min, double max)
     {
         var element = parent.Element(name);
         if (element is null) return fallback;

@@ -23,6 +23,8 @@ public sealed partial class MainWindow
     private bool _reloadSettingsBeforeTheme;
     private bool _pendingThemeAtStartup;
     private bool _pendingThemePromptShown;
+    private string? _lastThemeMode;
+    private string? _lastThemeFileName;
     private XplorerThemeDefinition? _previewThemeDefinition;
 
     public void InitializeXmlThemeSupport()
@@ -43,6 +45,7 @@ public sealed partial class MainWindow
         _settingsService.Saved += SettingsService_Saved;
 
         ApplyXmlTheme();
+        RememberThemeIdentity();
         ConfigureSettingsThemeWatcher();
 
         _pendingThemeAtStartup = ThemeImportService.HasPendingPreview();
@@ -106,6 +109,7 @@ public sealed partial class MainWindow
         BottomBar.Background = rail;
         FileArea.Background = new SolidColorBrush(Windows.UI.Color.FromArgb(0, 0, 0, 0));
         SetXmlAccent(theme.Accent);
+        ApplyFileItemPalette(theme.Surface, theme.Accent);
 
         SidebarBorder.Visibility = _sidebarCollapsed ? Visibility.Collapsed : Visibility.Visible;
         ShellGrid.ColumnDefinitions[0].Width = _sidebarCollapsed
@@ -158,14 +162,31 @@ public sealed partial class MainWindow
     {
         try
         {
-            ApplyTheme();
-            ApplyThemeOrPreview();
+            // View/sort/visibility saves must not repaint the whole window. Reload the theme only
+            // when its identity changed; XML file edits are handled independently by the watcher.
+            if (HasThemeIdentityChanged())
+            {
+                ApplyTheme();
+                ApplyThemeOrPreview();
+                RememberThemeIdentity();
+            }
+
             await NavigateAsync(CurrentPath, pushHistory: false);
         }
         catch (Exception ex)
         {
             StatusText.Text = $"Setting saved but live refresh failed: {ex.Message}";
         }
+    }
+
+    private bool HasThemeIdentityChanged() =>
+        !string.Equals(_lastThemeMode, _settingsService.Current.Theme, StringComparison.OrdinalIgnoreCase) ||
+        !string.Equals(_lastThemeFileName, _settingsService.Current.ThemeFileName, StringComparison.OrdinalIgnoreCase);
+
+    private void RememberThemeIdentity()
+    {
+        _lastThemeMode = _settingsService.Current.Theme;
+        _lastThemeFileName = _settingsService.Current.ThemeFileName;
     }
 
     private async void PendingThemeStartup_Activated(object sender, WindowActivatedEventArgs args)
@@ -224,16 +245,35 @@ public sealed partial class MainWindow
         }
     }
 
+    private void ApplyFileItemPalette(Windows.UI.Color surface, Windows.UI.Color accent)
+    {
+        Root.Resources["ListViewItemBackgroundPointerOver"] =
+            new SolidColorBrush(Windows.UI.Color.FromArgb(0x38, surface.R, surface.G, surface.B));
+        Root.Resources["ListViewItemBackgroundPressed"] =
+            new SolidColorBrush(Windows.UI.Color.FromArgb(0x58, surface.R, surface.G, surface.B));
+        Root.Resources["ListViewItemBackgroundSelected"] =
+            new SolidColorBrush(Windows.UI.Color.FromArgb(0x33, accent.R, accent.G, accent.B));
+        Root.Resources["ListViewItemBackgroundSelectedPointerOver"] =
+            new SolidColorBrush(Windows.UI.Color.FromArgb(0x48, accent.R, accent.G, accent.B));
+        Root.Resources["ListViewItemBackgroundSelectedPressed"] =
+            new SolidColorBrush(Windows.UI.Color.FromArgb(0x5c, accent.R, accent.G, accent.B));
+        Root.Resources["ListViewItemSelectionIndicatorBrush"] = new SolidColorBrush(accent);
+    }
+
     private void SetXmlAccent(Windows.UI.Color color)
     {
         if (Root.Resources.TryGetValue("XplorerAccentBrush", out var resource) &&
             resource is SolidColorBrush brush)
         {
             brush.Color = color;
-            return;
+        }
+        else
+        {
+            Root.Resources["XplorerAccentBrush"] = new SolidColorBrush(color);
         }
 
-        Root.Resources["XplorerAccentBrush"] = new SolidColorBrush(color);
+        Root.Resources["XplorerAccentSoftBrush"] = new SolidColorBrush(
+            Windows.UI.Color.FromArgb(0x33, color.R, color.G, color.B));
     }
 
     private static ItemsPanelTemplate CreateItemsPanel(double width, double height)
@@ -344,10 +384,18 @@ public sealed partial class MainWindow
                     if (shouldReloadSettings)
                     {
                         if (!_settingsService.TryReload()) return;
-                        ApplyTheme();
+                        var themeChanged = HasThemeIdentityChanged();
+                        if (themeChanged)
+                        {
+                            ApplyTheme();
+                            ApplyThemeOrPreview();
+                            RememberThemeIdentity();
+                        }
                         RefreshSearchPresentation();
+                        return;
                     }
 
+                    // XML watcher events are theme changes by definition.
                     ApplyThemeOrPreview();
                 };
             }

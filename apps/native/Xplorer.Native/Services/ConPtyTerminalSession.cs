@@ -45,8 +45,11 @@ internal sealed class ConPtyTerminalSession : IDisposable
         DisplayName = launch.DisplayName;
         _pseudoConsole = pseudoConsole;
         _processHandle = processHandle;
-        _input = new FileStream(inputWrite, FileAccess.Write, 4096, isAsync: true);
-        _output = new FileStream(outputRead, FileAccess.Read, 4096, isAsync: true);
+        // CreatePipe returns synchronous handles. Marking them async makes FileStream reject the
+        // handle before the shell session can be used. Xplorer services these blocking handles on
+        // worker threads instead, which is the correct model for anonymous ConPTY pipes.
+        _input = new FileStream(inputWrite, FileAccess.Write, 4096, isAsync: false);
+        _output = new FileStream(outputRead, FileAccess.Read, 4096, isAsync: false);
     }
 
     public static ConPtyTerminalSession Start(string workingDirectory, TerminalLaunchSpec launch)
@@ -168,7 +171,7 @@ internal sealed class ConPtyTerminalSession : IDisposable
     public void StartReading()
     {
         if (_disposed || Interlocked.Exchange(ref _pumpStarted, 1) != 0) return;
-        _outputPump = Task.Run(PumpOutputAsync);
+        _outputPump = Task.Run(PumpOutput);
     }
 
     public async Task SendAsync(string text)
@@ -188,8 +191,12 @@ internal sealed class ConPtyTerminalSession : IDisposable
         try
         {
             if (_disposed || !IsRunning) return;
-            await _input.WriteAsync(bytes, _shutdown.Token).ConfigureAwait(false);
-            await _input.FlushAsync(_shutdown.Token).ConfigureAwait(false);
+            await Task.Run(() =>
+            {
+                if (_disposed || !IsRunning) return;
+                _input.Write(bytes, 0, bytes.Length);
+                _input.Flush();
+            }, _shutdown.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
         {
@@ -217,7 +224,7 @@ internal sealed class ConPtyTerminalSession : IDisposable
         _ = ResizePseudoConsole(_pseudoConsole, size);
     }
 
-    private async Task PumpOutputAsync()
+    private void PumpOutput()
     {
         var decoder = Encoding.UTF8.GetDecoder();
         var bytes = new byte[8192];
@@ -227,7 +234,9 @@ internal sealed class ConPtyTerminalSession : IDisposable
         {
             while (!_shutdown.IsCancellationRequested)
             {
-                var read = await _output.ReadAsync(bytes, _shutdown.Token).ConfigureAwait(false);
+                // The pipe is synchronous; this pump itself already runs on a worker thread.
+                // Blocking Read is intentional and Dispose/ClosePseudoConsole tears it down.
+                var read = _output.Read(bytes, 0, bytes.Length);
                 if (read == 0) break;
 
                 var byteOffset = 0;
@@ -261,8 +270,6 @@ internal sealed class ConPtyTerminalSession : IDisposable
         }
         catch (Exception ex)
         {
-            // Surface unexpected PTY failures inside the terminal instead of letting an unobserved
-            // background task fault later in the application lifetime.
             OutputReceived?.Invoke(this, $"\r\n[Xplorer terminal I/O error: {ex.Message}]\r\n");
         }
         finally
@@ -301,9 +308,9 @@ internal sealed class ConPtyTerminalSession : IDisposable
 
         try { _output.Dispose(); } catch { }
 
-        // Do not synchronously dispose the cancellation/semaphore primitives here. A pending async
-        // pipe read/write can still be unwinding on a pool thread; both are managed and become
-        // collectible with this session without racing that teardown path.
+        // A worker may still be unwinding from a blocked read/write after the handles close. Keep
+        // these managed primitives alive until the session itself is collected to avoid teardown
+        // races with that worker.
         GC.SuppressFinalize(this);
     }
 

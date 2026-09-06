@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 using Xplorer.Native.Models;
@@ -105,7 +106,31 @@ public sealed partial class MainWindow
                 : Color.FromArgb(0xff, 0x63, 0x66, 0xf1);
         }
 
+        ApplyBuiltInFileItemPalette(useLight);
         SetNativeCaptionTheme(useLight);
+    }
+
+    private void ApplyBuiltInFileItemPalette(bool light)
+    {
+        var accent = light
+            ? Color.FromArgb(0xff, 0x8b, 0x5c, 0xf6)
+            : Color.FromArgb(0xff, 0xa7, 0x8b, 0xfa);
+        var hover = light
+            ? Color.FromArgb(0xff, 0xf1, 0xf5, 0xf9)
+            : Color.FromArgb(0x20, 0x16, 0x16, 0x30);
+        var pressed = light
+            ? Color.FromArgb(0xff, 0xe2, 0xe8, 0xf0)
+            : Color.FromArgb(0x2a, 0x16, 0x16, 0x30);
+
+        Root.Resources["ListViewItemBackgroundPointerOver"] = new SolidColorBrush(hover);
+        Root.Resources["ListViewItemBackgroundPressed"] = new SolidColorBrush(pressed);
+        Root.Resources["ListViewItemBackgroundSelected"] =
+            new SolidColorBrush(Color.FromArgb(light ? (byte)0x24 : (byte)0x33, accent.R, accent.G, accent.B));
+        Root.Resources["ListViewItemBackgroundSelectedPointerOver"] =
+            new SolidColorBrush(Color.FromArgb(light ? (byte)0x30 : (byte)0x48, accent.R, accent.G, accent.B));
+        Root.Resources["ListViewItemBackgroundSelectedPressed"] =
+            new SolidColorBrush(Color.FromArgb(light ? (byte)0x3d : (byte)0x56, accent.R, accent.G, accent.B));
+        Root.Resources["ListViewItemSelectionIndicatorBrush"] = new SolidColorBrush(accent);
     }
 
     private static LinearGradientBrush CreateOriginalXplorerGradient()
@@ -164,6 +189,25 @@ public sealed partial class MainWindow
 
         SidebarBorder.Visibility = Visibility.Visible;
         ShellGrid.ColumnDefinitions[0].Width = new GridLength(GetExpandedSidebarWidth());
+    }
+
+    private void SidebarResizeGrip_ManipulationDelta(object sender, ManipulationDeltaRoutedEventArgs e)
+    {
+        if (_sidebarCollapsed) return;
+
+        var current = SidebarBorder.ActualWidth > 0
+            ? SidebarBorder.ActualWidth
+            : ShellGrid.ColumnDefinitions[0].ActualWidth;
+        var width = Math.Clamp(current + e.Delta.Translation.X, 168, 480);
+        ShellGrid.ColumnDefinitions[0].Width = new GridLength(width);
+        e.Handled = true;
+    }
+
+    private void SidebarResizeGrip_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if (_sidebarCollapsed) return;
+        ShellGrid.ColumnDefinitions[0].Width = new GridLength(GetExpandedSidebarWidth());
+        e.Handled = true;
     }
 
     private double GetExpandedSidebarWidth()

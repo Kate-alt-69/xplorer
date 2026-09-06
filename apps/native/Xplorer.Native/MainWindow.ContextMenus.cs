@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -12,6 +13,8 @@ namespace Xplorer.Native;
 public sealed partial class MainWindow
 {
     private const long FileActivationDedupWindowMs = 180;
+    private string? _lastItemClickPath;
+    private long _lastItemClickTick;
     private string? _lastActivatedPath;
     private long _lastActivationDispatchTick;
 
@@ -72,6 +75,37 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
+    /// Windows 10 can lose DoubleTapped on deeply templated ListView/GridView content. ItemClick is
+    /// the compatibility fallback, but remains Explorer-style double-click rather than opening on
+    /// the first click. The OS double-click interval is respected.
+    /// </summary>
+    private async void FileList_KeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (e.Key != VirtualKey.Enter || GetSelectedItem() is not { } item) return;
+        e.Handled = true;
+        await ActivateFileSystemItemAsync(item);
+    }
+
+    private async void FileList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not FileSystemItem item) return;
+
+        var now = Environment.TickCount64;
+        var interval = Math.Max(200u, GetDoubleClickTime());
+        var isSecondClick = string.Equals(_lastItemClickPath, item.FullPath, StringComparison.OrdinalIgnoreCase) &&
+                            now - _lastItemClickTick >= 0 &&
+                            now - _lastItemClickTick <= interval;
+
+        _lastItemClickPath = item.FullPath;
+        _lastItemClickTick = now;
+        if (!isSecondClick) return;
+
+        _lastItemClickPath = null;
+        _lastItemClickTick = 0;
+        await ActivateFileSystemItemAsync(item);
+    }
+
+    /// <summary>
     /// One activation gate is shared by the routed DoubleTapped path and the Windows 10 ItemClick
     /// fallback. Both events can be raised for the same physical double-click; without this guard a
     /// file can launch twice and a folder can push duplicate navigation history entries.
@@ -121,4 +155,7 @@ public sealed partial class MainWindow
 
         return null;
     }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDoubleClickTime();
 }
