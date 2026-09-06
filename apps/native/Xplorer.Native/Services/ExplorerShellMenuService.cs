@@ -1,12 +1,13 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 
 namespace Xplorer.Native.Services;
 
 /// <summary>
-/// Compatibility-first host for item context menus. Unlike the metadata snapshot cache this keeps
-/// the Shell's live IContextMenu/IContextMenu2/IContextMenu3 object attached for the entire popup
-/// lifetime, asks the Shell to synchronously materialize cascades, and advertises the item-view and
-/// rename capabilities that Xplorer actually provides.
+/// Compatibility-first host for item context menus. The real Shell IContextMenu remains alive for
+/// the entire popup lifetime so registry cascades and owner-drawn extensions behave exactly as they
+/// do in Explorer. Xplorer-owned commands occupy a reserved low command-ID range above the Shell
+/// section without remapping or snapshotting third-party commands.
 /// </summary>
 internal sealed class ExplorerShellMenuService : IDisposable
 {
@@ -16,6 +17,8 @@ internal sealed class ExplorerShellMenuService : IDisposable
     private const uint CmfExtendedVerbs = 0x00000100;
     private const uint CmfSyncCascadeMenu = 0x00001000;
 
+    private const uint MfString = 0x0000;
+    private const uint MfSeparator = 0x0800;
     private const uint TpmRightButton = 0x0002;
     private const uint TpmReturnCmd = 0x0100;
     private const uint WmDrawItem = 0x002B;
@@ -23,6 +26,7 @@ internal sealed class ExplorerShellMenuService : IDisposable
     private const uint WmInitMenuPopup = 0x0117;
     private const uint WmMenuChar = 0x0120;
     private const uint WmNull = 0x0000;
+    private const uint XplorerCommandFirst = 0x0100;
     private const uint ShellCommandFirst = 0x1000;
     private const uint ShellCommandLast = 0x7FFF;
     private const int VkShift = 0x10;
@@ -43,18 +47,24 @@ internal sealed class ExplorerShellMenuService : IDisposable
         _subclassProc = WindowSubclassProc;
     }
 
-    public ShellMenuShowResult ShowForPaths(nint ownerHwnd, IReadOnlyCollection<string> paths)
+    public ExplorerShellMenuResult ShowForPaths(
+        nint ownerHwnd,
+        IReadOnlyCollection<string> paths,
+        IReadOnlyList<XplorerContextMenuEntry>? xplorerEntries = null)
     {
         ThrowIfDisposed();
         var normalized = NormalizeSelection(paths);
-        if (normalized.Length == 0) return ShellMenuShowResult.Cancelled;
+        if (normalized.Length == 0) return ExplorerShellMenuResult.Cancelled;
 
         using var shell = CreateSelectionContext(ownerHwnd, normalized);
         var menu = CreatePopupMenu();
-        if (menu == 0) return ShellMenuShowResult.Cancelled;
+        if (menu == 0) return ExplorerShellMenuResult.Cancelled;
 
         try
         {
+            var xplorerCommands = AppendXplorerCommands(menu, xplorerEntries);
+            var shellInsertIndex = (uint)Math.Max(0, GetMenuItemCount(menu));
+
             var queryFlags = CmfCanRename | CmfItemMenu | CmfSyncCascadeMenu;
 
             // Explorer exposes extra shell verbs only for Shift+RMB. Preserve that contract instead
@@ -70,23 +80,47 @@ internal sealed class ExplorerShellMenuService : IDisposable
             Marshal.ThrowExceptionForHR(
                 shell.ContextMenu.QueryContextMenu(
                     menu,
-                    0,
+                    shellInsertIndex,
                     ShellCommandFirst,
                     ShellCommandLast,
                     queryFlags));
 
             var command = TrackNativeMenu(ownerHwnd, menu, shell.ContextMenu);
+            if (xplorerCommands.TryGetValue(command, out var xplorerCommand))
+                return ExplorerShellMenuResult.ForXplorer(xplorerCommand);
+
             if (command < ShellCommandFirst || command > ShellCommandLast)
-                return ShellMenuShowResult.Cancelled;
+                return ExplorerShellMenuResult.Cancelled;
 
             InvokeShellCommand(shell.ContextMenu, ownerHwnd, command - ShellCommandFirst);
-            return ShellMenuShowResult.Invoked;
+            return ExplorerShellMenuResult.ShellInvoked;
         }
         finally
         {
             EndMessageForwarding();
             DestroyMenu(menu);
         }
+    }
+
+    private static Dictionary<uint, XplorerContextCommand> AppendXplorerCommands(
+        nint menu,
+        IReadOnlyList<XplorerContextMenuEntry>? entries)
+    {
+        var map = new Dictionary<uint, XplorerContextCommand>();
+        if (entries is null || entries.Count == 0) return map;
+
+        var next = XplorerCommandFirst;
+        foreach (var entry in entries.Take(64))
+        {
+            if (!AppendMenuW(menu, MfString, next, entry.Label))
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not add an Xplorer context-menu command.");
+            map[next] = entry.Command;
+            next++;
+        }
+
+        if (map.Count > 0 && !AppendMenuW(menu, MfSeparator, 0, null))
+            throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not add the Xplorer context-menu separator.");
+        return map;
     }
 
     private static string[] NormalizeSelection(IReadOnlyCollection<string> paths)
@@ -431,6 +465,12 @@ internal sealed class ExplorerShellMenuService : IDisposable
     [DllImport("user32.dll")]
     private static extern bool DestroyMenu(nint hMenu);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool AppendMenuW(nint hMenu, uint uFlags, nuint uIDNewItem, string? lpNewItem);
+
+    [DllImport("user32.dll")]
+    private static extern int GetMenuItemCount(nint hMenu);
+
     [DllImport("user32.dll")]
     private static extern uint TrackPopupMenuEx(
         nint hmenu,
@@ -470,4 +510,13 @@ internal sealed class ExplorerShellMenuService : IDisposable
 
     [DllImport("ole32.dll")]
     private static extern void CoTaskMemFree(nint pv);
+}
+
+internal readonly record struct ExplorerShellMenuResult(
+    bool ShellWasInvoked,
+    XplorerContextCommand? XplorerCommand)
+{
+    public static ExplorerShellMenuResult Cancelled => new(false, null);
+    public static ExplorerShellMenuResult ShellInvoked => new(true, null);
+    public static ExplorerShellMenuResult ForXplorer(XplorerContextCommand command) => new(false, command);
 }
