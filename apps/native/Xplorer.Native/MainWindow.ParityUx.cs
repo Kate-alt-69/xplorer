@@ -25,8 +25,9 @@ public sealed partial class MainWindow
         FileGrid.KeyDown += FileList_KeyDown;
         FileDetails.KeyDown += FileList_KeyDown;
 
-        FileGrid.Background = null;
-        FileDetails.Background = null;
+        // MainWindow.xaml explicitly owns the transparent file surfaces. Do not ClearValue or set
+        // these to null here: that would allow the stock WinUI ListView/GridView background to
+        // bleed through when switching view modes.
 
         if (SidebarBorder.Child is not Grid sidebarGrid) return;
 
