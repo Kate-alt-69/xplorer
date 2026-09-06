@@ -63,6 +63,7 @@ FunctionEnd
 
 Function StopRunningXplorer
   ; taskkill returning "not found" is harmless during a first install.
+  nsExec::ExecToLog 'taskkill /IM xplorer-bgw.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM xplorer.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /T /F'
   Sleep 250
@@ -214,8 +215,8 @@ Section "Xplorer" SEC_MAIN
 
   ; Background indexing is enabled by default in the native settings model. Register and start the
   ; zero-UI Rust worker during installation so it does not depend on the first successful UI launch.
-  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer.exe" --service-worker'
-  Exec '"$INSTDIR\xplorer.exe" --service-worker'
+  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer-bgw.exe" --service-worker'
+  Exec '"$INSTDIR\xplorer-bgw.exe" --service-worker'
 SectionEnd
 
 Section "Uninstall"
@@ -223,6 +224,9 @@ Section "Uninstall"
 
   ; Keep uninstall independent from WinUI startup. Registry cleanup below owns integration removal,
   ; so a broken UI can never prevent uninstall from completing.
+  IfFileExists "$INSTDIR\xplorer-bgw.exe" 0 +3
+    nsExec::ExecToLog '"$INSTDIR\xplorer-bgw.exe" --stop-service-worker'
+    Goto +2
   IfFileExists "$INSTDIR\xplorer.exe" 0 +2
     nsExec::ExecToLog '"$INSTDIR\xplorer.exe" --stop-service-worker'
 
@@ -245,8 +249,15 @@ Section "Uninstall"
   DeleteRegKey HKCU "${INSTALL_KEY}"
 
   ; The worker can have an executable image mapping for a short time after it receives the stop event.
-  ; Delete the two executable entry points explicitly after taskkill, retry once, then let NSIS mark
+  ; Delete the executable entry points explicitly after taskkill, retry once, then let NSIS mark
   ; anything still transiently locked for deletion at reboot rather than leaving a half-installed tree.
+  ClearErrors
+  Delete "$INSTDIR\xplorer-bgw.exe"
+  ${If} ${Errors}
+    Sleep 750
+    ClearErrors
+    Delete /REBOOTOK "$INSTDIR\xplorer-bgw.exe"
+  ${EndIf}
   ClearErrors
   Delete "$INSTDIR\xplorer.exe"
   ${If} ${Errors}
@@ -267,6 +278,7 @@ Section "Uninstall"
 SectionEnd
 
 Function un.StopRunningXplorer
+  nsExec::ExecToLog 'taskkill /IM xplorer-bgw.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM xplorer.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /T /F'
   Sleep 500

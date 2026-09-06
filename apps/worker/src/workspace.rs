@@ -1,5 +1,4 @@
 use std::{
-    env,
     ffi::{c_void, OsStr, OsString},
     fs::{self, File},
     io::{self, BufWriter, Write},

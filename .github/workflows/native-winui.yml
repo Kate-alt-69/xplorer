@@ -239,10 +239,13 @@ jobs:
 
           Invoke-BoundedProcess -FilePath $setup -Arguments '/S' -Label 'First installer run'
           if (-not (Test-Path (Join-Path $installDir 'xplorer.exe'))) { throw 'Installed Rust host missing.' }
+          if (-not (Test-Path (Join-Path $installDir 'xplorer-bgw.exe'))) { throw 'Installed background worker image missing.' }
           if (-not (Test-Path (Join-Path $installDir 'Xplorer.Native.exe'))) { throw 'Installed WinUI executable missing.' }
           if (-not (Test-Path $shellVerb)) { throw 'Installed shell integration is missing.' }
-          if (-not (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue)) { throw 'Background worker startup registration is missing.' }
-          if (-not (Get-Process -Name xplorer -ErrorAction SilentlyContinue)) { throw 'Background worker was not started by the installer.' }
+          $workerRun = (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue).'Xplorer Index Worker'
+          if (-not $workerRun) { throw 'Background worker startup registration is missing.' }
+          if ($workerRun -notmatch 'xplorer-bgw\.exe') { throw "Background worker startup registration points at the wrong executable: $workerRun" }
+          if (-not (Get-Process -Name xplorer-bgw -ErrorAction SilentlyContinue)) { throw 'Background worker was not started by the installer.' }
 
           New-Item -ItemType Directory -Force -Path $themeDir | Out-Null
           Set-Content -Path $sentinel -Value 'preserve-me' -NoNewline
@@ -250,10 +253,13 @@ jobs:
           Invoke-BoundedProcess -FilePath $setup -Arguments '/S' -Label 'Upgrade/reinstall'
           if (-not (Test-Path $sentinel)) { throw 'Installer upgrade removed Xplorer user data.' }
           if (-not (Test-Path $shellVerb)) { throw 'Upgrade lost Xplorer shell integration.' }
-          if (-not (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue)) { throw 'Upgrade lost background worker startup registration.' }
+          $workerRunAfterUpgrade = (Get-ItemProperty -Path $runKey -Name 'Xplorer Index Worker' -ErrorAction SilentlyContinue).'Xplorer Index Worker'
+          if (-not $workerRunAfterUpgrade) { throw 'Upgrade lost background worker startup registration.' }
+          if ($workerRunAfterUpgrade -notmatch 'xplorer-bgw\.exe') { throw "Upgrade worker registration points at the wrong executable: $workerRunAfterUpgrade" }
 
           $uninstaller = Join-Path $installDir 'Uninstall.exe'
           Invoke-BoundedProcess -FilePath $uninstaller -Arguments '/S' -Label 'Uninstaller'
+          if (-not (Wait-PathRemoved -Path (Join-Path $installDir 'xplorer-bgw.exe'))) { throw 'Uninstaller left the background worker behind.' }
           if (-not (Wait-PathRemoved -Path (Join-Path $installDir 'xplorer.exe'))) { throw 'Uninstaller left the Rust host behind.' }
           if (-not (Wait-PathRemoved -Path (Join-Path $installDir 'Xplorer.Native.exe'))) { throw 'Uninstaller left the native UI behind.' }
           if (Test-Path $shellVerb) { throw 'Uninstaller left Xplorer shell integration behind.' }

@@ -102,7 +102,22 @@ pub fn apply_changes(
             &mut parent_cache,
             change.parent_file_reference_number,
         )?;
-        let path = parent.join(OsString::from_wide(&change.file_name));
+        let historical_path = parent.join(OsString::from_wide(&change.file_name));
+        let delete_or_old_name =
+            meaningful_reason & (USN_REASON_FILE_DELETE | USN_REASON_RENAME_OLD_NAME) != 0;
+
+        // USN_RECORD_V2 gives us both the object's FRN and its parent FRN. For live/upsert and
+        // RENAME_NEW_NAME events, resolve the object by its own FRN first so moves/renames cannot
+        // be mis-addressed by a stale parent+name pair. Deleted/old-name records intentionally use
+        // the historic parent+filename path because the object may already be gone from the MFT.
+        let path = if delete_or_old_name {
+            historical_path
+        } else {
+            resolver
+                .resolve(change.file_reference_number)
+                .unwrap_or(historical_path)
+        };
+
         let relative = match path.strip_prefix(&root) {
             Ok(relative) => relative,
             Err(_) => {
@@ -114,7 +129,7 @@ pub fn apply_changes(
         };
         let relative_path: Vec<u16> = relative.as_os_str().encode_wide().collect();
 
-        if meaningful_reason & (USN_REASON_FILE_DELETE | USN_REASON_RENAME_OLD_NAME) != 0 {
+        if delete_or_old_name {
             prepared.push(PreparedEvent {
                 kind: DELTA_KIND_DELETE,
                 flags: 0,
