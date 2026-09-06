@@ -30,7 +30,7 @@ public static class HotWorkspaceViewService
         try
         {
             var fullFolder = Path.GetFullPath(folder);
-            var path = Path.Combine(IndexDirectory, "workspace.xwidx");
+            var path = Path.Combine(IndexLocationService.ActiveIndexDirectory, "workspace.xwidx");
             if (!File.Exists(path)) return null;
 
             using var stream = new FileStream(
@@ -158,11 +158,6 @@ public static class HotWorkspaceViewService
         try { return DateTime.FromFileTimeUtc((long)fileTime); }
         catch (ArgumentOutOfRangeException) { return default; }
     }
-
-    private static string IndexDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "Xplorer",
-        "Index");
 
     private readonly record struct WorkspaceEntry(
         string RelativePath,
