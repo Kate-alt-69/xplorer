@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Windows.Storage;
 using Windows.System;
 using Xplorer.Native.Models;
 using Xplorer.Native.Services;
@@ -31,6 +30,7 @@ public sealed partial class MainWindow : Window
     {
         InitializeComponent();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        Closed += (_, _) => _shellContextMenu.Dispose();
         InitializeNativeFileOperations();
         ApplyTheme();
         RefreshDrives();
@@ -124,8 +124,7 @@ public sealed partial class MainWindow : Window
 
         var searchQuery = _activeSearchQuery;
         if (!string.IsNullOrWhiteSpace(searchQuery) &&
-            _searchBox is not null &&
-            string.Equals(searchQuery, _searchBox.Text.Trim(), StringComparison.Ordinal))
+            string.Equals(searchQuery, SearchBox.Text.Trim(), StringComparison.Ordinal))
         {
             IndexedSearchService.SearchResult? indexed = null;
             if (_settingsService.Current.BackgroundIndexing)
@@ -136,8 +135,7 @@ public sealed partial class MainWindow : Window
 
             if (generation != _navigationGeneration ||
                 ActiveTabState?.Id != tabId ||
-                _searchBox is null ||
-                !string.Equals(searchQuery, _searchBox.Text.Trim(), StringComparison.Ordinal))
+                !string.Equals(searchQuery, SearchBox.Text.Trim(), StringComparison.Ordinal))
             {
                 return;
             }
@@ -350,48 +348,6 @@ public sealed partial class MainWindow : Window
             await NavigateAsync(drive.RootPath);
     }
 
-    private async void FileList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
-    {
-        if (GetSelectedItem() is not FileSystemItem item) return;
-
-        if (item.IsDirectory)
-        {
-            await NavigateAsync(item.FullPath);
-            return;
-        }
-
-        try
-        {
-            var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-            await Launcher.LaunchFileAsync(file);
-        }
-        catch
-        {
-            StatusText.Text = $"Could not open {item.Name}";
-        }
-    }
-
-    private async void FileList_RightTapped(object sender, RightTappedRoutedEventArgs e)
-    {
-        if ((e.OriginalSource as FrameworkElement)?.DataContext is not FileSystemItem item) return;
-        e.Handled = true;
-
-        if (sender is ListViewBase list && !list.SelectedItems.Contains(item))
-        {
-            list.SelectedItem = item;
-        }
-
-        try
-        {
-            _shellContextMenu.ShowForPath(_hwnd, item.FullPath);
-            await NavigateAsync(CurrentPath, pushHistory: false);
-        }
-        catch (Exception ex)
-        {
-            StatusText.Text = $"Shell menu error: {ex.Message}";
-        }
-    }
-
     private async void FileArea_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         if (e.Handled) return;
@@ -454,9 +410,11 @@ public sealed partial class MainWindow : Window
         {
             XamlRoot = Root.XamlRoot,
         };
-        var result = await dialog.ShowAsync();
-        if (result != ContentDialogResult.Primary) return;
+        await dialog.ShowAsync();
 
+        // Settings save as they change and normally refresh through SettingsService.Saved. Reapply
+        // once after close as a deterministic fallback if optional theme-watcher initialization was
+        // unavailable on an older Windows build.
         ApplyTheme();
         await NavigateAsync(CurrentPath, pushHistory: false);
     }

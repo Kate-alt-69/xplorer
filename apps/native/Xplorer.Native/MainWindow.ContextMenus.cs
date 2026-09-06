@@ -12,7 +12,6 @@ namespace Xplorer.Native;
 public sealed partial class MainWindow
 {
     private const long FileActivationDedupWindowMs = 180;
-    private bool _shellMenuLifetimeHooked;
     private string? _lastActivatedPath;
     private long _lastActivationDispatchTick;
 
@@ -30,7 +29,6 @@ public sealed partial class MainWindow
         if (item is null || sender is not ListViewBase list) return;
 
         e.Handled = true;
-        EnsureShellMenuLifetimeHook();
 
         if (!list.SelectedItems.Contains(item))
         {
@@ -122,12 +120,5 @@ public sealed partial class MainWindow
         }
 
         return null;
-    }
-
-    private void EnsureShellMenuLifetimeHook()
-    {
-        if (_shellMenuLifetimeHooked) return;
-        _shellMenuLifetimeHooked = true;
-        Closed += (_, _) => _shellContextMenu.Dispose();
     }
 }

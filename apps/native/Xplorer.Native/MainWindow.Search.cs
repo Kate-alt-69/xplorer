@@ -58,7 +58,9 @@ public sealed partial class MainWindow
 
     private void AddressBox_TextChangedForSearchReset(object sender, TextChangedEventArgs e)
     {
-        if (string.IsNullOrEmpty(SearchBox.Text)) return;
+        // Compiled XAML may raise TextChanged while InitializeComponent is still building the tree.
+        // Search behavior becomes live only from ChromeRoot_Loaded onward.
+        if (!_nativeSearchInitialized || string.IsNullOrEmpty(SearchBox.Text)) return;
 
         _suppressSearchChange = true;
         try
@@ -76,7 +78,8 @@ public sealed partial class MainWindow
 
     private async void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
     {
-        if (_suppressSearchChange) return;
+        // Do not navigate from an initialization-time TextChanged event before the first tab exists.
+        if (!_nativeSearchInitialized || _suppressSearchChange) return;
 
         var query = SearchBox.Text.Trim();
         var generation = Interlocked.Increment(ref _searchGeneration);
