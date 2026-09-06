@@ -12,6 +12,10 @@ public sealed class XplorerSettings
     public string TerminalCommand { get; set; } = string.Empty;
     public string TerminalArguments { get; set; } = string.Empty;
 
+    // When the visible folder changes, the embedded terminal can either restart the active tab in
+    // the new folder (space-efficient default) or preserve it and create a new terminal tab.
+    public string TerminalFolderChangeBehavior { get; set; } = "Refresh active tab";
+
     // Xplorer is a file manager, so fresh installs expose its owned HKCU "Open in Xplorer" verbs
     // immediately. This never replaces explorer.exe or system file-open handlers, and the setting
     // remains user-toggleable; ShellIntegrationService removes only registry keys carrying our

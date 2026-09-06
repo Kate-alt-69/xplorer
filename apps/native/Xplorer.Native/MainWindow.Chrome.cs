@@ -29,10 +29,11 @@ public sealed partial class MainWindow
         Closed += (_, _) => _settingsService.Saved -= ChromeSettings_Saved;
 
         // Search is compiled into XAML now; only its keyboard behavior needs initialization here.
-        // Drive and drag/drop hooks are still native-window services and remain idempotent.
+        // Drive, drag/drop and the embedded terminal are native-window services and idempotent.
         InitializeNativeSearch();
         InitializeNativeDriveUx();
         InitializeNativeDragDrop();
+        InitializeEmbeddedTerminal();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
