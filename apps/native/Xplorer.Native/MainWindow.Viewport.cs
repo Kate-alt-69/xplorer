@@ -15,49 +15,60 @@ public sealed partial class MainWindow
         Guid tabId)
     {
         DebugUxTrace($"Navigate request path='{fullPath}' view={viewMode} sort={sortMode} search='{_activeSearchQuery}'");
+
         if (_settingsService.Current.BackgroundIndexing)
             IndexWorkerService.PrioritizeWorkspace(fullPath);
 
+        // Interactive browsing must never block on a whole-volume index walk. Start direct disk
+        // enumeration immediately and race it against only the small hot-workspace cache. Whichever
+        // produces a usable result first paints the viewport; disk remains the source of truth.
+        var diskTask = Task.Run(() =>
+            IndexedFolderViewService.EnumerateDisk(fullPath, showHidden, showExtensions, sortMode));
+
         if (_settingsService.Current.BackgroundIndexing && string.IsNullOrWhiteSpace(_activeSearchQuery))
         {
-            var snapshot = await Task.Run(() =>
-                IndexedFolderViewService.TryLoad(fullPath, showHidden, showExtensions, sortMode));
+            var hotTask = Task.Run(() =>
+                HotWorkspaceViewService.TryLoad(fullPath, showHidden, showExtensions, sortMode));
+
+            var first = await Task.WhenAny(diskTask, hotTask);
             if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return [];
 
-            if (snapshot is not null)
+            if (ReferenceEquals(first, hotTask))
             {
-                DebugUxTrace(
-                    $"Viewport fast source={snapshot.Source} count={snapshot.Items.Count} generated={snapshot.GeneratedAt?.ToString("O") ?? "<unknown>"}");
-                _ = ReconcileViewportFromDiskAsync(
-                    fullPath,
-                    showHidden,
-                    showExtensions,
-                    sortMode,
-                    viewMode,
-                    generation,
-                    tabId);
-                return snapshot.Items.ToList();
+                var snapshot = await hotTask;
+                if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return [];
+
+                if (snapshot is { Items.Count: > 0 })
+                {
+                    DebugUxTrace(
+                        $"Viewport initial source=workspace-index count={snapshot.Items.Count} generated={snapshot.GeneratedAt?.ToString("O") ?? "<unknown>"}");
+                    _ = ReconcileViewportFromDiskTaskAsync(
+                        diskTask,
+                        fullPath,
+                        viewMode,
+                        generation,
+                        tabId);
+                    return snapshot.Items.ToList();
+                }
             }
         }
 
-        var disk = await Task.Run(() => EnumerateFolder(fullPath, showHidden, showExtensions, sortMode));
+        var disk = await diskTask;
+        if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return [];
         DebugUxTrace($"Viewport initial source=disk count={disk.Count}");
         return disk;
     }
 
-    private async Task ReconcileViewportFromDiskAsync(
+    private async Task ReconcileViewportFromDiskTaskAsync(
+        Task<List<FileSystemItem>> diskTask,
         string fullPath,
-        bool showHidden,
-        bool showExtensions,
-        string sortMode,
         string viewMode,
         int generation,
         Guid tabId)
     {
         try
         {
-            var live = await Task.Run(() =>
-                IndexedFolderViewService.EnumerateDisk(fullPath, showHidden, showExtensions, sortMode));
+            var live = await diskTask;
             if (generation != _navigationGeneration ||
                 ActiveTabState?.Id != tabId ||
                 !string.Equals(CurrentPath, fullPath, StringComparison.OrdinalIgnoreCase) ||

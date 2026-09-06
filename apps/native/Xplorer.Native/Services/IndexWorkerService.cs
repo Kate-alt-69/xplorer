@@ -6,12 +6,13 @@ using Microsoft.Win32;
 namespace Xplorer.Native.Services;
 
 /// <summary>
-/// Owns the lifecycle boundary between WinUI and the tiny Rust xplorer.exe host. Worker mode is
+/// Owns the lifecycle boundary between WinUI and the tiny Rust background host. Worker mode is
 /// dispatched by the Rust host itself, so --service-worker never loads WinUI or the .NET runtime.
 /// </summary>
 public static class IndexWorkerService
 {
     private const string HostExecutableName = "xplorer.exe";
+    private const string WorkerExecutableName = "xplorer-bgw.exe";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "Xplorer Index Worker";
     private const string WakeEventName = @"Local\Xplorer.IndexWorker.Wake.v1";
@@ -25,9 +26,9 @@ public static class IndexWorkerService
 
     public static void EnsureEnabled()
     {
-        var host = ResolveHostPath();
-        RunHostCommand(host, "--register-startup", waitForExit: true);
-        RunHostCommand(host, "--service-worker", waitForExit: false);
+        var worker = ResolveWorkerHostPath();
+        RunHostCommand(worker, "--register-startup", waitForExit: true);
+        RunHostCommand(worker, "--service-worker", waitForExit: false);
     }
 
     /// <summary>
@@ -65,14 +66,14 @@ public static class IndexWorkerService
 
     public static void Disable()
     {
-        var host = TryResolveHostPath();
-        if (host is not null)
+        var worker = TryResolveWorkerHostPath() ?? TryResolveHostPath();
+        if (worker is not null)
         {
-            TryRun(host, "--unregister-startup", waitForExit: true);
-            TryRun(host, "--stop-service-worker", waitForExit: true);
+            TryRun(worker, "--unregister-startup", waitForExit: true);
+            TryRun(worker, "--stop-service-worker", waitForExit: true);
         }
 
-        // Cleanup still works if xplorer.exe was manually removed before Xplorer is uninstalled.
+        // Cleanup still works if the worker binary was manually removed before Xplorer is uninstalled.
         using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
         runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
@@ -91,11 +92,18 @@ public static class IndexWorkerService
         }
     }
 
-    private static string ResolveHostPath() =>
-        TryResolveHostPath()
+    private static string ResolveWorkerHostPath() =>
+        TryResolveWorkerHostPath()
+        ?? TryResolveHostPath()
         ?? throw new FileNotFoundException(
-            $"{HostExecutableName} must be installed beside {Path.GetFileName(Environment.ProcessPath)}.",
-            Path.Combine(AppContext.BaseDirectory, HostExecutableName));
+            $"{WorkerExecutableName} or {HostExecutableName} must be installed beside {Path.GetFileName(Environment.ProcessPath)}.",
+            Path.Combine(AppContext.BaseDirectory, WorkerExecutableName));
+
+    private static string? TryResolveWorkerHostPath()
+    {
+        var candidate = Path.Combine(AppContext.BaseDirectory, WorkerExecutableName);
+        return File.Exists(candidate) ? candidate : null;
+    }
 
     private static string? TryResolveHostPath()
     {
@@ -127,13 +135,13 @@ public static class IndexWorkerService
         startInfo.ArgumentList.Add(argument);
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException($"Could not start {HostExecutableName}.");
+            ?? throw new InvalidOperationException($"Could not start {Path.GetFileName(host)}.");
 
         if (!waitForExit) return;
         if (!process.WaitForExit(5000))
-            throw new TimeoutException($"{HostExecutableName} did not finish {argument} in time.");
+            throw new TimeoutException($"{Path.GetFileName(host)} did not finish {argument} in time.");
         if (process.ExitCode != 0)
-            throw new InvalidOperationException($"{HostExecutableName} {argument} exited with code {process.ExitCode}.");
+            throw new InvalidOperationException($"{Path.GetFileName(host)} {argument} exited with code {process.ExitCode}.");
     }
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]

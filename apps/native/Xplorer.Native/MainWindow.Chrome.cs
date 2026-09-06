@@ -37,6 +37,7 @@ public sealed partial class MainWindow
         InitializeNativeDragDrop();
         InitializeEmbeddedTerminal();
         InitializeInspectorWorkspace();
+        InitializeSidebarHoverRecovery();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();

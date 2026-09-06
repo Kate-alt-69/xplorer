@@ -31,7 +31,7 @@ if ($Configuration -eq 'Release') {
     $workerArgs += '--release'
 }
 
-Write-Host "==> Building Rust xplorer.exe ($workerProfile)"
+Write-Host "==> Building Rust xplorer.exe + xplorer-bgw.exe ($workerProfile)"
 & cargo @workerArgs
 if ($LASTEXITCODE -ne 0) { throw "Rust build failed with exit code $LASTEXITCODE." }
 
@@ -71,10 +71,15 @@ if ($Configuration -eq 'Release') {
 & dotnet @publishArgs
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
 
+# The same tiny Rust host is published twice intentionally. xplorer.exe is the public launcher and
+# diagnostic entry point; xplorer-bgw.exe is the background-worker image so Task Manager makes the
+# process role obvious instead of showing two indistinguishable xplorer.exe processes.
 Copy-Item $RustHost (Join-Path $PublishDir 'xplorer.exe') -Force
+Copy-Item $RustHost (Join-Path $PublishDir 'xplorer-bgw.exe') -Force
 
 $required = @(
     (Join-Path $PublishDir 'xplorer.exe'),
+    (Join-Path $PublishDir 'xplorer-bgw.exe'),
     (Join-Path $PublishDir 'Xplorer.Native.exe')
 )
 foreach ($path in $required) {
@@ -113,6 +118,7 @@ Configuration: $Configuration
 Runtime: $Runtime
 Public entry point: xplorer.exe
 UI process: Xplorer.Native.exe
+Background worker image: xplorer-bgw.exe
 Application PRI: resources.pri
 
 Normal launch:
@@ -121,15 +127,21 @@ Normal launch:
 Debug startup/resource probe:
   .\xplorer.exe --debug
 
+Read-only folder/index diagnostic:
+  .\xplorer.exe --debug --test-folder "C:\\path\\to\\folder"
+
+Explicit folder-index rebuild diagnostic:
+  .\xplorer.exe --debug --test-folder "C:\\path\\to\\folder" --reindex
+
 Background metadata worker:
-  .\xplorer.exe --service-worker
+  .\xplorer-bgw.exe --service-worker
 
 Register worker at user logon:
-  .\xplorer.exe --register-startup
+  .\xplorer-bgw.exe --register-startup
 
 Unregister worker:
-  .\xplorer.exe --unregister-startup
-  .\xplorer.exe --stop-service-worker
+  .\xplorer-bgw.exe --unregister-startup
+  .\xplorer-bgw.exe --stop-service-worker
 "@
 Set-Content -Path (Join-Path $PublishDir 'BUILD.txt') -Value $buildInfo -Encoding UTF8
 
