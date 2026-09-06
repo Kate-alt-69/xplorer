@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -155,7 +154,4 @@ public sealed partial class MainWindow
 
         return null;
     }
-
-    [DllImport("user32.dll")]
-    private static extern uint GetDoubleClickTime();
 }
