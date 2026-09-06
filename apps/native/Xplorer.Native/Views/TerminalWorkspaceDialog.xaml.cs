@@ -167,8 +167,17 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         };
         ScrollViewer.SetHorizontalScrollBarVisibility(view, ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(view, ScrollBarVisibility.Auto);
-        view.KeyDown += TerminalView_KeyDown;
-        view.KeyUp += TerminalView_KeyUp;
+
+        // A TextBox has built-in key handling. handledEventsToo keeps shell input reliable even for
+        // navigation/completion keys that the control would otherwise consume before our handler.
+        view.AddHandler(
+            UIElement.KeyDownEvent,
+            new KeyEventHandler(TerminalView_KeyDown),
+            handledEventsToo: true);
+        view.AddHandler(
+            UIElement.KeyUpEvent,
+            new KeyEventHandler(TerminalView_KeyUp),
+            handledEventsToo: true);
         view.SizeChanged += TerminalView_SizeChanged;
         return view;
     }
@@ -215,10 +224,11 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
             return;
         }
 
-        if (control && e.Key is >= VirtualKey.A and <= VirtualKey.Z)
+        var keyCode = (int)e.Key;
+        if (control && keyCode >= (int)VirtualKey.A && keyCode <= (int)VirtualKey.Z)
         {
             e.Handled = true;
-            var controlCharacter = (char)((int)e.Key - (int)VirtualKey.A + 1);
+            var controlCharacter = (char)(keyCode - (int)VirtualKey.A + 1);
             await session.SendAsync(controlCharacter.ToString());
             return;
         }
@@ -283,10 +293,25 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
 
     private static void RefreshTerminalView(TerminalTabState state)
     {
+        var oldLength = state.View.Text?.Length ?? 0;
+        var oldSelectionStart = state.View.SelectionStart;
+        var oldSelectionLength = state.View.SelectionLength;
+        var followTail = oldSelectionLength == 0 && oldSelectionStart >= oldLength;
+
         var snapshot = state.Buffer.Snapshot();
         state.View.Text = snapshot;
-        state.View.SelectionStart = snapshot.Length;
-        state.View.SelectionLength = 0;
+
+        if (followTail)
+        {
+            state.View.SelectionStart = snapshot.Length;
+            state.View.SelectionLength = 0;
+            return;
+        }
+
+        state.View.SelectionStart = Math.Min(oldSelectionStart, snapshot.Length);
+        state.View.SelectionLength = Math.Min(
+            oldSelectionLength,
+            Math.Max(0, snapshot.Length - state.View.SelectionStart));
     }
 
     private void TerminalClose_Click(object sender, RoutedEventArgs e) => Hide();
@@ -403,8 +428,8 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         if (!_states.Remove(state)) return;
         state.Disposed = true;
         StopSession(state);
-        state.View.KeyDown -= TerminalView_KeyDown;
-        state.View.KeyUp -= TerminalView_KeyUp;
+        state.View.RemoveHandler(UIElement.KeyDownEvent, new KeyEventHandler(TerminalView_KeyDown));
+        state.View.RemoveHandler(UIElement.KeyUpEvent, new KeyEventHandler(TerminalView_KeyUp));
         state.View.SizeChanged -= TerminalView_SizeChanged;
     }
 
