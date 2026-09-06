@@ -124,18 +124,33 @@ public sealed partial class MainWindow
 
         if (item.IsDirectory)
         {
+            DebugUxTrace($"Activate folder path='{item.FullPath}' route=navigate");
             await NavigateAsync(item.FullPath);
+            return;
+        }
+
+        if (CanOpenInInspector(item))
+        {
+            DebugUxTrace($"Activate file path='{item.FullPath}' route=inspector");
+            await OpenItemInInspectorAsync(item);
             return;
         }
 
         try
         {
+            DebugUxTrace($"Activate file path='{item.FullPath}' route=windows-default");
             var file = await StorageFile.GetFileFromPathAsync(item.FullPath);
-            await Launcher.LaunchFileAsync(file);
+            var launched = await Launcher.LaunchFileAsync(file);
+            if (!launched)
+            {
+                StatusText.Text = $"No default app is registered for {item.Name}";
+                DebugUxTrace($"Windows default activation returned false path='{item.FullPath}'");
+            }
         }
-        catch
+        catch (Exception ex)
         {
             StatusText.Text = $"Could not open {item.Name}";
+            DebugUxTrace($"Windows default activation failed path='{item.FullPath}' error='{ex.Message}'");
         }
     }
 

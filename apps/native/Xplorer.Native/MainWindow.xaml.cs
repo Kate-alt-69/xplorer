@@ -118,7 +118,14 @@ public sealed partial class MainWindow : Window
         var tabId = state.Id;
 
         StatusText.Text = "Loading...";
-        var entries = await Task.Run(() => EnumerateFolder(fullPath, showHidden, showExtensions, sortMode));
+        var entries = await LoadFolderViewportAsync(
+            fullPath,
+            showHidden,
+            showExtensions,
+            sortMode,
+            viewMode,
+            generation,
+            tabId);
 
         if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return;
 
@@ -160,8 +167,7 @@ public sealed partial class MainWindow : Window
             _searchUsingIndex = false;
         }
 
-        Items.Clear();
-        foreach (var entry in entries) Items.Add(entry);
+        ReconcileViewportItems(entries);
 
         ApplyViewMode(viewMode);
         if (string.IsNullOrEmpty(searchQuery))
@@ -461,8 +467,11 @@ public sealed partial class MainWindow : Window
         if (!string.IsNullOrWhiteSpace(parent)) await NavigateAsync(parent);
     }
 
-    private async void RefreshButton_Click(object sender, RoutedEventArgs e) =>
+    private async void RefreshButton_Click(object sender, RoutedEventArgs e)
+    {
+        DebugUxTrace("BottomBar Refresh");
         await NavigateAsync(CurrentPath, pushHistory: false);
+    }
 
     private async void GoButton_Click(object sender, RoutedEventArgs e) =>
         await NavigateAsync(AddressBox.Text);
