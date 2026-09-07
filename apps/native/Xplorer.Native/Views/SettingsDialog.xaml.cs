@@ -20,6 +20,7 @@ public sealed partial class SettingsDialog : ContentDialog
     private ToggleSwitch? _showHiddenSwitch;
     private ToggleSwitch? _showExtensionsSwitch;
     private ToggleSwitch? _perFolderViewSwitch;
+    private ToggleSwitch? _doubleRmbSwitch;
     private ToggleSwitch? _windowsShellMenuSwitch;
     private ToggleSwitch? _backgroundIndexingSwitch;
     private TextBox? _terminalCommandBox;
@@ -124,6 +125,14 @@ public sealed partial class SettingsDialog : ContentDialog
             "Let each folder keep its own view and sort instead of using one global setting.",
             "Useful if Pictures should stay Large while development folders stay Details.",
             _perFolderViewSwitch));
+
+        _doubleRmbSwitch = CreateToggle(settings.DoubleRmbExtendedMenu);
+        _doubleRmbSwitch.Toggled += DoubleRmbSwitch_Toggled;
+        PageHost.Children.Add(CreateSettingRow(
+            "Double RMB for extended menu",
+            "Single RMB opens Xplorer's normal live Shell menu. RMB twice on the same target within 0.6 seconds opens the extended Shell verbs and custom registrations.",
+            "Xplorer waits up to 0.6 seconds before opening a single-RMB item menu so it can distinguish the gesture without injecting hooks into Windows menus. Shift+RMB still requests extended verbs too.",
+            _doubleRmbSwitch));
     }
 
     private void BuildThemePage()
@@ -337,6 +346,17 @@ public sealed partial class SettingsDialog : ContentDialog
             () => { if (_perFolderViewSwitch is not null) _perFolderViewSwitch.IsOn = old; });
     }
 
+    private async void DoubleRmbSwitch_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_suppressEvents || _doubleRmbSwitch is null) return;
+        var old = _settingsService.Current.DoubleRmbExtendedMenu;
+        var value = _doubleRmbSwitch.IsOn;
+        await PersistSimpleAsync(
+            settings => settings.DoubleRmbExtendedMenu = value,
+            settings => settings.DoubleRmbExtendedMenu = old,
+            () => { if (_doubleRmbSwitch is not null) _doubleRmbSwitch.IsOn = old; });
+    }
+
     private async void ThemeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_suppressEvents || _themeComboBox is null) return;
@@ -546,6 +566,7 @@ public sealed partial class SettingsDialog : ContentDialog
         _showHiddenSwitch = null;
         _showExtensionsSwitch = null;
         _perFolderViewSwitch = null;
+        _doubleRmbSwitch = null;
         _windowsShellMenuSwitch = null;
         _backgroundIndexingSwitch = null;
         _terminalCommandBox = null;
