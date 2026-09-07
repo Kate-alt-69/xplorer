@@ -9,21 +9,19 @@ public sealed partial class MainWindow
     private bool _fileInteractionParityInitialized;
 
     /// <summary>
-    /// Completes the native file-view input contract on Windows 10/11 and adds the resize hit target
-    /// between navigation chrome and the file surface. The grip is intentionally transparent so it
-    /// does not alter Xplorer's first-frame geometry or theme.
+    /// Adds layout-only native parity helpers. File input ownership deliberately stays in
+    /// MainWindow.ContextMenus.cs/XAML so a visual-parity feature cannot silently change WinUI's
+    /// click/double-click gesture arbitration again.
     /// </summary>
     private void InitializeFileInteractionParity()
     {
         if (_fileInteractionParityInitialized) return;
         _fileInteractionParityInitialized = true;
 
-        FileGrid.IsItemClickEnabled = true;
-        FileDetails.IsItemClickEnabled = true;
-        FileGrid.ItemClick += FileList_ItemClick;
-        FileDetails.ItemClick += FileList_ItemClick;
-        FileGrid.KeyDown += FileList_KeyDown;
-        FileDetails.KeyDown += FileList_KeyDown;
+        // Do NOT set FileGrid/FileDetails.IsItemClickEnabled here and do not subscribe ItemClick.
+        // On Windows 10 that changes ListViewBase gesture arbitration and can swallow the native
+        // DoubleTapped route used for reliable folder activation. Keyboard activation is likewise
+        // owned by InitializeMouseActivationGestures so it can only be wired once.
 
         // MainWindow.xaml explicitly owns the transparent file surfaces. Do not ClearValue or set
         // these to null here: that would allow the stock WinUI ListView/GridView background to
