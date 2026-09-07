@@ -27,6 +27,7 @@ SetCompressor /SOLID lzma
 !define UNINSTALL_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\Xplorer"
 !define RUN_KEY "Software\Microsoft\Windows\CurrentVersion\Run"
 !define SHELL_OWNER "{8F7A8759-1D96-45A1-A7A4-1F516D9DC7B8}"
+!define PRIVILEGED_PROVISION_SCRIPT "${__FILEDIR__}\Provision-PrivilegedWorker.ps1"
 
 Name "${PRODUCT_NAME}"
 OutFile "${OUT_FILE}"
@@ -72,7 +73,6 @@ FunctionEnd
 Function RestoreNativeUserData
   CreateDirectory "$LOCALAPPDATA\Xplorer"
 
-  ; Rename is intentionally unconditional: it also restores empty Themes/Index directories.
   ClearErrors
   Rename "$UpgradeBackup\settings.json" "$LOCALAPPDATA\Xplorer\settings.json"
   ClearErrors
@@ -83,15 +83,10 @@ Function RestoreNativeUserData
 FunctionEnd
 
 Function BackupNativeUserData
-  ; Recover a stale backup from an interrupted earlier upgrade before creating a fresh one. Never
-  ; blindly delete the backup directory: it may contain the user's only copy of settings/themes.
   IfFileExists "$UpgradeBackup\*.*" 0 +2
     Call RestoreNativeUserData
 
   CreateDirectory "$UpgradeBackup"
-
-  ; Move only Xplorer's native data, not the old Tauri program payload that happened to share
-  ; %LOCALAPPDATA%\Xplorer. This keeps upgrades safe without dragging obsolete binaries forward.
   ClearErrors
   Rename "$LOCALAPPDATA\Xplorer\settings.json" "$UpgradeBackup\settings.json"
   ClearErrors
@@ -107,8 +102,6 @@ Function RemoveLegacyShellKeys
 FunctionEnd
 
 Function RegisterNativeShellKeys
-  ; Register shell verbs directly from the installer. Quoting uses NSIS' single-quoted string form;
-  ; the previous $\" form was emitted literally as $"...$" and broke both verbs and worker startup.
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "MUIVerb" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "Icon" '"$INSTDIR\Xplorer.Native.exe"'
@@ -155,9 +148,6 @@ FunctionEnd
 Section "Xplorer" SEC_MAIN
   SetShellVarContext current
 
-  ; WinUI's unpackaged deployment still requires the VC++ runtime. Install/repair it before we
-  ; touch the existing Xplorer installation so cancelling or failing the prerequisite leaves the
-  ; currently installed app and user data intact.
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=vc_redist.x64.exe "${VC_REDIST_FILE}"
@@ -212,18 +202,50 @@ Section "Xplorer" SEC_MAIN
   CreateShortcut "$SMPROGRAMS\Xplorer\Uninstall Xplorer.lnk" "$INSTDIR\Uninstall.exe"
 
   Call RegisterNativeShellKeys
+  CreateDirectory "$LOCALAPPDATA\Xplorer\Control"
+  CreateDirectory "$LOCALAPPDATA\Xplorer\Index"
 
-  ; Background indexing is enabled by default in the native settings model. Register and start the
-  ; zero-UI Rust worker during installation so it does not depend on the first successful UI launch.
-  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer-bgw.exe" --service-worker'
-  Exec '"$INSTDIR\xplorer-bgw.exe" --service-worker'
+  ; Interactive installation asks once for permission to provision a protected SYSTEM worker.
+  ; Silent installs never produce a hidden UAC prompt and use the normal per-user worker instead.
+  IfSilent WorkerFallback WorkerPrivileged
+
+WorkerPrivileged:
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=Provision-PrivilegedWorker.ps1 "${PRIVILEGED_PROVISION_SCRIPT}"
+  DetailPrint "Requesting permission for protected background indexing..."
+  ExecWait 'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\Provision-PrivilegedWorker.ps1" -Mode Install -SourceWorker "$INSTDIR\xplorer-bgw.exe"' $0
+  Delete "$PLUGINSDIR\Provision-PrivilegedWorker.ps1"
+  ${If} $0 == 0
+    DetailPrint "Protected Xplorer index worker installed."
+    DeleteRegValue HKCU "${RUN_KEY}" "Xplorer Index Worker"
+    Goto WorkerReady
+  ${Else}
+    DetailPrint "Protected indexing was unavailable or declined (code $0); using the per-user worker."
+  ${EndIf}
+
+WorkerFallback:
+  Delete "$LOCALAPPDATA\Xplorer\Index\active-index.path"
+  Delete "$LOCALAPPDATA\Xplorer\Index\active-task.name"
+  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer-bgw.exe" --service-worker --data-dir "$LOCALAPPDATA\Xplorer\Index" --control-dir "$LOCALAPPDATA\Xplorer\Control"'
+  Exec '"$INSTDIR\xplorer-bgw.exe" --service-worker --data-dir "$LOCALAPPDATA\Xplorer\Index" --control-dir "$LOCALAPPDATA\Xplorer\Control"'
+
+WorkerReady:
 SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
 
-  ; Keep uninstall independent from WinUI startup. Registry cleanup below owns integration removal,
-  ; so a broken UI can never prevent uninstall from completing.
+  ; Interactive uninstall removes the protected task/store through the same one-time elevation
+  ; helper. Silent uninstall stays non-interactive; CI/silent installs use the per-user fallback.
+  IfSilent PrivilegedCleanupDone 0
+  InitPluginsDir
+  SetOutPath "$PLUGINSDIR"
+  File /oname=Provision-PrivilegedWorker.ps1 "${PRIVILEGED_PROVISION_SCRIPT}"
+  ExecWait 'powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\Provision-PrivilegedWorker.ps1" -Mode Remove' $0
+  Delete "$PLUGINSDIR\Provision-PrivilegedWorker.ps1"
+PrivilegedCleanupDone:
+
   IfFileExists "$INSTDIR\xplorer-bgw.exe" 0 +3
     nsExec::ExecToLog '"$INSTDIR\xplorer-bgw.exe" --stop-service-worker'
     Goto +2
@@ -248,9 +270,6 @@ Section "Uninstall"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "${INSTALL_KEY}"
 
-  ; The worker can have an executable image mapping for a short time after it receives the stop event.
-  ; Delete the executable entry points explicitly after taskkill, retry once, then let NSIS mark
-  ; anything still transiently locked for deletion at reboot rather than leaving a half-installed tree.
   ClearErrors
   Delete "$INSTDIR\xplorer-bgw.exe"
   ${If} ${Errors}
@@ -274,7 +293,8 @@ Section "Uninstall"
   ${EndIf}
   RMDir /r /REBOOTOK "$INSTDIR"
 
-  ; Preserve %LOCALAPPDATA%\Xplorer: settings, XML themes, indexes and diagnostic logs are user data.
+  ; Preserve %LOCALAPPDATA%\Xplorer user settings/themes/logs. Protected index data is a
+  ; regenerable cache and is removed by the privileged cleanup helper.
 SectionEnd
 
 Function un.StopRunningXplorer
