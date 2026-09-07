@@ -51,10 +51,12 @@ public sealed partial class MainWindow
         CrashLogService.Log($"Terminal open requested. Directory='{directory}'.");
         try
         {
+            // TerminalWorkspaceDialog is now a real top-level WinUI Window. Do not assign the main
+            // window's XamlRoot: separate HWND ownership is what enables native Windows edge/corner
+            // resize hit-testing and keeps terminal resizing isolated from Xplorer's main layout.
             _terminalDialog ??= new TerminalWorkspaceDialog(_settingsService);
-            _terminalDialog.XamlRoot = Root.XamlRoot;
             await _terminalDialog.ShowForDirectoryAsync(directory);
-            CrashLogService.Log("Terminal dialog closed/hidden normally.");
+            CrashLogService.Log("Terminal native window shown/focused.");
         }
         catch (Exception ex)
         {
