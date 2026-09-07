@@ -19,7 +19,6 @@ internal sealed class ExplorerShellMenuService : IDisposable
 
     private const uint MfString = 0x0000;
     private const uint MfSeparator = 0x0800;
-    private const uint TpmRightButton = 0x0002;
     private const uint TpmReturnCmd = 0x0100;
     private const uint WmDrawItem = 0x002B;
     private const uint WmMeasureItem = 0x002C;
@@ -50,7 +49,8 @@ internal sealed class ExplorerShellMenuService : IDisposable
     public ExplorerShellMenuResult ShowForPaths(
         nint ownerHwnd,
         IReadOnlyCollection<string> paths,
-        IReadOnlyList<XplorerContextMenuEntry>? xplorerEntries = null)
+        IReadOnlyList<XplorerContextMenuEntry>? xplorerEntries = null,
+        bool forceExtendedVerbs = false)
     {
         ThrowIfDisposed();
         var normalized = NormalizeSelection(paths);
@@ -67,9 +67,9 @@ internal sealed class ExplorerShellMenuService : IDisposable
 
             var queryFlags = CmfCanRename | CmfItemMenu | CmfSyncCascadeMenu;
 
-            // Explorer exposes extra shell verbs only for Shift+RMB. Preserve that contract instead
-            // of permanently flooding the normal menu with extended commands.
-            if ((GetKeyState(VkShift) & 0x8000) != 0)
+            // Explorer exposes extra shell verbs for Shift+RMB. Xplorer can also request the same
+            // extended set from its Double-RMB gesture without synthesizing keyboard input.
+            if (forceExtendedVerbs || (GetKeyState(VkShift) & 0x8000) != 0)
                 queryFlags |= CmfExtendedVerbs;
 
             // CMF_EXPLORE is intentionally included for compatibility with older namespace/context
@@ -228,14 +228,15 @@ internal sealed class ExplorerShellMenuService : IDisposable
         SetForegroundWindow(ownerHwnd);
         var command = TrackPopupMenuEx(
             menu,
-            TpmRightButton | TpmReturnCmd,
+            TpmReturnCmd,
             point.X,
             point.Y,
             ownerHwnd,
             0);
 
         // Required by the documented TrackPopupMenu owner-window pattern so the popup reliably
-        // dismisses and focus returns to the foreground window.
+        // dismisses and focus returns to the foreground window. Deliberately omit TPM_RIGHTBUTTON:
+        // RMB opens/dismisses the menu; commands activate with LMB like Explorer.
         PostMessageW(ownerHwnd, WmNull, 0, 0);
         return command;
     }
