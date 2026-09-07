@@ -98,10 +98,11 @@ if ([string]::IsNullOrWhiteSpace($UserSid) -or [string]::IsNullOrWhiteSpace($Use
 }
 
 $taskName = "$TaskPrefix $UserSid"
-# Deliberately outside $TaskPrefix so the transient updater does not count as a persistent BGW when
-# uninstall decides whether the shared protected Program Files directory is still in use.
 $updateTaskName = "Xplorer Protected Worker Update $UserSid"
-$programRoot = Join-Path $env:ProgramFiles 'Xplorer\Worker'
+$workerBase = Join-Path $env:ProgramFiles 'Xplorer\Worker'
+# Keep each desktop user's hash-pinned BGW independent. A second user installing a different Xplorer
+# version must never replace the binary referenced by another user's protected scheduled task.
+$programRoot = Join-Path $workerBase $UserSid
 $protectedWorker = Join-Path $programRoot 'xplorer-bgw.exe'
 $protectedIndex = Join-Path $env:ProgramData ("Xplorer\Index\" + $UserSid)
 $controlDir = Join-Path $UserLocalAppData 'Xplorer\Control'
@@ -115,13 +116,15 @@ if ($Mode -eq 'Remove') {
     try { Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue } catch { }
 
     $programRootLiteral = $programRoot.Replace("'", "''")
+    $workerBaseLiteral = $workerBase.Replace("'", "''")
     $protectedIndexLiteral = $protectedIndex.Replace("'", "''")
     $cleanup = @"
 `$ErrorActionPreference = 'Stop'
 Remove-Item -LiteralPath '$protectedIndexLiteral' -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath '$programRootLiteral' -Recurse -Force -ErrorAction SilentlyContinue
 `$remaining = @(Get-ScheduledTask -TaskName '$TaskPrefix *' -ErrorAction SilentlyContinue)
 if (`$remaining.Count -eq 0) {
-    Remove-Item -LiteralPath '$programRootLiteral' -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath '$workerBaseLiteral' -Recurse -Force -ErrorAction SilentlyContinue
 }
 exit 0
 "@
