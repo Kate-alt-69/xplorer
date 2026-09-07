@@ -8,6 +8,10 @@ publish = false
 name = "xplorer"
 path = "src/main.rs"
 
+[[bin]]
+name = "errorchk"
+path = "src/errorchk.rs"
+
 [profile.release]
 opt-level = "z"
 lto = true
