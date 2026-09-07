@@ -115,11 +115,62 @@ jobs:
             $process.Dispose()
           }
 
+      - name: Exercise public folder-launch aliases
+        shell: pwsh
+        run: |
+          $host = (Resolve-Path 'dist/Xplorer-win-x64/xplorer.exe').Path
+          $target = (Resolve-Path 'apps/native/Xplorer.Native').Path
+          $startupLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\startup.log'
+          $hostLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\host.log'
+          Remove-Item $startupLog, $hostLog -Force -ErrorAction SilentlyContinue
+
+          # This is the exact compatibility spelling that regressed on Windows 10. Keep it in CI so
+          # CLI parser refactors cannot silently turn an explicit folder request into session restore.
+          $process = Start-Process -FilePath $host -ArgumentList @('-debug', '-test-open-folder', $target) -PassThru
+          try {
+            Start-Sleep -Seconds 7
+
+            if (-not (Test-Path $startupLog)) {
+              throw 'Public folder-launch smoke produced no startup.log.'
+            }
+            $log = Get-Content $startupLog -Raw
+            Write-Host '--- Xplorer explicit-folder startup.log ---'
+            Write-Host $log
+
+            if (-not $log.Contains('ExplicitFolder=True', [StringComparison]::Ordinal)) {
+              throw 'Native launch parser did not classify -test-open-folder as an explicit folder request.'
+            }
+            if ($log.Contains("Creating MainWindow. InitialFolder='<session>'", [StringComparison]::Ordinal)) {
+              throw 'Explicit folder launch incorrectly fell back to session restore.'
+            }
+            if (-not $log.Contains('Creating MainWindow. InitialFolder=', [StringComparison]::Ordinal)) {
+              throw 'Explicit folder launch never reached MainWindow creation.'
+            }
+            if (-not $log.Contains('MainWindow activated.', [StringComparison]::Ordinal)) {
+              throw 'Explicit folder launch did not activate the native window.'
+            }
+          }
+          finally {
+            New-Item -ItemType Directory -Force -Path 'dist/runtime-diagnostics' | Out-Null
+            if (Test-Path $startupLog) {
+              Copy-Item $startupLog 'dist/runtime-diagnostics/explicit-folder-startup.log' -Force
+            }
+            if (Test-Path $hostLog) {
+              Copy-Item $hostLog 'dist/runtime-diagnostics/explicit-folder-host.log' -Force
+            }
+            Get-Process -Name 'Xplorer.Native' -ErrorAction SilentlyContinue |
+              Stop-Process -Force -ErrorAction SilentlyContinue
+            if (-not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            }
+            $process.Dispose()
+          }
+
       - name: Upload startup diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-runtime-startup-log
-          path: dist/runtime-diagnostics/startup.log
+          path: dist/runtime-diagnostics/*.log
           if-no-files-found: ignore
           retention-days: 7
