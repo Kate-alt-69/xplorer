@@ -184,6 +184,7 @@ public sealed partial class MainWindow
     private void SidebarToggleButton_Click(object sender, RoutedEventArgs e)
     {
         _sidebarCollapsed = !_sidebarCollapsed;
+        DebugUxTrace($"Sidebar toggle collapsed={_sidebarCollapsed}");
         if (_sidebarCollapsed)
         {
             SidebarBorder.Visibility = Visibility.Collapsed;
@@ -236,8 +237,13 @@ public sealed partial class MainWindow
 
     private async void SidebarLocation_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: string location }) return;
+        if (sender is not Button { Tag: string location })
+        {
+            DebugUxTrace("Sidebar click ignored: sender/tag mismatch");
+            return;
+        }
 
+        DebugUxTrace($"Sidebar click location='{location}' current='{CurrentPath}'");
         var target = location switch
         {
             "Home" => _homePath,
@@ -248,8 +254,21 @@ public sealed partial class MainWindow
             _ => null,
         };
 
-        if (!string.IsNullOrWhiteSpace(target) && Directory.Exists(target))
-            await NavigateAsync(target);
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            DebugUxTrace($"Sidebar target resolution failed location='{location}'");
+            return;
+        }
+        if (!Directory.Exists(target))
+        {
+            DebugUxTrace($"Sidebar target does not exist location='{location}' target='{target}'");
+            StatusText.Text = $"Folder not found: {target}";
+            return;
+        }
+
+        DebugUxTrace($"Sidebar navigate location='{location}' target='{target}'");
+        await NavigateAsync(target);
+        DebugUxTrace($"Sidebar navigation returned location='{location}' current='{CurrentPath}' items={Items.Count}");
     }
 
     private async void ChromeSortName_Click(object sender, RoutedEventArgs e)
