@@ -12,6 +12,7 @@ use std::{
 };
 
 const UI_EXECUTABLE: &str = "Xplorer.Native.exe";
+const ERROR_CHECK_EXECUTABLE: &str = "errorchk.exe";
 const STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(3);
 const DEBUG_STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(15);
 const STARTUP_POLL_INTERVAL: Duration = Duration::from_millis(75);
@@ -33,10 +34,9 @@ unsafe extern "system" {
 }
 
 /// Rust owns the public xplorer.exe process. Worker switches are handled in-process without
-/// touching .NET; ordinary launches forward to the sibling WinUI executable. Keep the host alive
-/// briefly so an immediately-crashing UI produces a visible diagnostic instead of looking like
-/// xplorer.exe simply did nothing. --debug/-debug extends that observation window and enables the
-/// managed UI preflight through a private environment variable without forwarding a fake app arg.
+/// touching .NET; ordinary launches forward to the sibling WinUI executable. errorchk.exe becomes
+/// the long-lived event-driven lifecycle owner once the UI is spawned, while this host only keeps a
+/// short startup watch so the public process still returns a meaningful early exit code.
 ///
 /// Folder-launch spelling is intentionally normalized here. CLI/debug tooling may use --open,
 /// --folder, --path, --test-open-folder, --test-open-path, their single-dash forms, or a bare folder.
@@ -110,6 +110,14 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
         log_host_message(&format!("Spawned {UI_EXECUTABLE} as PID {}.", child.id()));
     }
 
+    let watchdog_started = match launch_watchdog(directory, &ui, child.id(), &arguments, debug) {
+        Ok(started) => started,
+        Err(error) => {
+            log_host_message(&format!("Could not start {ERROR_CHECK_EXECUTABLE}: {error}"));
+            false
+        }
+    };
+
     let grace_period = if debug {
         DEBUG_STARTUP_GRACE_PERIOD
     } else {
@@ -119,11 +127,11 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     while waited < grace_period {
         if let Some(status) = child.try_wait()? {
             if status.success() {
-                // A zero process exit code is not a crash. Lifecycle policy belongs to errorchk;
-                // this host only surfaces actual process failures during the startup grace window.
+                // errorchk distinguishes an expected restart from an unexpected code-0 lifecycle
+                // termination. The public host does not duplicate that modal/reporting policy.
                 log_host_message(
                     &format!(
-                        "{UI_EXECUTABLE} exited cleanly during the startup watch with code 0 (0x00000000); no startup crash reported."
+                        "{UI_EXECUTABLE} exited cleanly during the startup watch with code 0 (0x00000000); watchdog_started={watchdog_started}."
                     ),
                 );
                 return Ok(0);
@@ -135,7 +143,11 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
                 code as u32
             );
             log_host_message(&detail);
-            show_launch_failure(&ui, &detail);
+            // When errorchk is alive it owns the one user-facing crash popup and numbered report.
+            // Fall back to the legacy host dialog only if the watchdog itself could not start.
+            if !watchdog_started {
+                show_launch_failure(&ui, &detail);
+            }
             return Ok(code);
         }
         thread::sleep(STARTUP_POLL_INTERVAL);
@@ -144,12 +156,47 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
 
     if debug {
         log_host_message(&format!(
-            "{UI_EXECUTABLE} remained alive for {:.1}s; Rust host startup watch completed.",
+            "{UI_EXECUTABLE} remained alive for {:.1}s; Rust host startup watch completed; watchdog_started={watchdog_started}.",
             grace_period.as_secs_f32()
         ));
     }
 
     Ok(0)
+}
+
+fn launch_watchdog(
+    install_root: &Path,
+    ui: &Path,
+    ui_pid: u32,
+    ui_arguments: &[OsString],
+    debug: bool,
+) -> io::Result<bool> {
+    let watchdog = install_root.join(ERROR_CHECK_EXECUTABLE);
+    if !watchdog.is_file() {
+        log_host_message(&format!(
+            "{ERROR_CHECK_EXECUTABLE} is not installed beside xplorer.exe; using host-only startup diagnostics."
+        ));
+        return Ok(false);
+    }
+
+    let mut command = Command::new(&watchdog);
+    command
+        .arg("--ui-pid")
+        .arg(ui_pid.to_string())
+        .arg("--ui")
+        .arg(ui);
+    for argument in ui_arguments {
+        command.arg("--ui-arg").arg(argument);
+    }
+
+    let child = command.spawn()?;
+    if debug {
+        log_host_message(&format!(
+            "Spawned {ERROR_CHECK_EXECUTABLE} as PID {} watching UI PID {ui_pid}.",
+            child.id()
+        ));
+    }
+    Ok(true)
 }
 
 fn prepare_ui_arguments(arguments: Vec<OsString>) -> io::Result<Vec<OsString>> {
@@ -200,8 +247,6 @@ fn prepare_ui_arguments(arguments: Vec<OsString>) -> io::Result<Vec<OsString>> {
 
     if let Some(path) = requested_path {
         let path = fs::canonicalize(&path).unwrap_or(path);
-        // Keep unrelated maintenance/forward-compatible arguments, but make folder routing an
-        // explicit two-token contract. Native also accepts bare folders for shell compatibility.
         let mut normalized = vec![
             OsString::from(CANONICAL_OPEN_ARGUMENT),
             path.into_os_string(),
