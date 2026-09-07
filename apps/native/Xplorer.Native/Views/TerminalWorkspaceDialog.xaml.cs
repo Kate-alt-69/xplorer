@@ -71,16 +71,23 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
 
     private TerminalTabState CreateTerminalTab(string directory, bool select)
     {
-        var view = CreateTerminalView();
+        var surface = CreateTerminalSurface();
         var tab = new TabViewItem
         {
             Header = "Terminal",
             IsClosable = true,
-            Content = view,
+            Content = surface.Root,
         };
-        var state = new TerminalTabState(this, tab, view, directory);
+        var state = new TerminalTabState(
+            this,
+            tab,
+            surface.Input,
+            surface.Display,
+            surface.DisplayScroller,
+            directory);
         tab.Tag = state;
-        view.Tag = state;
+        surface.Root.Tag = state;
+        surface.Input.Tag = state;
 
         _states.Add(state);
         TerminalTabs.TabItems.Add(tab);
@@ -95,6 +102,7 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
         StopSession(state);
         state.Buffer.Clear();
         state.View.Text = string.Empty;
+        state.Display.Inlines.Clear();
         state.WorkingDirectory = directory;
         StartSession(state, directory);
     }
@@ -135,12 +143,41 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
         session.Dispose();
     }
 
-    // Keep the terminal surface on WinUI's mature TextBox path for Windows 10. RichEdit formatting
-    // previously crashed in native code on some 19045 systems while ConPTY output was streaming.
-    // Window resizing and terminal rendering are intentionally separate concerns.
-    private TextBox CreateTerminalView()
+    // Win10's RichEdit document-formatting path crashed in native code under streaming ConPTY
+    // output. Keep TextBox as the interaction/selection layer, but make its glyphs transparent and
+    // paint the already-parsed ANSI style runs in a plain TextBlock underneath it. Both layers use
+    // the same font/padding and their ScrollViewers are synchronized, giving us PowerShell/ANSI
+    // inline colors without reintroducing RichEditBox or a WebView terminal.
+    private TerminalSurface CreateTerminalSurface()
     {
-        var view = new TextBox
+        var display = new TextBlock
+        {
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 13,
+            TextWrapping = TextWrapping.NoWrap,
+            Foreground = new SolidColorBrush(DefaultTerminalForeground),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            IsTextSelectionEnabled = false,
+        };
+
+        var displayHost = new Border
+        {
+            Padding = new Thickness(12, 10, 12, 12),
+            Background = new SolidColorBrush(DefaultTerminalBackground),
+            Child = display,
+        };
+        var displayScroller = new ScrollViewer
+        {
+            Content = displayHost,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            HorizontalScrollMode = ScrollMode.Enabled,
+            VerticalScrollMode = ScrollMode.Enabled,
+            IsHitTestVisible = false,
+        };
+
+        var input = new TextBox
         {
             IsReadOnly = true,
             AcceptsReturn = true,
@@ -150,20 +187,29 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
             FontSize = 13,
             Padding = new Thickness(12, 10, 12, 12),
             BorderThickness = new Thickness(0),
-            Background = new SolidColorBrush(DefaultTerminalBackground),
-            Foreground = new SolidColorBrush(DefaultTerminalForeground),
-            SelectionHighlightColor = new SolidColorBrush(Color.FromArgb(0xff, 0x26, 0x4f, 0x78)),
+            Background = new SolidColorBrush(Color.FromArgb(0x00, 0x00, 0x00, 0x00)),
+            // Keep the TextBox layout/selection engine but let the colored TextBlock below it paint
+            // the glyphs. SelectionHighlightColor remains visible over the colored output.
+            Foreground = new SolidColorBrush(Color.FromArgb(0x00, 0xff, 0xff, 0xff)),
+            SelectionHighlightColor = new SolidColorBrush(Color.FromArgb(0xb8, 0x26, 0x4f, 0x78)),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
         };
-        ScrollViewer.SetHorizontalScrollBarVisibility(view, ScrollBarVisibility.Auto);
-        ScrollViewer.SetVerticalScrollBarVisibility(view, ScrollBarVisibility.Auto);
+        ScrollViewer.SetHorizontalScrollBarVisibility(input, ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollBarVisibility(input, ScrollBarVisibility.Auto);
 
-        view.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(TerminalView_KeyDown), handledEventsToo: true);
-        view.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(TerminalView_KeyUp), handledEventsToo: true);
-        view.Loaded += TerminalView_Loaded;
-        view.SizeChanged += TerminalView_SizeChanged;
-        return view;
+        input.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(TerminalView_KeyDown), handledEventsToo: true);
+        input.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(TerminalView_KeyUp), handledEventsToo: true);
+        input.Loaded += TerminalView_Loaded;
+        input.SizeChanged += TerminalView_SizeChanged;
+
+        var root = new Grid
+        {
+            Background = new SolidColorBrush(DefaultTerminalBackground),
+        };
+        root.Children.Add(displayScroller);
+        root.Children.Add(input);
+        return new TerminalSurface(root, input, display, displayScroller);
     }
 
     private void TerminalClose_Click(object sender, RoutedEventArgs e) => Hide();
@@ -211,6 +257,8 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
         if (!_states.Remove(state)) return;
         state.Disposed = true;
         StopSession(state);
+        if (state.Scroller is not null && state.ScrollSyncAttached)
+            state.Scroller.ViewChanged -= state.ScrollHandler;
         state.View.Loaded -= TerminalView_Loaded;
         state.View.SizeChanged -= TerminalView_SizeChanged;
     }
@@ -225,31 +273,45 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
         GC.SuppressFinalize(this);
     }
 
+    private readonly record struct TerminalSurface(
+        Grid Root,
+        TextBox Input,
+        TextBlock Display,
+        ScrollViewer DisplayScroller);
+
     private sealed class TerminalTabState
     {
         private readonly TerminalWorkspaceDialog _owner;
 
         public TabViewItem Tab { get; }
         public TextBox View { get; }
+        public TextBlock Display { get; }
+        public ScrollViewer DisplayScroller { get; }
         public ScrollViewer? Scroller { get; set; }
         public TerminalTextBuffer Buffer { get; } = new();
         public ConPtyTerminalSession? Session { get; set; }
         public string WorkingDirectory { get; set; }
         public int RefreshQueued;
         public bool Disposed;
+        public bool ScrollSyncAttached;
 
         public EventHandler<string> OutputHandler { get; }
         public EventHandler ExitHandler { get; }
+        public EventHandler<ScrollViewerViewChangedEventArgs> ScrollHandler { get; }
 
         public TerminalTabState(
             TerminalWorkspaceDialog owner,
             TabViewItem tab,
             TextBox view,
+            TextBlock display,
+            ScrollViewer displayScroller,
             string workingDirectory)
         {
             _owner = owner;
             Tab = tab;
             View = view;
+            Display = display;
+            DisplayScroller = displayScroller;
             WorkingDirectory = workingDirectory;
             OutputHandler = (_, text) =>
             {
@@ -261,6 +323,7 @@ public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
                 Buffer.Append("\r\n[process exited]\r\n");
                 _owner.QueueTerminalRefresh(this);
             };
+            ScrollHandler = (_, _) => _owner.SyncTerminalDisplayScroll(this);
         }
     }
 }
