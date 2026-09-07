@@ -128,7 +128,7 @@ internal static class LaunchRequestParser
     }
 
     private static bool LooksLikeOption(string value) =>
-        value.StartsWith('-', StringComparison.Ordinal) || value.StartsWith('/', StringComparison.Ordinal);
+        value.StartsWith("-", StringComparison.Ordinal) || value.StartsWith("/", StringComparison.Ordinal);
 }
 
 internal sealed record LaunchRequest(
