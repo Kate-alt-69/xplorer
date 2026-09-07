@@ -20,6 +20,7 @@ public sealed partial class MainWindow
         _terminalInfrastructureInitialized = true;
 
         _terminalHostRegistration = TerminalService.AttachInAppHost(OpenEmbeddedTerminal);
+        CrashLogService.Log("Embedded terminal host initialized.");
 
         // handledEventsToo=true matters for Tab: WinUI's focus navigation can consume Tab before a
         // normal bubbling handler sees it. We observe it without cancelling focus movement, then
@@ -47,14 +48,17 @@ public sealed partial class MainWindow
 
     private async Task ShowEmbeddedTerminalAsync(string directory)
     {
+        CrashLogService.Log($"Terminal open requested. Directory='{directory}'.");
         try
         {
             _terminalDialog ??= new TerminalWorkspaceDialog(_settingsService);
             _terminalDialog.XamlRoot = Root.XamlRoot;
             await _terminalDialog.ShowForDirectoryAsync(directory);
+            CrashLogService.Log("Terminal dialog closed/hidden normally.");
         }
         catch (Exception ex)
         {
+            CrashLogService.LogException("Embedded terminal open failed", ex);
             StatusText.Text = $"Terminal error: {ex.Message}";
         }
     }

@@ -1,10 +1,7 @@
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.System;
-using Windows.UI;
-using Xplorer.Native.Services;
 
 namespace Xplorer.Native.Views;
 
@@ -12,7 +9,7 @@ public sealed partial class TerminalWorkspaceDialog
 {
     private void TerminalView_Loaded(object sender, RoutedEventArgs e)
     {
-        if (sender is not RichEditBox { Tag: TerminalTabState state }) return;
+        if (sender is not TextBox { Tag: TerminalTabState state }) return;
         state.Scroller ??= FindDescendantScrollViewer(state.View);
         ResizeSession(state);
         RefreshTerminalView(state);
@@ -20,7 +17,7 @@ public sealed partial class TerminalWorkspaceDialog
 
     private void TerminalView_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (sender is RichEditBox { Tag: TerminalTabState state }) ResizeSession(state);
+        if (sender is TextBox { Tag: TerminalTabState state }) ResizeSession(state);
     }
 
     private void ResizeSession(TerminalTabState state)
@@ -47,38 +44,33 @@ public sealed partial class TerminalWorkspaceDialog
 
     private void RefreshTerminalView(TerminalTabState state)
     {
-        var snapshot = state.Buffer.Snapshot();
-        var selection = state.View.Document.Selection;
-        var oldSelectionStart = selection.StartPosition;
-        var oldSelectionEnd = selection.EndPosition;
+        // Use a plain TextBox renderer on Windows 10. The buffer still parses ANSI/VT state, but
+        // painting RichEdit character-format ranges while ConPTY is streaming can terminate the
+        // native RichEdit host before managed exception handling gets a chance to run.
+        var snapshot = state.Buffer.Snapshot().Text;
+        var oldLength = state.View.Text?.Length ?? 0;
+        var oldSelectionStart = state.View.SelectionStart;
+        var oldSelectionLength = state.View.SelectionLength;
 
         state.Scroller ??= FindDescendantScrollViewer(state.View);
         var oldOffset = state.Scroller?.VerticalOffset ?? 0;
-        var followTail = state.Scroller is null ||
-                         state.Scroller.ScrollableHeight - state.Scroller.VerticalOffset <= 28;
+        var followTail = state.Scroller is null
+            ? oldSelectionLength == 0 && oldSelectionStart >= oldLength
+            : state.Scroller.ScrollableHeight - state.Scroller.VerticalOffset <= 28;
 
-        state.View.Document.BatchDisplayUpdates();
-        try
-        {
-            state.View.Document.SetText(TextSetOptions.None, snapshot.Text);
-            foreach (var run in snapshot.Runs)
-                ApplyStyleRun(state.View, run, snapshot.Text.Length);
-        }
-        finally
-        {
-            state.View.Document.ApplyDisplayUpdates();
-        }
+        state.View.Text = snapshot;
 
-        var length = snapshot.Text.Length;
         if (followTail)
         {
-            selection.SetRange(length, length);
+            state.View.SelectionStart = snapshot.Length;
+            state.View.SelectionLength = 0;
         }
         else
         {
-            var start = Math.Clamp(oldSelectionStart, 0, length);
-            var end = Math.Clamp(oldSelectionEnd, start, length);
-            selection.SetRange(start, end);
+            state.View.SelectionStart = Math.Min(oldSelectionStart, snapshot.Length);
+            state.View.SelectionLength = Math.Min(
+                oldSelectionLength,
+                Math.Max(0, snapshot.Length - state.View.SelectionStart));
         }
 
         DispatcherQueue.TryEnqueue(() =>
@@ -92,34 +84,6 @@ public sealed partial class TerminalWorkspaceDialog
             state.Scroller.ChangeView(null, target, null, disableAnimation: true);
         });
     }
-
-    private static void ApplyStyleRun(RichEditBox view, TerminalStyleRun run, int documentLength)
-    {
-        if (run.Length <= 0 || run.Start < 0 || run.Start >= documentLength) return;
-        var end = Math.Min(documentLength, run.Start + run.Length);
-        if (end <= run.Start) return;
-
-        var range = view.Document.GetRange(run.Start, end);
-        var style = run.Style;
-        var foreground = style.Foreground?.ToColor() ?? DefaultTerminalForeground;
-        var background = style.Background?.ToColor() ?? DefaultTerminalBackground;
-        if (style.Inverse) (foreground, background) = (background, foreground);
-        if (style.Dim) foreground = Dim(foreground);
-
-        var format = range.CharacterFormat;
-        format.ForegroundColor = foreground;
-        format.BackgroundColor = background;
-        format.Bold = style.Bold ? FormatEffect.On : FormatEffect.Off;
-        format.Name = "Consolas";
-        format.Size = 13;
-        range.CharacterFormat = format;
-    }
-
-    private static Color Dim(Color color) => Color.FromArgb(
-        color.A,
-        (byte)(color.R * 0.62),
-        (byte)(color.G * 0.62),
-        (byte)(color.B * 0.62));
 
     private static ScrollViewer? FindDescendantScrollViewer(DependencyObject root)
     {
@@ -155,10 +119,4 @@ public sealed partial class TerminalWorkspaceDialog
         var target = Math.Clamp(scroller.VerticalOffset + delta, 0, scroller.ScrollableHeight);
         scroller.ChangeView(null, target, null, disableAnimation: true);
     }
-}
-
-internal static class TerminalColorExtensions
-{
-    public static Color ToColor(this TerminalColor color) =>
-        Color.FromArgb(0xff, color.R, color.G, color.B);
 }

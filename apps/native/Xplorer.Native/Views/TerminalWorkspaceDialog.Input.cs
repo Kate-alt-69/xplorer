@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using System.Text;
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Windows.ApplicationModel.DataTransfer;
@@ -13,7 +12,7 @@ public sealed partial class TerminalWorkspaceDialog
 {
     private async void TerminalView_KeyDown(object sender, KeyRoutedEventArgs e)
     {
-        if (sender is not RichEditBox { Tag: TerminalTabState state }) return;
+        if (sender is not TextBox { Tag: TerminalTabState state }) return;
         var session = state.Session;
         if (session is null || !session.IsRunning) return;
 
@@ -89,24 +88,20 @@ public sealed partial class TerminalWorkspaceDialog
         e.Handled = true;
 
         var shouldSendTab = !_tabChordUsed &&
-                            sender is RichEditBox { Tag: TerminalTabState state } &&
+                            sender is TextBox { Tag: TerminalTabState state } &&
                             state.Session?.IsRunning == true;
         _tabChordArmed = false;
         _tabChordUsed = false;
 
-        if (shouldSendTab && sender is RichEditBox { Tag: TerminalTabState active } && active.Session is not null)
+        if (shouldSendTab && sender is TextBox { Tag: TerminalTabState active } && active.Session is not null)
             await active.Session.SendAsync("\t");
     }
 
-    private static void CopySelection(RichEditBox view)
+    private static void CopySelection(TextBox view)
     {
-        var selection = view.Document.Selection;
-        if (selection.Length <= 0) return;
-        selection.GetText(TextGetOptions.None, out var text);
-        if (string.IsNullOrEmpty(text)) return;
-
+        if (view.SelectionLength <= 0 || string.IsNullOrEmpty(view.SelectedText)) return;
         var package = new DataPackage();
-        package.SetText(text);
+        package.SetText(view.SelectedText);
         Clipboard.SetContent(package);
         Clipboard.Flush();
     }

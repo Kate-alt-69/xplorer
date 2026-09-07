@@ -1,4 +1,3 @@
-using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -115,7 +114,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
     {
         StopSession(state);
         state.Buffer.Clear();
-        state.View.Document.SetText(TextSetOptions.None, string.Empty);
+        state.View.Text = string.Empty;
         state.WorkingDirectory = directory;
         StartSession(state, directory);
     }
@@ -125,6 +124,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         try
         {
             var launch = TerminalService.ResolveLaunch(_settingsService.Current);
+            CrashLogService.Log($"Terminal session starting. Shell='{launch.DisplayName}'; Directory='{directory}'.");
             var session = ConPtyTerminalSession.Start(directory, launch);
             state.Session = session;
             state.WorkingDirectory = directory;
@@ -133,9 +133,11 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
             session.Exited += state.ExitHandler;
             session.StartReading();
             ResizeSession(state);
+            CrashLogService.Log($"Terminal session started. Shell='{launch.DisplayName}'.");
         }
         catch (Exception ex)
         {
+            CrashLogService.LogException("Terminal session start failed", ex);
             state.Session = null;
             state.Tab.Header = "Terminal error";
             state.Buffer.Append($"Xplorer could not start the terminal.\r\n{ex.Message}\r\n");
@@ -153,9 +155,13 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         session.Dispose();
     }
 
-    private RichEditBox CreateTerminalView()
+    // Keep the terminal surface on WinUI's mature TextBox path for Windows 10. The styled RichEditBox
+    // renderer introduced a native RichEdit document/formatting crash on some 19045 systems as soon
+    // as the first ConPTY output was painted. ANSI style state is still parsed in TerminalTextBuffer,
+    // so a future renderer can restore colors without risking the file-manager process.
+    private TextBox CreateTerminalView()
     {
-        var view = new RichEditBox
+        var view = new TextBox
         {
             IsReadOnly = true,
             AcceptsReturn = true,
@@ -244,7 +250,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         private readonly TerminalWorkspaceDialog _owner;
 
         public TabViewItem Tab { get; }
-        public RichEditBox View { get; }
+        public TextBox View { get; }
         public ScrollViewer? Scroller { get; set; }
         public TerminalTextBuffer Buffer { get; } = new();
         public ConPtyTerminalSession? Session { get; set; }
@@ -258,7 +264,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         public TerminalTabState(
             TerminalWorkspaceDialog owner,
             TabViewItem tab,
-            RichEditBox view,
+            TextBox view,
             string workingDirectory)
         {
             _owner = owner;
