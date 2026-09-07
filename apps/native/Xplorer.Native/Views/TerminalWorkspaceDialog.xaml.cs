@@ -7,7 +7,7 @@ using Xplorer.Native.Services;
 
 namespace Xplorer.Native.Views;
 
-public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
+public sealed partial class TerminalWorkspaceDialog : Window, IDisposable
 {
     private readonly SettingsService _settingsService;
     private readonly List<TerminalTabState> _states = [];
@@ -16,11 +16,6 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
     private bool _disposed;
     private bool _tabChordArmed;
     private bool _tabChordUsed;
-    private bool _resizing;
-    private uint _resizePointerId;
-    private Windows.Foundation.Point _resizeStart;
-    private double _resizeStartWidth;
-    private double _resizeStartHeight;
 
     private static readonly Color DefaultTerminalForeground = Color.FromArgb(0xff, 0xf2, 0xf2, 0xf2);
     private static readonly Color DefaultTerminalBackground = Color.FromArgb(0xff, 0x0c, 0x0c, 0x0c);
@@ -29,9 +24,10 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
     {
         InitializeComponent();
         _settingsService = settingsService;
+        InitializeNativeTerminalWindow();
     }
 
-    public async Task ShowForDirectoryAsync(string directory)
+    public Task ShowForDirectoryAsync(string directory)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         _latestDirectory = Directory.Exists(directory)
@@ -39,25 +35,9 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
             : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
         EnsureFolderAwareSession();
-        if (_visible)
-        {
-            FocusSelectedTerminal();
-            return;
-        }
-
-        _visible = true;
-        try
-        {
-            var show = ShowAsync();
-            DispatcherQueue.TryEnqueue(FocusSelectedTerminal);
-            await show;
-        }
-        finally
-        {
-            _visible = false;
-            _tabChordArmed = false;
-            _tabChordUsed = false;
-        }
+        ShowNativeTerminalWindow();
+        DispatcherQueue.TryEnqueue(FocusSelectedTerminal);
+        return Task.CompletedTask;
     }
 
     private void EnsureFolderAwareSession()
@@ -91,17 +71,16 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
 
     private TerminalTabState CreateTerminalTab(string directory, bool select)
     {
-        var (view, scroller) = CreateTerminalView();
+        var view = CreateTerminalView();
         var tab = new TabViewItem
         {
             Header = "Terminal",
             IsClosable = true,
-            Content = scroller,
+            Content = view,
         };
-        var state = new TerminalTabState(this, tab, view, scroller, directory);
+        var state = new TerminalTabState(this, tab, view, directory);
         tab.Tag = state;
         view.Tag = state;
-        scroller.Tag = state;
 
         _states.Add(state);
         TerminalTabs.TabItems.Add(tab);
@@ -115,8 +94,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
     {
         StopSession(state);
         state.Buffer.Clear();
-        state.View.Inlines.Clear();
-        state.LastRenderedText = string.Empty;
+        state.View.Text = string.Empty;
         state.WorkingDirectory = directory;
         StartSession(state, directory);
     }
@@ -157,42 +135,35 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         session.Dispose();
     }
 
-    // TextBlock provides lightweight formatted Runs and selectable text without using RichEdit's
-    // mutable document model. That gives ConPTY/PowerShell its ANSI colors back while avoiding the
-    // Windows 10 native RichEdit formatting crash that previously terminated the whole file manager.
-    private (TextBlock View, ScrollViewer Scroller) CreateTerminalView()
+    // Keep the terminal surface on WinUI's mature TextBox path for Windows 10. RichEdit formatting
+    // previously crashed in native code on some 19045 systems while ConPTY output was streaming.
+    // Window resizing and terminal rendering are intentionally separate concerns.
+    private TextBox CreateTerminalView()
     {
-        var view = new TextBlock
+        var view = new TextBox
         {
+            IsReadOnly = true,
+            AcceptsReturn = true,
             TextWrapping = TextWrapping.NoWrap,
-            IsTextSelectionEnabled = true,
+            IsSpellCheckEnabled = false,
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
+            Padding = new Thickness(12, 10, 12, 12),
+            BorderThickness = new Thickness(0),
+            Background = new SolidColorBrush(DefaultTerminalBackground),
             Foreground = new SolidColorBrush(DefaultTerminalForeground),
             SelectionHighlightColor = new SolidColorBrush(Color.FromArgb(0xff, 0x26, 0x4f, 0x78)),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Top,
-        };
-
-        var scroller = new ScrollViewer
-        {
-            Content = view,
-            Background = new SolidColorBrush(DefaultTerminalBackground),
-            Padding = new Thickness(12, 10, 12, 12),
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollMode = ScrollMode.Auto,
-            VerticalScrollMode = ScrollMode.Auto,
-            ZoomMode = ZoomMode.Disabled,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
         };
+        ScrollViewer.SetHorizontalScrollBarVisibility(view, ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollBarVisibility(view, ScrollBarVisibility.Auto);
 
         view.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(TerminalView_KeyDown), handledEventsToo: true);
         view.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(TerminalView_KeyUp), handledEventsToo: true);
         view.Loaded += TerminalView_Loaded;
-        scroller.SizeChanged += TerminalView_SizeChanged;
-        return (view, scroller);
+        view.SizeChanged += TerminalView_SizeChanged;
+        return view;
     }
 
     private void TerminalClose_Click(object sender, RoutedEventArgs e) => Hide();
@@ -241,7 +212,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         state.Disposed = true;
         StopSession(state);
         state.View.Loaded -= TerminalView_Loaded;
-        state.Scroller.SizeChanged -= TerminalView_SizeChanged;
+        state.View.SizeChanged -= TerminalView_SizeChanged;
     }
 
     public void Dispose()
@@ -250,6 +221,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         _disposed = true;
         foreach (var state in _states.ToArray()) RemoveState(state);
         _states.Clear();
+        DisposeNativeTerminalWindow();
         GC.SuppressFinalize(this);
     }
 
@@ -258,12 +230,11 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         private readonly TerminalWorkspaceDialog _owner;
 
         public TabViewItem Tab { get; }
-        public TextBlock View { get; }
-        public ScrollViewer Scroller { get; }
+        public TextBox View { get; }
+        public ScrollViewer? Scroller { get; set; }
         public TerminalTextBuffer Buffer { get; } = new();
         public ConPtyTerminalSession? Session { get; set; }
         public string WorkingDirectory { get; set; }
-        public string LastRenderedText { get; set; } = string.Empty;
         public int RefreshQueued;
         public bool Disposed;
 
@@ -273,14 +244,12 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         public TerminalTabState(
             TerminalWorkspaceDialog owner,
             TabViewItem tab,
-            TextBlock view,
-            ScrollViewer scroller,
+            TextBox view,
             string workingDirectory)
         {
             _owner = owner;
             Tab = tab;
             View = view;
-            Scroller = scroller;
             WorkingDirectory = workingDirectory;
             OutputHandler = (_, text) =>
             {
