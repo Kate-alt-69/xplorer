@@ -17,12 +17,16 @@ public sealed partial class MainWindow : Window
     private readonly string _homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
     private bool _suppressTabSelection;
     private int _navigationGeneration;
+    private ExplorerTabState? _activeTabState;
 
     public ObservableCollection<FileSystemItem> Items { get; } = [];
     public ObservableCollection<DriveItem> Drives { get; } = [];
 
-    private ExplorerTabState? ActiveTabState =>
-        (Tabs.SelectedItem as TabViewItem)?.Tag as ExplorerTabState;
+    // TabView.SelectedItem is a visual-control state and may briefly be null while WinUI is
+    // applying selection, restoring a session, or removing a tab. Navigation must not disappear
+    // just because that visual transition is in flight, so keep a stable model-side active tab and
+    // reconcile it with TabView whenever a concrete selection is available.
+    private ExplorerTabState? ActiveTabState => ResolveActiveTabState();
 
     private string CurrentPath => ActiveTabState?.CurrentPath ?? _homePath;
 
@@ -54,6 +58,44 @@ public sealed partial class MainWindow : Window
         AddTab(startPath, select: true);
     }
 
+    private ExplorerTabState? ResolveActiveTabState()
+    {
+        if (Tabs.SelectedItem is TabViewItem { Tag: ExplorerTabState selected })
+        {
+            _activeTabState = selected;
+            return selected;
+        }
+
+        var selectedIndex = Tabs.SelectedIndex;
+        if (selectedIndex >= 0 &&
+            selectedIndex < Tabs.TabItems.Count &&
+            Tabs.TabItems[selectedIndex] is TabViewItem { Tag: ExplorerTabState indexed })
+        {
+            _activeTabState = indexed;
+            return indexed;
+        }
+
+        if (_activeTabState is not null && ContainsTabState(_activeTabState))
+            return _activeTabState;
+
+        if (Tabs.TabItems.Count == 1 &&
+            Tabs.TabItems[0] is TabViewItem { Tag: ExplorerTabState only })
+        {
+            _activeTabState = only;
+            return only;
+        }
+
+        return null;
+    }
+
+    private bool ContainsTabState(ExplorerTabState state) =>
+        Tabs.TabItems.OfType<TabViewItem>().Any(tab => ReferenceEquals(tab.Tag, state));
+
+    private TabViewItem? FindTabForState(ExplorerTabState state) =>
+        Tabs.TabItems.OfType<TabViewItem>().FirstOrDefault(tab => ReferenceEquals(tab.Tag, state));
+
+    private bool IsActiveTab(Guid tabId) => ResolveActiveTabState()?.Id == tabId;
+
     private TabViewItem AddTab(string path, bool select)
     {
         var initialPath = Directory.Exists(path) ? Path.GetFullPath(path) : _homePath;
@@ -69,9 +111,21 @@ public sealed partial class MainWindow : Window
         if (select)
         {
             _suppressTabSelection = true;
-            Tabs.SelectedItem = tab;
-            _suppressTabSelection = false;
-            _ = NavigateAsync(initialPath, pushHistory: false);
+            try
+            {
+                // Model ownership is authoritative. WinUI is free to finish SelectedItem/Index on
+                // its own event turn without making the requested navigation depend on that timing.
+                _activeTabState = state;
+                Tabs.SelectedItem = tab;
+                var index = Tabs.TabItems.IndexOf(tab);
+                if (index >= 0) Tabs.SelectedIndex = index;
+            }
+            finally
+            {
+                _suppressTabSelection = false;
+            }
+
+            _ = NavigateTabAsync(state, initialPath, pushHistory: false);
         }
 
         return tab;
@@ -79,8 +133,24 @@ public sealed partial class MainWindow : Window
 
     private async Task NavigateAsync(string path, bool pushHistory = true)
     {
-        var state = ActiveTabState;
-        if (state is null) return;
+        var state = ResolveActiveTabState();
+        if (state is null)
+        {
+            DebugUxTrace($"Navigate rejected: no active tab path='{path}' selectedIndex={Tabs.SelectedIndex} tabCount={Tabs.TabItems.Count}");
+            StatusText.Text = "Navigation state unavailable";
+            return;
+        }
+
+        await NavigateTabAsync(state, path, pushHistory);
+    }
+
+    private async Task NavigateTabAsync(ExplorerTabState state, string path, bool pushHistory = true)
+    {
+        if (!ContainsTabState(state))
+        {
+            DebugUxTrace($"Navigate rejected: tab model is detached path='{path}' tab={state.Id}");
+            return;
+        }
 
         string fullPath;
         try
@@ -106,8 +176,19 @@ public sealed partial class MainWindow : Window
         }
 
         state.CurrentPath = fullPath;
+        if (FindTabForState(state) is { } tab)
+            tab.Header = GetTabHeader(fullPath);
+
+        // Xplorer has one shared viewport. A tab may be restored/created while not selected, but it
+        // must never paint over the visible tab. The stable model-side active state makes this test
+        // deterministic even while TabView itself is between selection notifications.
+        if (!IsActiveTab(state.Id))
+        {
+            DebugUxTrace($"Navigate deferred: tab is not active path='{fullPath}' tab={state.Id}");
+            return;
+        }
+
         AddressBox.Text = fullPath;
-        UpdateActiveTabHeader();
         UpdateNavigationButtons();
 
         var viewMode = _settingsService.GetViewMode(fullPath);
@@ -127,7 +208,7 @@ public sealed partial class MainWindow : Window
             generation,
             tabId);
 
-        if (generation != _navigationGeneration || ActiveTabState?.Id != tabId) return;
+        if (generation != _navigationGeneration || !IsActiveTab(tabId)) return;
 
         var searchQuery = _activeSearchQuery;
         if (!string.IsNullOrWhiteSpace(searchQuery) &&
@@ -141,7 +222,7 @@ public sealed partial class MainWindow : Window
             }
 
             if (generation != _navigationGeneration ||
-                ActiveTabState?.Id != tabId ||
+                !IsActiveTab(tabId) ||
                 !string.Equals(searchQuery, SearchBox.Text.Trim(), StringComparison.Ordinal))
             {
                 return;
@@ -449,7 +530,7 @@ public sealed partial class MainWindow : Window
         if (state is null || state.BackHistory.Count == 0) return;
         state.ForwardHistory.Push(state.CurrentPath);
         var target = state.BackHistory.Pop();
-        await NavigateAsync(target, pushHistory: false);
+        await NavigateTabAsync(state, target, pushHistory: false);
     }
 
     private async void ForwardButton_Click(object sender, RoutedEventArgs e)
@@ -458,7 +539,7 @@ public sealed partial class MainWindow : Window
         if (state is null || state.ForwardHistory.Count == 0) return;
         state.BackHistory.Push(state.CurrentPath);
         var target = state.ForwardHistory.Pop();
-        await NavigateAsync(target, pushHistory: false);
+        await NavigateTabAsync(state, target, pushHistory: false);
     }
 
     private async void UpButton_Click(object sender, RoutedEventArgs e)
@@ -487,8 +568,17 @@ public sealed partial class MainWindow : Window
 
     private async void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (_suppressTabSelection || ActiveTabState is null) return;
-        await NavigateAsync(ActiveTabState.CurrentPath, pushHistory: false);
+        if (_suppressTabSelection) return;
+
+        var state = ResolveActiveTabState();
+        if (state is null)
+        {
+            DebugUxTrace($"Tab selection has no model selectedIndex={Tabs.SelectedIndex} tabCount={Tabs.TabItems.Count}");
+            return;
+        }
+
+        _activeTabState = state;
+        await NavigateTabAsync(state, state.CurrentPath, pushHistory: false);
     }
 
     private async void Tabs_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
@@ -496,20 +586,28 @@ public sealed partial class MainWindow : Window
         if (Tabs.TabItems.Count <= 1) return;
 
         var closing = args.Tab;
-        var wasSelected = ReferenceEquals(Tabs.SelectedItem, closing);
+        var closingState = closing?.Tag as ExplorerTabState;
+        var wasSelected = closingState is not null && ActiveTabState?.Id == closingState.Id;
         var oldIndex = Tabs.TabItems.IndexOf(closing);
 
         _suppressTabSelection = true;
-        Tabs.TabItems.Remove(closing);
-        if (wasSelected && Tabs.TabItems.Count > 0)
+        try
         {
-            Tabs.SelectedIndex = Math.Clamp(oldIndex - 1, 0, Tabs.TabItems.Count - 1);
+            Tabs.TabItems.Remove(closing);
+            if (wasSelected && Tabs.TabItems.Count > 0)
+            {
+                Tabs.SelectedIndex = Math.Clamp(oldIndex - 1, 0, Tabs.TabItems.Count - 1);
+                _activeTabState = null;
+            }
         }
-        _suppressTabSelection = false;
+        finally
+        {
+            _suppressTabSelection = false;
+        }
 
-        if (wasSelected && ActiveTabState is not null)
-        {
-            await NavigateAsync(ActiveTabState.CurrentPath, pushHistory: false);
-        }
+        if (!wasSelected) return;
+        var state = ResolveActiveTabState();
+        if (state is not null)
+            await NavigateTabAsync(state, state.CurrentPath, pushHistory: false);
     }
 }
