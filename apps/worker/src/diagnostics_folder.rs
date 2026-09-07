@@ -6,7 +6,8 @@ use std::{
     io::{self, Read, Write},
     os::windows::{ffi::OsStringExt, fs::MetadataExt},
     path::{Path, PathBuf},
-    time::{Instant, SystemTime, UNIX_EPOCH},
+    thread,
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use crate::workspace;
@@ -16,6 +17,7 @@ const WORKSPACE_VERSION: u32 = 1;
 const FLAG_DIRECTORY: u8 = 1;
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
 const ATTACH_PARENT_PROCESS: u32 = u32::MAX;
+const PROTECTED_REINDEX_WAIT: Duration = Duration::from_secs(8);
 
 #[link(name = "kernel32")]
 unsafe extern "system" {
@@ -72,6 +74,12 @@ struct WorkspaceIndex {
     direct_names: BTreeSet<String>,
 }
 
+struct IndexBackend {
+    data_dir: PathBuf,
+    control_dir: PathBuf,
+    kind: &'static str,
+}
+
 pub fn has_test_folder(arguments: &[OsString]) -> bool {
     arguments.iter().any(|argument| {
         let value = argument.to_string_lossy();
@@ -107,12 +115,21 @@ fn run_inner(arguments: &[OsString]) -> io::Result<i32> {
     }
 
     let reindex = arguments.iter().any(|value| is_reindex(value));
+    let local = env::var_os("LOCALAPPDATA")
+        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "LOCALAPPDATA is unavailable"))?;
+    let user_data = PathBuf::from(&local).join("Xplorer");
+    let backend = resolve_index_backend(&user_data);
+    let log_dir = user_data.join("Logs");
+    fs::create_dir_all(&log_dir)?;
+    let index_path = backend.data_dir.join("workspace.xwidx");
+
     out("");
     out("Xplorer folder diagnostic");
     out("=========================");
     out(&format!("Folder: {}", folder.display()));
     out(&format!("PID: {}", std::process::id()));
     out(&format!("Mode: {}", if reindex { "READ + EXPLICIT REINDEX" } else { "READ-ONLY" }));
+    out(&format!("Index backend: {}", backend.kind));
     out("");
 
     out("[1/5] Direct filesystem scan");
@@ -127,27 +144,31 @@ fn run_inner(arguments: &[OsString]) -> io::Result<i32> {
     let recursive_ms = elapsed_ms(start);
     out(&format!("[OK] {} files, {} folders ({recursive_ms:.3} ms)", recursive.files, recursive.folders));
 
-    let local = env::var_os("LOCALAPPDATA")
-        .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "LOCALAPPDATA is unavailable"))?;
-    let index_dir = PathBuf::from(&local).join("Xplorer").join("Index");
-    let log_dir = PathBuf::from(local).join("Xplorer").join("Logs");
-    fs::create_dir_all(&log_dir)?;
-    let index_path = index_dir.join("workspace.xwidx");
-
     let mut rebuild_ms = None;
     let mut rebuilt = false;
     if reindex {
-        out("[3/5] Explicit hot workspace reindex (--reindex)");
-        fs::create_dir_all(&index_dir)?;
-        let hint = index_dir.join("workspace.hint");
-        let temp = index_dir.join(format!("workspace.hint.debug.{}.tmp", std::process::id()));
-        fs::write(&temp, folder.as_os_str().to_string_lossy().as_bytes())?;
-        let _ = fs::remove_file(&hint);
-        fs::rename(&temp, &hint)?;
+        fs::create_dir_all(&backend.control_dir)?;
+        out(if backend.kind == "PROTECTED-BGW" {
+            "[3/5] Delegate hot workspace reindex to protected BGW"
+        } else {
+            "[3/5] Explicit local hot workspace reindex"
+        });
+
+        let previous_timestamp = decode_index(&index_path).ok().map(|value| value.timestamp);
+        write_workspace_hint(&backend.control_dir, &folder)?;
         let start = Instant::now();
-        rebuilt = workspace::refresh_hot_workspace(&index_dir, None)?;
+        if backend.kind == "PROTECTED-BGW" {
+            rebuilt = wait_for_bg_worker(&index_path, &folder, previous_timestamp)?;
+        } else {
+            rebuilt = workspace::refresh_hot_workspace(&backend.control_dir, &backend.data_dir, None)?;
+        }
         rebuild_ms = Some(elapsed_ms(start));
-        out(&format!("[OK] rebuilt={rebuilt} ({:.3} ms)", rebuild_ms.unwrap_or_default()));
+        out(&format!(
+            "[{}] refreshed={} ({:.3} ms)",
+            if rebuilt { "OK" } else { "WARN" },
+            rebuilt,
+            rebuild_ms.unwrap_or_default()
+        ));
     } else {
         out("[3/5] Inspect existing hot workspace index (read-only)");
         out(if index_path.is_file() {
@@ -202,6 +223,13 @@ fn run_inner(arguments: &[OsString]) -> io::Result<i32> {
     if let Some(error) = &decode_error {
         warnings.push(format!("workspace.xwidx decode: {error}"));
     }
+    if reindex && !rebuilt {
+        warnings.push(if backend.kind == "PROTECTED-BGW" {
+            format!("protected BGW did not publish the requested hot workspace within {} seconds", PROTECTED_REINDEX_WAIT.as_secs())
+        } else {
+            "local worker refresh did not produce a new workspace snapshot".to_string()
+        });
+    }
 
     let state = if decode_error.is_some()
         || (root_matches && (!missing.is_empty() || !extra.is_empty()))
@@ -217,9 +245,24 @@ fn run_inner(arguments: &[OsString]) -> io::Result<i32> {
     };
 
     let report = build_report(
-        &folder, &index_path, index_exists, reindex, rebuilt, &direct, direct_ms,
-        recursive_ms, rebuild_ms, decode_ms, &recursive, index.as_ref(), root_matches,
-        &missing, &extra, &warnings, state,
+        &folder,
+        &backend,
+        &index_path,
+        index_exists,
+        reindex,
+        rebuilt,
+        &direct,
+        direct_ms,
+        recursive_ms,
+        rebuild_ms,
+        decode_ms,
+        &recursive,
+        index.as_ref(),
+        root_matches,
+        &missing,
+        &extra,
+        &warnings,
+        state,
     );
     let log_path = log_dir.join(format!("debug-folder-{}.log", unix_now()));
     fs::write(&log_path, report.as_bytes())?;
@@ -232,9 +275,67 @@ fn run_inner(arguments: &[OsString]) -> io::Result<i32> {
     Ok(state.code())
 }
 
+fn resolve_index_backend(user_data: &Path) -> IndexBackend {
+    let local_index = user_data.join("Index");
+    let control_dir = user_data.join("Control");
+    let pointer = control_dir.join("protected-index.path");
+
+    if let Ok(value) = fs::read_to_string(&pointer) {
+        let candidate = PathBuf::from(value.trim());
+        if let Some(program_data) = env::var_os("PROGRAMDATA") {
+            let protected_root = PathBuf::from(program_data).join("Xplorer").join("Index");
+            if candidate.is_absolute()
+                && candidate.starts_with(&protected_root)
+                && candidate.join("provisioned.v1").is_file()
+            {
+                return IndexBackend {
+                    data_dir: candidate,
+                    control_dir,
+                    kind: "PROTECTED-BGW",
+                };
+            }
+        }
+    }
+
+    IndexBackend {
+        data_dir: local_index,
+        control_dir,
+        kind: "PER-USER-BGW",
+    }
+}
+
+fn write_workspace_hint(control_dir: &Path, folder: &Path) -> io::Result<()> {
+    fs::create_dir_all(control_dir)?;
+    let hint = control_dir.join("workspace.hint");
+    let temp = control_dir.join(format!("workspace.hint.debug.{}.tmp", std::process::id()));
+    fs::write(&temp, folder.as_os_str().to_string_lossy().as_bytes())?;
+    let _ = fs::remove_file(&hint);
+    fs::rename(temp, hint)
+}
+
+fn wait_for_bg_worker(
+    index_path: &Path,
+    folder: &Path,
+    previous_timestamp: Option<u64>,
+) -> io::Result<bool> {
+    let deadline = Instant::now() + PROTECTED_REINDEX_WAIT;
+    while Instant::now() < deadline {
+        if let Ok(index) = decode_index(index_path) {
+            if same_path(&index.root, &folder.to_string_lossy())
+                && previous_timestamp.is_none_or(|previous| index.timestamp > previous)
+            {
+                return Ok(true);
+            }
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    Ok(false)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn build_report(
     folder: &Path,
+    backend: &IndexBackend,
     index_path: &Path,
     index_exists: bool,
     reindex: bool,
@@ -261,11 +362,17 @@ fn build_report(
     line(&mut text, &format!("PID: {}", std::process::id()));
     line(&mut text, &format!("Diagnostic mode: {}", if reindex { "READ + EXPLICIT REINDEX" } else { "READ-ONLY" }));
 
+    section(&mut text, "INDEX BACKEND");
+    line(&mut text, &format!("Worker/index mode: {}", backend.kind));
+    line(&mut text, &format!("Index store: {}", backend.data_dir.display()));
+    line(&mut text, &format!("Control channel: {}", backend.control_dir.display()));
+    line(&mut text, "USN file-reference resolution: ENABLED in this worker build");
+
     section(&mut text, "INDEX STATUS");
     line(&mut text, &format!("Index file exists: {}", yes(index_exists)));
     line(&mut text, &format!("Index file: {}", index_path.display()));
     line(&mut text, &format!("Reindex requested: {}", yes(reindex)));
-    line(&mut text, &format!("Snapshot rebuilt: {}", yes(rebuilt)));
+    line(&mut text, &format!("Snapshot refreshed: {}", yes(rebuilt)));
     if let Some(index) = index {
         line(&mut text, &format!("Index version: {WORKSPACE_VERSION}"));
         line(&mut text, &format!("Index timestamp: {}", index.timestamp));
@@ -284,16 +391,20 @@ fn build_report(
 
     section(&mut text, "DATASET SOURCE");
     if root_matches {
-        line(&mut text, &format!("Viewport source candidate: {}", if reindex { "INDEX-REBUILT" } else { "INDEX" }));
+        line(&mut text, &format!("Viewport source candidate: {}", if reindex { "INDEX-REFRESHED" } else { "INDEX" }));
         line(&mut text, "Hot workspace cache: HIT");
         line(&mut text, "BGW refresh required: NO");
     } else {
         line(&mut text, "Viewport source candidate: DISK-TEMP");
         line(&mut text, "Hot workspace cache: MISS");
         line(&mut text, if reindex {
-            "BGW/index action: explicit reindex requested by this diagnostic"
+            if backend.kind == "PROTECTED-BGW" {
+                "BGW/index action: workspace request delegated through the user control channel; debug process did not write ProgramData"
+            } else {
+                "BGW/index action: explicit local hot-cache refresh requested by this diagnostic"
+            }
         } else {
-            "BGW/index action: normal Xplorer would queue workspace.hint + wake xplorer-bgw.exe; read-only diagnostic did not mutate the cache"
+            "BGW/index action: normal Xplorer would queue workspace.hint; read-only diagnostic did not mutate the cache"
         });
     }
 
@@ -315,7 +426,7 @@ fn build_report(
     section(&mut text, "TIMING");
     line(&mut text, &format!("Direct scan: {direct_ms:.3} ms"));
     line(&mut text, &format!("Recursive scan: {recursive_ms:.3} ms"));
-    line(&mut text, &format!("Index rebuild: {}", rebuild_ms.map(|v| format!("{v:.3} ms")).unwrap_or_else(|| "NOT RUN".into())));
+    line(&mut text, &format!("Index refresh/delegation: {}", rebuild_ms.map(|v| format!("{v:.3} ms")).unwrap_or_else(|| "NOT RUN".into())));
     line(&mut text, &format!("Index decode: {decode_ms:.3} ms"));
 
     section(&mut text, &format!("FILES ({})", direct.files.len()));
