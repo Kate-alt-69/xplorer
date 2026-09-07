@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.System;
 using Xplorer.Native.Models;
@@ -21,9 +22,9 @@ public sealed partial class MainWindow
     /// Explorer-style RMB behavior: right-clicking an item outside the selection makes it the
     /// selection; right-clicking one of several selected items preserves the full selection.
     ///
-    /// Item menus use the compatibility-first live Shell host. Registry cascades and many installed
-    /// shell extensions populate child menus through CMF_SYNCCASCADEMENU and/or IContextMenu2/3
-    /// messages, so they must remain attached to their COM owner until TrackPopupMenuEx exits.
+    /// Xplorer's small configurable command section is prepended to the same live native HMENU as
+    /// the real Shell menu. IContextMenu remains attached until TrackPopupMenuEx exits, so registry
+    /// cascades, 7-Zip and owner-drawn extensions keep their native behavior.
     /// </summary>
     private async void FileList_MultiRightTapped(object sender, RightTappedRoutedEventArgs e)
     {
@@ -38,25 +39,70 @@ public sealed partial class MainWindow
             list.SelectedItems.Add(item);
         }
 
-        var selectedPaths = list.SelectedItems
+        var selectedItems = list.SelectedItems
             .OfType<FileSystemItem>()
+            .ToArray();
+        if (selectedItems.Length == 0) selectedItems = [item];
+        var selectedPaths = selectedItems
             .Select(selected => selected.FullPath)
             .ToArray();
-        if (selectedPaths.Length == 0) selectedPaths = [item.FullPath];
 
         try
         {
+            var canInspect = selectedItems.Length == 1 && CanOpenInInspector(selectedItems[0]);
+            var xplorerEntries = XplorerContextMenuConfigService.Load(canInspect);
             using var liveShellMenu = new ExplorerShellMenuService();
-            var result = liveShellMenu.ShowForPaths(_hwnd, selectedPaths);
+            var result = liveShellMenu.ShowForPaths(_hwnd, selectedPaths, xplorerEntries);
+
+            if (result.XplorerCommand is { } xplorerCommand)
+            {
+                await ExecuteXplorerContextCommandAsync(xplorerCommand, selectedItems, selectedPaths);
+                return;
+            }
 
             // Cancelling a context menu must be essentially free. Re-enumerate only after an
             // invoked Shell command because it may have created, renamed, moved or deleted items.
-            if (result == ShellMenuShowResult.Invoked)
+            if (result.ShellWasInvoked)
                 await NavigateAsync(CurrentPath, pushHistory: false);
         }
         catch (Exception ex)
         {
             StatusText.Text = $"Shell menu error: {ex.Message}";
+        }
+    }
+
+    private async Task ExecuteXplorerContextCommandAsync(
+        XplorerContextCommand command,
+        IReadOnlyList<FileSystemItem> selectedItems,
+        IReadOnlyList<string> selectedPaths)
+    {
+        switch (command)
+        {
+            case XplorerContextCommand.OpenInspector:
+                if (selectedItems.Count == 1 && CanOpenInInspector(selectedItems[0]))
+                    await OpenItemInInspectorAsync(selectedItems[0]);
+                break;
+
+            case XplorerContextCommand.OpenTerminal:
+            {
+                if (selectedPaths.Count == 0) break;
+                var first = selectedPaths[0];
+                var directory = Directory.Exists(first)
+                    ? first
+                    : Path.GetDirectoryName(first) ?? CurrentPath;
+                await ShowEmbeddedTerminalAsync(directory);
+                break;
+            }
+
+            case XplorerContextCommand.CopyPath:
+                if (selectedPaths.Count > 0)
+                {
+                    var package = new DataPackage();
+                    package.SetText(string.Join(Environment.NewLine, selectedPaths));
+                    Clipboard.SetContent(package);
+                    Clipboard.Flush();
+                }
+                break;
         }
     }
 
