@@ -31,13 +31,17 @@ if ($Configuration -eq 'Release') {
     $workerArgs += '--release'
 }
 
-Write-Host "==> Building Rust xplorer.exe + xplorer-bgw.exe ($workerProfile)"
+Write-Host "==> Building Rust xplorer.exe + xplorer-bgw.exe + errorchk.exe ($workerProfile)"
 & cargo @workerArgs
 if ($LASTEXITCODE -ne 0) { throw "Rust build failed with exit code $LASTEXITCODE." }
 
 $RustHost = Join-Path $RepoRoot "apps/worker/target/$workerProfile/xplorer.exe"
+$ErrorCheck = Join-Path $RepoRoot "apps/worker/target/$workerProfile/errorchk.exe"
 if (-not (Test-Path $RustHost)) {
     throw "Rust host was not produced: $RustHost"
+}
+if (-not (Test-Path $ErrorCheck)) {
+    throw "Rust watchdog was not produced: $ErrorCheck"
 }
 
 if (Test-Path $PublishDir) {
@@ -73,13 +77,16 @@ if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXIT
 
 # The same tiny Rust host is published twice intentionally. xplorer.exe is the public launcher and
 # diagnostic entry point; xplorer-bgw.exe is the background-worker image so Task Manager makes the
-# process role obvious instead of showing two indistinguishable xplorer.exe processes.
+# process role obvious instead of showing two indistinguishable xplorer.exe processes. errorchk.exe
+# is a separate event-driven watchdog so UI/worker health never bloats the public launcher process.
 Copy-Item $RustHost (Join-Path $PublishDir 'xplorer.exe') -Force
 Copy-Item $RustHost (Join-Path $PublishDir 'xplorer-bgw.exe') -Force
+Copy-Item $ErrorCheck (Join-Path $PublishDir 'errorchk.exe') -Force
 
 $required = @(
     (Join-Path $PublishDir 'xplorer.exe'),
     (Join-Path $PublishDir 'xplorer-bgw.exe'),
+    (Join-Path $PublishDir 'errorchk.exe'),
     (Join-Path $PublishDir 'Xplorer.Native.exe')
 )
 foreach ($path in $required) {
@@ -119,6 +126,7 @@ Runtime: $Runtime
 Public entry point: xplorer.exe
 UI process: Xplorer.Native.exe
 Background worker image: xplorer-bgw.exe
+Health watchdog: errorchk.exe
 Application PRI: resources.pri
 
 Normal launch:
@@ -152,6 +160,10 @@ Register worker at user logon:
 Unregister worker:
   .\xplorer-bgw.exe --unregister-startup
   .\xplorer-bgw.exe --stop-service-worker
+
+Watchdog reports:
+  .\log\error\error-report<N>.error
+  fallback: %LOCALAPPDATA%\Xplorer\Logs\error\error-report<N>.error
 "@
 Set-Content -Path (Join-Path $PublishDir 'BUILD.txt') -Value $buildInfo -Encoding UTF8
 
