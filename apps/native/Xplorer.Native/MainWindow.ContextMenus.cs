@@ -32,17 +32,17 @@ public sealed partial class MainWindow
     }
 
     /// <summary>
-    /// WinUI's ItemClick path is the Windows 10 fallback for deeply templated rows/tiles. Keep the
-    /// XAML compact and wire this once after the visual tree is loaded.
+    /// Keep native DoubleTapped as the authoritative mouse activation route. Turning on
+    /// ListViewBase.IsItemClickEnabled changes WinUI's gesture arbitration on Windows 10 and can
+    /// consume the second pointer gesture before DoubleTapped reaches the row/tile. That regressed
+    /// folder navigation when the ItemClick compatibility path was wired globally.
+    ///
+    /// Enter remains an explicit keyboard fallback; mouse activation stays on the exact-item
+    /// DoubleTapped handler already declared in XAML.
     /// </summary>
     private void InitializeMouseActivationGestures()
     {
-        FileGrid.IsItemClickEnabled = true;
-        FileGrid.ItemClick += FileList_ItemClick;
         FileGrid.KeyDown += FileList_KeyDown;
-
-        FileDetails.IsItemClickEnabled = true;
-        FileDetails.ItemClick += FileList_ItemClick;
         FileDetails.KeyDown += FileList_KeyDown;
     }
 
@@ -238,16 +238,19 @@ public sealed partial class MainWindow
     private async void FileList_ExactDoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
     {
         var item = ResolveFileSystemItem(e.OriginalSource) ?? GetSelectedItem();
-        if (item is null) return;
+        if (item is null)
+        {
+            DebugUxTrace("Double-tap ignored: no filesystem item resolved");
+            return;
+        }
+
         e.Handled = true;
         CancelPendingRightClickGesture();
+        _lastItemClickPath = null;
+        _lastItemClickTick = 0;
         await ActivateFileSystemItemAsync(item);
     }
 
-    /// <summary>
-    /// Windows 10 can lose DoubleTapped on deeply templated ListView/GridView content. ItemClick is
-    /// the compatibility fallback and uses the same explicit 600 ms gesture window as Double-RMB.
-    /// </summary>
     private async void FileList_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key != VirtualKey.Enter || GetSelectedItem() is not { } item) return;
@@ -256,6 +259,10 @@ public sealed partial class MainWindow
         await ActivateFileSystemItemAsync(item);
     }
 
+    /// <summary>
+    /// Retained for targeted compatibility experiments only. Do not enable IsItemClickEnabled on
+    /// the main file views: on WinUI/Windows 10 it can suppress the exact DoubleTapped route.
+    /// </summary>
     private async void FileList_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is not FileSystemItem item) return;
