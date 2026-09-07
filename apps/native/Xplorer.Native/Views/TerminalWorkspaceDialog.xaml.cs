@@ -91,16 +91,17 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
 
     private TerminalTabState CreateTerminalTab(string directory, bool select)
     {
-        var view = CreateTerminalView();
+        var (view, scroller) = CreateTerminalView();
         var tab = new TabViewItem
         {
             Header = "Terminal",
             IsClosable = true,
-            Content = view,
+            Content = scroller,
         };
-        var state = new TerminalTabState(this, tab, view, directory);
+        var state = new TerminalTabState(this, tab, view, scroller, directory);
         tab.Tag = state;
         view.Tag = state;
+        scroller.Tag = state;
 
         _states.Add(state);
         TerminalTabs.TabItems.Add(tab);
@@ -114,7 +115,8 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
     {
         StopSession(state);
         state.Buffer.Clear();
-        state.View.Text = string.Empty;
+        state.View.Inlines.Clear();
+        state.LastRenderedText = string.Empty;
         state.WorkingDirectory = directory;
         StartSession(state, directory);
     }
@@ -155,36 +157,42 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         session.Dispose();
     }
 
-    // Keep the terminal surface on WinUI's mature TextBox path for Windows 10. The styled RichEditBox
-    // renderer introduced a native RichEdit document/formatting crash on some 19045 systems as soon
-    // as the first ConPTY output was painted. ANSI style state is still parsed in TerminalTextBuffer,
-    // so a future renderer can restore colors without risking the file-manager process.
-    private TextBox CreateTerminalView()
+    // TextBlock provides lightweight formatted Runs and selectable text without using RichEdit's
+    // mutable document model. That gives ConPTY/PowerShell its ANSI colors back while avoiding the
+    // Windows 10 native RichEdit formatting crash that previously terminated the whole file manager.
+    private (TextBlock View, ScrollViewer Scroller) CreateTerminalView()
     {
-        var view = new TextBox
+        var view = new TextBlock
         {
-            IsReadOnly = true,
-            AcceptsReturn = true,
             TextWrapping = TextWrapping.NoWrap,
-            IsSpellCheckEnabled = false,
+            IsTextSelectionEnabled = true,
             FontFamily = new FontFamily("Consolas"),
             FontSize = 13,
-            Padding = new Thickness(12, 10, 12, 12),
-            BorderThickness = new Thickness(0),
-            Background = new SolidColorBrush(DefaultTerminalBackground),
             Foreground = new SolidColorBrush(DefaultTerminalForeground),
             SelectionHighlightColor = new SolidColorBrush(Color.FromArgb(0xff, 0x26, 0x4f, 0x78)),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+
+        var scroller = new ScrollViewer
+        {
+            Content = view,
+            Background = new SolidColorBrush(DefaultTerminalBackground),
+            Padding = new Thickness(12, 10, 12, 12),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollMode = ScrollMode.Auto,
+            VerticalScrollMode = ScrollMode.Auto,
+            ZoomMode = ZoomMode.Disabled,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch,
         };
-        ScrollViewer.SetHorizontalScrollBarVisibility(view, ScrollBarVisibility.Auto);
-        ScrollViewer.SetVerticalScrollBarVisibility(view, ScrollBarVisibility.Auto);
 
         view.AddHandler(UIElement.KeyDownEvent, new KeyEventHandler(TerminalView_KeyDown), handledEventsToo: true);
         view.AddHandler(UIElement.KeyUpEvent, new KeyEventHandler(TerminalView_KeyUp), handledEventsToo: true);
         view.Loaded += TerminalView_Loaded;
-        view.SizeChanged += TerminalView_SizeChanged;
-        return view;
+        scroller.SizeChanged += TerminalView_SizeChanged;
+        return (view, scroller);
     }
 
     private void TerminalClose_Click(object sender, RoutedEventArgs e) => Hide();
@@ -233,7 +241,7 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         state.Disposed = true;
         StopSession(state);
         state.View.Loaded -= TerminalView_Loaded;
-        state.View.SizeChanged -= TerminalView_SizeChanged;
+        state.Scroller.SizeChanged -= TerminalView_SizeChanged;
     }
 
     public void Dispose()
@@ -250,11 +258,12 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         private readonly TerminalWorkspaceDialog _owner;
 
         public TabViewItem Tab { get; }
-        public TextBox View { get; }
-        public ScrollViewer? Scroller { get; set; }
+        public TextBlock View { get; }
+        public ScrollViewer Scroller { get; }
         public TerminalTextBuffer Buffer { get; } = new();
         public ConPtyTerminalSession? Session { get; set; }
         public string WorkingDirectory { get; set; }
+        public string LastRenderedText { get; set; } = string.Empty;
         public int RefreshQueued;
         public bool Disposed;
 
@@ -264,12 +273,14 @@ public sealed partial class TerminalWorkspaceDialog : ContentDialog, IDisposable
         public TerminalTabState(
             TerminalWorkspaceDialog owner,
             TabViewItem tab,
-            TextBox view,
+            TextBlock view,
+            ScrollViewer scroller,
             string workingDirectory)
         {
             _owner = owner;
             Tab = tab;
             View = view;
+            Scroller = scroller;
             WorkingDirectory = workingDirectory;
             OutputHandler = (_, text) =>
             {
