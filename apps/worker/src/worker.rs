@@ -4,6 +4,7 @@ use std::{
     fs,
     io,
     path::{Path, PathBuf},
+    thread,
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
@@ -18,6 +19,7 @@ const RECONCILE_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const FULL_SNAPSHOT_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const IDLE_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 const WORKSPACE_WAIT_SLICE: Duration = Duration::from_secs(1);
+const STOP_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_DELTA_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_USN_RECORDS_PER_PASS: usize = 4096;
 
@@ -42,6 +44,7 @@ where
     }
     if arguments.iter().any(|value| value == "--stop-service-worker") {
         let _ = platform::signal_stop_event()?;
+        wait_for_worker_exit(STOP_WAIT_TIMEOUT)?;
         return Ok(0);
     }
     if arguments.iter().any(|value| value == "--idle-probe") {
@@ -54,6 +57,23 @@ where
         return Ok(2);
     }
     run_worker(once, data_dir, control_dir)
+}
+
+fn wait_for_worker_exit(timeout: Duration) -> io::Result<()> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(instance) = SingleInstanceMutex::acquire()? {
+            drop(instance);
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                "Xplorer background worker did not stop before the shutdown timeout",
+            ));
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
 }
 
 fn run_idle_probe() -> io::Result<i32> {
