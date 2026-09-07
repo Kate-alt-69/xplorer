@@ -72,6 +72,7 @@ pub fn snapshot_is_current(data_dir: &Path, drive: u8) -> bool {
 pub fn scan_volume(
     drive: u8,
     data_dir: &Path,
+    control_dir: &Path,
     stop_event: Option<&platform::StopEvent>,
 ) -> io::Result<ScanStats> {
     ensure_not_stopped(stop_event)?;
@@ -101,7 +102,7 @@ pub fn scan_volume(
     let mut directories_since_checkpoint = RESUME_CHECKPOINT_DIRECTORY_INTERVAL;
 
     let scan_result: io::Result<()> = (|| {
-        let _ = workspace::refresh_hot_workspace(data_dir, stop_event);
+        let _ = workspace::refresh_hot_workspace(control_dir, data_dir, stop_event);
 
         while let Some(directory) = pending.pop() {
             ensure_not_stopped(stop_event)?;
@@ -118,12 +119,18 @@ pub fn scan_volume(
                     &directory,
                 )?;
                 directories_since_checkpoint = 0;
+
+                // A whole-volume crawl must never hold the current-folder cache hostage. The hot
+                // workspace reader has its own timestamp guard, so unchanged control hints make
+                // this checkpoint call essentially free.
+                let _ = workspace::refresh_hot_workspace(control_dir, data_dir, stop_event);
             }
 
             scan_one_directory(
                 &root,
                 &directory,
                 data_dir,
+                control_dir,
                 &mut pending,
                 &mut writer,
                 &mut directory_budget,
@@ -291,6 +298,7 @@ fn scan_one_directory(
     root: &Path,
     directory: &Path,
     excluded_data_dir: &Path,
+    control_dir: &Path,
     pending: &mut Vec<PathBuf>,
     writer: &mut BufWriter<File>,
     directory_budget: &mut PacedBudget,
@@ -368,7 +376,7 @@ fn scan_one_directory(
         stats.records = stats.records.saturating_add(1);
 
         if stats.records & 0x3f == 0 {
-            let _ = workspace::refresh_hot_workspace(excluded_data_dir, stop_event);
+            let _ = workspace::refresh_hot_workspace(control_dir, excluded_data_dir, stop_event);
         }
 
         if is_directory && !is_reparse_point && directory_depth < MAX_RECURSION_DEPTH {
