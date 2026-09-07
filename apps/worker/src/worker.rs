@@ -22,6 +22,7 @@ const WORKSPACE_WAIT_SLICE: Duration = Duration::from_secs(1);
 const STOP_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
 const MAX_DELTA_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_USN_RECORDS_PER_PASS: usize = 4096;
+const WORKER_PID_FILE: &str = "xplorer-bgw.pid";
 
 pub fn run<I>(arguments: I) -> io::Result<i32>
 where
@@ -95,6 +96,11 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
         return Ok(0);
     };
 
+    // errorchk discovers the exact background worker through this user-owned control file rather
+    // than scanning process names. A drop guard removes only this process's pid, so normal worker
+    // shutdown is distinguishable from a stale pid left by an abrupt termination.
+    let _pid_file = WorkerPidFile::publish(&control_dir)?;
+
     let stop_event = StopEvent::create_for_worker()?;
     let wake_event = workspace::WakeEvent::create_for_worker()?;
     platform::enter_background_mode();
@@ -102,8 +108,6 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
     let mut state = CursorState::load(&cursor_path)?;
 
     loop {
-        // A provisioned privileged worker stays resident while disabled so turning indexing back on
-        // never needs permission to start an elevated task again.
         if indexing_disabled(&control_dir) {
             platform::trim_idle_working_set();
             if stop_event.wait(WORKSPACE_WAIT_SLICE)? {
@@ -142,9 +146,6 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
                 continue;
             }
 
-            // The named event gives same-session workers immediate wakeups. A SYSTEM scheduled task
-            // lives in another session, so this one-second metadata check is the cross-session
-            // fallback; refresh_hot_workspace's timestamp guard makes unchanged polls trivial.
             let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
             platform::trim_idle_working_set();
         }
@@ -333,4 +334,36 @@ fn unix_now() -> u64 {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
+}
+
+struct WorkerPidFile {
+    path: PathBuf,
+    pid: u32,
+}
+
+impl WorkerPidFile {
+    fn publish(control_dir: &Path) -> io::Result<Self> {
+        let path = control_dir.join(WORKER_PID_FILE);
+        let pid = std::process::id();
+        let temp = control_dir.join(format!("{WORKER_PID_FILE}.{pid}.tmp"));
+        fs::write(&temp, pid.to_string())?;
+        fs::rename(&temp, &path).or_else(|_| {
+            let _ = fs::remove_file(&path);
+            fs::rename(&temp, &path)
+        })?;
+        Ok(Self { path, pid })
+    }
+}
+
+impl Drop for WorkerPidFile {
+    fn drop(&mut self) {
+        // Do not remove a pid file that has already been replaced by a newer worker instance.
+        let matches = fs::read_to_string(&self.path)
+            .ok()
+            .and_then(|value| value.trim().parse::<u32>().ok())
+            == Some(self.pid);
+        if matches {
+            let _ = fs::remove_file(&self.path);
+        }
+    }
 }
