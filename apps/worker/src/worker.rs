@@ -94,7 +94,7 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
 
         let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
 
-        reconcile(&data_dir, &mut state, &stop_event);
+        reconcile(&data_dir, &control_dir, &mut state, &stop_event);
         state.save(&cursor_path)?;
         if stop_event.wait(Duration::ZERO)? {
             return Ok(0);
@@ -131,7 +131,12 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
     }
 }
 
-fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
+fn reconcile(
+    data_dir: &Path,
+    control_dir: &Path,
+    state: &mut CursorState,
+    stop_event: &StopEvent,
+) {
     let now = unix_now();
     for drive in platform::fixed_drive_letters() {
         if stop_event.wait(Duration::ZERO).unwrap_or(true) {
@@ -141,12 +146,12 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
         let snapshot_current = index::snapshot_is_current(data_dir, drive);
         let current = platform::query_usn_marker(drive).ok();
         let Some(previous) = state.get(drive) else {
-            rebuild_snapshot(drive, data_dir, state, now, current, stop_event);
+            rebuild_snapshot(drive, data_dir, control_dir, state, now, current, stop_event);
             continue;
         };
 
         if !snapshot_current {
-            rebuild_snapshot(drive, data_dir, state, now, current, stop_event);
+            rebuild_snapshot(drive, data_dir, control_dir, state, now, current, stop_event);
             continue;
         }
 
@@ -162,7 +167,15 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                     || previous.journal_id != marker.journal_id
                     || previous.next_usn > marker.next_usn
                 {
-                    rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
+                    rebuild_snapshot(
+                        drive,
+                        data_dir,
+                        control_dir,
+                        state,
+                        now,
+                        Some(marker),
+                        stop_event,
+                    );
                     continue;
                 }
 
@@ -183,7 +196,15 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                 ) {
                     Ok(batch) if batch.complete => batch,
                     _ => {
-                        rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
+                        rebuild_snapshot(
+                            drive,
+                            data_dir,
+                            control_dir,
+                            state,
+                            now,
+                            Some(marker),
+                            stop_event,
+                        );
                         continue;
                     }
                 };
@@ -195,7 +216,15 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                 let applied = match delta::apply_changes(drive, data_dir, &batch.changes) {
                     Ok(result) if !result.requires_full_scan => result,
                     _ => {
-                        rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
+                        rebuild_snapshot(
+                            drive,
+                            data_dir,
+                            control_dir,
+                            state,
+                            now,
+                            Some(marker),
+                            stop_event,
+                        );
                         continue;
                     }
                 };
@@ -212,7 +241,7 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
             }
             None => {
                 if previous.journal_supported || snapshot_due {
-                    rebuild_snapshot(drive, data_dir, state, now, None, stop_event);
+                    rebuild_snapshot(drive, data_dir, control_dir, state, now, None, stop_event);
                 } else {
                     state.upsert(VolumeCursor {
                         last_seen_unix: now,
@@ -227,12 +256,13 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
 fn rebuild_snapshot(
     drive: u8,
     data_dir: &Path,
+    control_dir: &Path,
     state: &mut CursorState,
     now: u64,
     before: Option<platform::UsnMarker>,
     stop_event: &StopEvent,
 ) {
-    if index::scan_volume(drive, data_dir, Some(stop_event)).is_err() {
+    if index::scan_volume(drive, data_dir, control_dir, Some(stop_event)).is_err() {
         return;
     }
     if stop_event.wait(Duration::ZERO).unwrap_or(true) {
