@@ -1,13 +1,14 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace Xplorer.Native.Services;
 
 /// <summary>
 /// Compatibility-first host for item context menus. The real Shell IContextMenu remains alive for
 /// the entire popup lifetime so registry cascades and owner-drawn extensions behave exactly as they
-/// do in Explorer. Xplorer-owned commands occupy a reserved low command-ID range above the Shell
-/// section without remapping or snapshotting third-party commands.
+/// do in Explorer. Single-RMB deliberately exposes only the compact/core shell surface; Double-RMB
+/// (or Shift+RMB) leaves the complete live Shell menu intact, including third-party/custom cascades.
 /// </summary>
 internal sealed class ExplorerShellMenuService : IDisposable
 {
@@ -18,6 +19,7 @@ internal sealed class ExplorerShellMenuService : IDisposable
     private const uint CmfSyncCascadeMenu = 0x00001000;
 
     private const uint MfString = 0x0000;
+    private const uint MfByPosition = 0x0400;
     private const uint MfSeparator = 0x0800;
     private const uint TpmReturnCmd = 0x0100;
     private const uint WmDrawItem = 0x002B;
@@ -25,6 +27,8 @@ internal sealed class ExplorerShellMenuService : IDisposable
     private const uint WmInitMenuPopup = 0x0117;
     private const uint WmMenuChar = 0x0120;
     private const uint WmNull = 0x0000;
+    private const uint GcsVerbW = 0x00000004;
+    private const uint InvalidMenuItemId = 0xFFFFFFFF;
     private const uint XplorerCommandFirst = 0x0100;
     private const uint ShellCommandFirst = 0x1000;
     private const uint ShellCommandLast = 0x7FFF;
@@ -34,6 +38,73 @@ internal sealed class ExplorerShellMenuService : IDisposable
 
     private static readonly Guid IidShellFolder = new("000214E6-0000-0000-C000-000000000046");
     private static readonly Guid IidContextMenu = new("000214E4-0000-0000-C000-000000000046");
+
+    // Canonical verbs are locale-independent, unlike menu labels. Keep this intentionally small:
+    // single RMB is Xplorer's fast/core surface, while Double-RMB is the compatibility escape hatch.
+    private static readonly HashSet<string> CompactCanonicalVerbs = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "open",
+        "explore",
+        "opennewwindow",
+        "opennewprocess",
+        "openas",
+        "openwith",
+        "runas",
+        "cut",
+        "copy",
+        "paste",
+        "delete",
+        "rename",
+        "properties",
+        "sendto",
+        "link",
+        "pintohome",
+        "unpinfromhome",
+        "pinunpinstart",
+        "windows.share",
+        "share",
+        "print",
+        "edit",
+    };
+
+    // Some built-in shell cascades expose no command id on their root item, so GetCommandString
+    // cannot identify them. These labels are only a fallback for the small set worth keeping.
+    private static readonly HashSet<string> CompactFallbackLabels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "Open",
+        "Open in new window",
+        "Open in new process",
+        "Open with",
+        "Open in Terminal",
+        "Pin to Quick access",
+        "Unpin from Quick access",
+        "Pin to Start",
+        "Unpin from Start",
+        "Send to",
+        "Cut",
+        "Copy",
+        "Create shortcut",
+        "Delete",
+        "Rename",
+        "Properties",
+        "Share",
+        "Print",
+        "Edit",
+    };
+
+    // Installer/custom registrations that the user explicitly wants behind Double-RMB. The deny
+    // check runs before the allow list so a handler that reuses a generic verb cannot leak back into
+    // the compact menu merely because its display text happens to wrap a core action.
+    private static readonly string[] ExtendedOnlyLabelFragments =
+    [
+        "7-Zip",
+        "Git GUI",
+        "Git Bash",
+        "VLC",
+        "Visual Studio",
+        "VS Code",
+        "Terminal Tools",
+    ];
 
     private readonly SubclassProc _subclassProc;
     private IContextMenu2? _activeContextMenu2;
@@ -64,18 +135,11 @@ internal sealed class ExplorerShellMenuService : IDisposable
         {
             var xplorerCommands = AppendXplorerCommands(menu, xplorerEntries);
             var shellInsertIndex = (uint)Math.Max(0, GetMenuItemCount(menu));
+            var extendedRequested = forceExtendedVerbs || (GetKeyState(VkShift) & 0x8000) != 0;
 
-            var queryFlags = CmfCanRename | CmfItemMenu | CmfSyncCascadeMenu;
-
-            // Explorer exposes extra shell verbs for Shift+RMB. Xplorer can also request the same
-            // extended set from its Double-RMB gesture without synthesizing keyboard input.
-            if (forceExtendedVerbs || (GetKeyState(VkShift) & 0x8000) != 0)
+            var queryFlags = CmfCanRename | CmfItemMenu | CmfSyncCascadeMenu | CmfExplore;
+            if (extendedRequested)
                 queryFlags |= CmfExtendedVerbs;
-
-            // CMF_EXPLORE is intentionally included for compatibility with older namespace/context
-            // handlers that key their Explorer-specific verbs off this flag. Xplorer is acting as a
-            // file-system browser here and supports the corresponding navigation/rename semantics.
-            queryFlags |= CmfExplore;
 
             Marshal.ThrowExceptionForHR(
                 shell.ContextMenu.QueryContextMenu(
@@ -84,6 +148,12 @@ internal sealed class ExplorerShellMenuService : IDisposable
                     ShellCommandFirst,
                     ShellCommandLast,
                     queryFlags));
+
+            // Do not synthesize a second menu or clone submenu handles: keeping the same HMENU is
+            // what lets IContextMenu2/3 owner-draw and lazy registry cascades continue to work. For
+            // compact RMB we only remove root entries from that live menu. Double-RMB is untouched.
+            if (!extendedRequested)
+                PruneToCompactShellSurface(menu, shell.ContextMenu, shellInsertIndex);
 
             var command = TrackNativeMenu(ownerHwnd, menu, shell.ContextMenu);
             if (xplorerCommands.TryGetValue(command, out var xplorerCommand))
@@ -123,6 +193,126 @@ internal sealed class ExplorerShellMenuService : IDisposable
         return map;
     }
 
+    private static void PruneToCompactShellSurface(nint menu, IContextMenu contextMenu, uint shellInsertIndex)
+    {
+        var firstShellPosition = checked((int)shellInsertIndex);
+        for (var position = GetMenuItemCount(menu) - 1; position >= firstShellPosition; position--)
+        {
+            if (IsSeparator(menu, position)) continue;
+
+            var label = GetMenuLabel(menu, position);
+            if (ExtendedOnlyLabelFragments.Any(fragment =>
+                    label.Contains(fragment, StringComparison.OrdinalIgnoreCase)))
+            {
+                _ = RemoveMenu(menu, (uint)position, MfByPosition);
+                continue;
+            }
+
+            var commandId = GetMenuItemID(menu, position);
+            var keep = false;
+            if (commandId is >= ShellCommandFirst and <= ShellCommandLast)
+            {
+                var verb = TryGetCanonicalVerb(contextMenu, commandId - ShellCommandFirst);
+                keep = !string.IsNullOrWhiteSpace(verb) && CompactCanonicalVerbs.Contains(verb);
+            }
+
+            if (!keep)
+                keep = CompactFallbackLabels.Contains(NormalizeMenuLabel(label));
+
+            if (!keep)
+                _ = RemoveMenu(menu, (uint)position, MfByPosition);
+        }
+
+        NormalizeSeparators(menu, firstShellPosition);
+    }
+
+    private static string? TryGetCanonicalVerb(IContextMenu contextMenu, uint commandOffset)
+    {
+        const int capacity = 256;
+        var buffer = Marshal.AllocHGlobal(capacity * sizeof(char));
+        try
+        {
+            Marshal.WriteInt16(buffer, 0);
+            var hr = contextMenu.GetCommandString(commandOffset, GcsVerbW, 0, buffer, capacity);
+            if (hr < 0) return null;
+            return Marshal.PtrToStringUni(buffer)?.Trim();
+        }
+        catch
+        {
+            // Third-party IContextMenu implementations are allowed to decline GetCommandString.
+            // Falling back to a tiny display-label allow list is safer than promoting an unknown
+            // extension into the compact menu.
+            return null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private static string GetMenuLabel(nint menu, int position)
+    {
+        var builder = new StringBuilder(512);
+        var copied = GetMenuStringW(menu, (uint)position, builder, builder.Capacity, MfByPosition);
+        return copied > 0 ? builder.ToString() : string.Empty;
+    }
+
+    private static string NormalizeMenuLabel(string label)
+    {
+        var normalized = label.Replace("&", string.Empty, StringComparison.Ordinal).Trim();
+        while (normalized.EndsWith("...", StringComparison.Ordinal) || normalized.EndsWith('…'))
+            normalized = normalized.TrimEnd('.', '…').TrimEnd();
+        return normalized;
+    }
+
+    private static bool IsSeparator(nint menu, int position)
+    {
+        var state = GetMenuState(menu, (uint)position, MfByPosition);
+        return state != uint.MaxValue && (state & MfSeparator) != 0;
+    }
+
+    private static void NormalizeSeparators(nint menu, int firstShellPosition)
+    {
+        // Remove trailing shell separators first.
+        while (GetMenuItemCount(menu) > firstShellPosition)
+        {
+            var last = GetMenuItemCount(menu) - 1;
+            if (!IsSeparator(menu, last)) break;
+            _ = RemoveMenu(menu, (uint)last, MfByPosition);
+        }
+
+        // The Xplorer-command block already ends with a separator. A Shell separator immediately
+        // after it would create a double rule; later consecutive rules are cleaned the same way.
+        var position = Math.Max(0, firstShellPosition);
+        var previousWasSeparator = position > 0 && IsSeparator(menu, position - 1);
+        while (position < GetMenuItemCount(menu))
+        {
+            if (!IsSeparator(menu, position))
+            {
+                previousWasSeparator = false;
+                position++;
+                continue;
+            }
+
+            if (previousWasSeparator)
+            {
+                _ = RemoveMenu(menu, (uint)position, MfByPosition);
+                continue;
+            }
+
+            previousWasSeparator = true;
+            position++;
+        }
+
+        // If every shell item was filtered, do not leave the Xplorer block with a dangling rule.
+        if (GetMenuItemCount(menu) == firstShellPosition &&
+            firstShellPosition > 0 &&
+            IsSeparator(menu, firstShellPosition - 1))
+        {
+            _ = RemoveMenu(menu, (uint)(firstShellPosition - 1), MfByPosition);
+        }
+    }
+
     private static string[] NormalizeSelection(IReadOnlyCollection<string> paths)
     {
         var normalized = paths
@@ -137,9 +327,6 @@ internal sealed class ExplorerShellMenuService : IDisposable
         if (firstParent is null || normalized.Any(path =>
                 !string.Equals(Path.GetDirectoryName(path), firstParent, StringComparison.OrdinalIgnoreCase)))
         {
-            // Windows obtains one parent IShellFolder for a multi-selection. If a synthetic caller
-            // ever hands us paths from different parents, fail soft to the exact clicked item rather
-            // than building an invalid PIDL array.
             return [normalized[0]];
         }
 
@@ -234,9 +421,6 @@ internal sealed class ExplorerShellMenuService : IDisposable
             ownerHwnd,
             0);
 
-        // Required by the documented TrackPopupMenu owner-window pattern so the popup reliably
-        // dismisses and focus returns to the foreground window. Deliberately omit TPM_RIGHTBUTTON:
-        // RMB opens/dismisses the menu; commands activate with LMB like Explorer.
         PostMessageW(ownerHwnd, WmNull, 0, 0);
         return command;
     }
@@ -280,11 +464,6 @@ internal sealed class ExplorerShellMenuService : IDisposable
                 var hr = _activeContextMenu3.HandleMenuMsg2(message, (nint)wParam, lParam, out var result);
                 if (hr == S_OK) return result;
 
-                // Some older/in-proc shell handlers expose IContextMenu3 but decline individual
-                // non-WM_MENUCHAR messages there while still handling them through IContextMenu2.
-                // Explorer-compatible hosts must not treat S_FALSE as "handled" or the handler never
-                // gets the fallback WM_INITMENUPOPUP/owner-draw notification that materializes a
-                // registry cascade. WM_MENUCHAR stays IContextMenu3-only because it needs LRESULT.
                 if (message != WmMenuChar && _activeContextMenu2 is not null)
                 {
                     var fallbackHr = _activeContextMenu2.HandleMenuMsg(message, (nint)wParam, lParam);
@@ -471,6 +650,23 @@ internal sealed class ExplorerShellMenuService : IDisposable
 
     [DllImport("user32.dll")]
     private static extern int GetMenuItemCount(nint hMenu);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetMenuItemID(nint hMenu, int nPos);
+
+    [DllImport("user32.dll")]
+    private static extern uint GetMenuState(nint hMenu, uint uId, uint uFlags);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int GetMenuStringW(
+        nint hMenu,
+        uint uIdItem,
+        StringBuilder lpString,
+        int cchMax,
+        uint flags);
+
+    [DllImport("user32.dll")]
+    private static extern bool RemoveMenu(nint hMenu, uint uPosition, uint uFlags);
 
     [DllImport("user32.dll")]
     private static extern uint TrackPopupMenuEx(
