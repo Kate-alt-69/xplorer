@@ -9,6 +9,11 @@ public sealed class XplorerSettings
     public bool ShowHiddenFiles { get; set; }
     public bool ShowFileExtensions { get; set; } = true;
     public bool RememberViewPerFolder { get; set; }
+
+    // Keep the normal live Shell menu on a single RMB. When enabled, a second RMB on the same
+    // target within Xplorer's 600 ms mouse gesture window asks the Shell for its extended verbs.
+    public bool DoubleRmbExtendedMenu { get; set; } = true;
+
     public string TerminalCommand { get; set; } = string.Empty;
     public string TerminalArguments { get; set; } = string.Empty;
 
