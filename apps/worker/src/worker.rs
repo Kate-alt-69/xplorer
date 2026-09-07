@@ -29,6 +29,9 @@ where
         .map(|value| value.to_string_lossy().into_owned())
         .collect();
 
+    let data_dir = option_path(&arguments, "--data-dir").unwrap_or(data_directory()?);
+    let control_dir = option_path(&arguments, "--control-dir").unwrap_or_else(|| data_dir.clone());
+
     if arguments.iter().any(|value| value == "--register-startup") {
         platform::register_startup()?;
         return Ok(0);
@@ -50,7 +53,7 @@ where
     if !service_worker && !once {
         return Ok(2);
     }
-    run_worker(once)
+    run_worker(once, data_dir, control_dir)
 }
 
 fn run_idle_probe() -> io::Result<i32> {
@@ -64,7 +67,10 @@ fn run_idle_probe() -> io::Result<i32> {
     Ok(0)
 }
 
-fn run_worker(once: bool) -> io::Result<i32> {
+fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result<i32> {
+    fs::create_dir_all(&data_dir)?;
+    fs::create_dir_all(&control_dir)?;
+
     let Some(_instance) = SingleInstanceMutex::acquire()? else {
         return Ok(0);
     };
@@ -72,17 +78,23 @@ fn run_worker(once: bool) -> io::Result<i32> {
     let stop_event = StopEvent::create_for_worker()?;
     let wake_event = workspace::WakeEvent::create_for_worker()?;
     platform::enter_background_mode();
-    let data_dir = data_directory()?;
-    fs::create_dir_all(&data_dir)?;
     let cursor_path = data_dir.join("cursor.bin");
     let mut state = CursorState::load(&cursor_path)?;
 
     loop {
-        // If Xplorer opened a folder while the worker was not running, consume that durable hint
-        // before doing any unrelated volume reconciliation.
-        let _ = workspace::refresh_hot_workspace(&data_dir, Some(&stop_event));
+        // A provisioned privileged worker stays resident while disabled so turning indexing back on
+        // never needs permission to start an elevated task again.
+        if indexing_disabled(&control_dir) {
+            platform::trim_idle_working_set();
+            if stop_event.wait(WORKSPACE_WAIT_SLICE)? {
+                return Ok(0);
+            }
+            continue;
+        }
 
-        reconcile(&data_dir, &mut state, &stop_event);
+        let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
+
+        reconcile(&data_dir, &control_dir, &mut state, &stop_event);
         state.save(&cursor_path)?;
         if stop_event.wait(Duration::ZERO)? {
             return Ok(0);
@@ -103,15 +115,28 @@ fn run_worker(once: bool) -> io::Result<i32> {
             }
             let remaining = deadline.saturating_duration_since(now);
             let wait_for = remaining.min(WORKSPACE_WAIT_SLICE);
-            if wake_event.wait(wait_for)? {
-                let _ = workspace::refresh_hot_workspace(&data_dir, Some(&stop_event));
+            let _ = wake_event.wait(wait_for)?;
+
+            if indexing_disabled(&control_dir) {
                 platform::trim_idle_working_set();
+                continue;
             }
+
+            // The named event gives same-session workers immediate wakeups. A SYSTEM scheduled task
+            // lives in another session, so this one-second metadata check is the cross-session
+            // fallback; refresh_hot_workspace's timestamp guard makes unchanged polls trivial.
+            let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
+            platform::trim_idle_working_set();
         }
     }
 }
 
-fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
+fn reconcile(
+    data_dir: &Path,
+    control_dir: &Path,
+    state: &mut CursorState,
+    stop_event: &StopEvent,
+) {
     let now = unix_now();
     for drive in platform::fixed_drive_letters() {
         if stop_event.wait(Duration::ZERO).unwrap_or(true) {
@@ -121,12 +146,12 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
         let snapshot_current = index::snapshot_is_current(data_dir, drive);
         let current = platform::query_usn_marker(drive).ok();
         let Some(previous) = state.get(drive) else {
-            rebuild_snapshot(drive, data_dir, state, now, current, stop_event);
+            rebuild_snapshot(drive, data_dir, control_dir, state, now, current, stop_event);
             continue;
         };
 
         if !snapshot_current {
-            rebuild_snapshot(drive, data_dir, state, now, current, stop_event);
+            rebuild_snapshot(drive, data_dir, control_dir, state, now, current, stop_event);
             continue;
         }
 
@@ -142,7 +167,15 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                     || previous.journal_id != marker.journal_id
                     || previous.next_usn > marker.next_usn
                 {
-                    rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
+                    rebuild_snapshot(
+                        drive,
+                        data_dir,
+                        control_dir,
+                        state,
+                        now,
+                        Some(marker),
+                        stop_event,
+                    );
                     continue;
                 }
 
@@ -163,7 +196,15 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                 ) {
                     Ok(batch) if batch.complete => batch,
                     _ => {
-                        rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
+                        rebuild_snapshot(
+                            drive,
+                            data_dir,
+                            control_dir,
+                            state,
+                            now,
+                            Some(marker),
+                            stop_event,
+                        );
                         continue;
                     }
                 };
@@ -175,7 +216,15 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
                 let applied = match delta::apply_changes(drive, data_dir, &batch.changes) {
                     Ok(result) if !result.requires_full_scan => result,
                     _ => {
-                        rebuild_snapshot(drive, data_dir, state, now, Some(marker), stop_event);
+                        rebuild_snapshot(
+                            drive,
+                            data_dir,
+                            control_dir,
+                            state,
+                            now,
+                            Some(marker),
+                            stop_event,
+                        );
                         continue;
                     }
                 };
@@ -192,7 +241,7 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
             }
             None => {
                 if previous.journal_supported || snapshot_due {
-                    rebuild_snapshot(drive, data_dir, state, now, None, stop_event);
+                    rebuild_snapshot(drive, data_dir, control_dir, state, now, None, stop_event);
                 } else {
                     state.upsert(VolumeCursor {
                         last_seen_unix: now,
@@ -207,12 +256,13 @@ fn reconcile(data_dir: &Path, state: &mut CursorState, stop_event: &StopEvent) {
 fn rebuild_snapshot(
     drive: u8,
     data_dir: &Path,
+    control_dir: &Path,
     state: &mut CursorState,
     now: u64,
     before: Option<platform::UsnMarker>,
     stop_event: &StopEvent,
 ) {
-    if index::scan_volume(drive, data_dir, Some(stop_event)).is_err() {
+    if index::scan_volume(drive, data_dir, control_dir, Some(stop_event)).is_err() {
         return;
     }
     if stop_event.wait(Duration::ZERO).unwrap_or(true) {
@@ -229,6 +279,26 @@ fn rebuild_snapshot(
         last_scan_unix: now,
         last_seen_unix: now,
     });
+}
+
+fn option_path(arguments: &[String], name: &str) -> Option<PathBuf> {
+    for (index, argument) in arguments.iter().enumerate() {
+        if argument.eq_ignore_ascii_case(name) {
+            return arguments
+                .get(index + 1)
+                .filter(|value| !value.starts_with("--"))
+                .map(PathBuf::from);
+        }
+        let prefix = format!("{name}=");
+        if argument.len() > prefix.len() && argument[..prefix.len()].eq_ignore_ascii_case(&prefix) {
+            return Some(PathBuf::from(&argument[prefix.len()..]));
+        }
+    }
+    None
+}
+
+fn indexing_disabled(control_dir: &Path) -> bool {
+    control_dir.join("indexing.disabled").is_file()
 }
 
 fn data_directory() -> io::Result<PathBuf> {

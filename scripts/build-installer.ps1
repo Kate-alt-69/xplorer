@@ -19,9 +19,6 @@ if ($Runtime -ne 'win-x64') {
     throw 'The NSIS installer is currently produced for win-x64 only.'
 }
 
-# $IsWindows exists in PowerShell 6+, but not in the Windows PowerShell 5.1 that still ships
-# with Windows 10. Use the platform API so the documented `PowerShell -File ...` command works
-# in both Windows PowerShell and modern pwsh without tripping StrictMode.
 $isWindowsHost = [Environment]::OSVersion.Platform -eq [PlatformID]::Win32NT
 if (-not $isWindowsHost) {
     throw 'The Xplorer Windows installer must be built on Windows.'
@@ -32,6 +29,7 @@ $payload = Join-Path $repoRoot 'dist\Xplorer-win-x64'
 $output = Join-Path $repoRoot 'dist\Xplorer-Setup-x64.exe'
 $installerScript = Join-Path $repoRoot 'installer\Xplorer.nsi'
 $installerIcon = Join-Path $repoRoot 'installer\Xplorer.ico'
+$workerProvisioner = Join-Path $repoRoot 'installer\Provision-PrivilegedWorker.ps1'
 
 if (-not $SkipNativeBuild) {
     & (Join-Path $PSScriptRoot 'build-native.ps1') `
@@ -44,12 +42,32 @@ if (-not $SkipNativeBuild) {
 if (-not (Test-Path (Join-Path $payload 'xplorer.exe'))) {
     throw "Native payload is missing: $payload. Build the native app first."
 }
+if (-not (Test-Path (Join-Path $payload 'xplorer-bgw.exe'))) {
+    throw "Native background worker image is missing from payload: $payload."
+}
 if (-not (Test-Path (Join-Path $payload 'Xplorer.Native.exe'))) {
     throw "Native UI is missing from payload: $payload."
 }
 if (-not (Test-Path $installerIcon)) {
     throw "Installer icon is missing: $installerIcon."
 }
+if (-not (Test-Path $workerProvisioner)) {
+    throw "Protected-worker provisioner is missing: $workerProvisioner."
+}
+
+# NSIS embeds the helper as data and cannot validate PowerShell syntax. Parse it explicitly so a
+# typo can never ship merely because makensis successfully produced an installer executable.
+$parseTokens = $null
+$parseErrors = $null
+[void][System.Management.Automation.Language.Parser]::ParseFile(
+    $workerProvisioner,
+    [ref]$parseTokens,
+    [ref]$parseErrors)
+if ($parseErrors.Count -gt 0) {
+    $details = ($parseErrors | ForEach-Object { "$($_.Extent.StartLineNumber):$($_.Extent.StartColumnNumber) $($_.Message)" }) -join '; '
+    throw "Protected-worker provisioner has PowerShell syntax errors: $details"
+}
+Write-Host '==> Protected-worker provisioner syntax: OK'
 
 # Unpackaged WinUI depends on the Microsoft Visual C++ runtime even when the Windows App SDK
 # itself is deployed self-contained. Bundle the official x64 redistributable so a clean Windows

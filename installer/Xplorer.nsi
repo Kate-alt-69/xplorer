@@ -62,7 +62,8 @@ Function .onInit
 FunctionEnd
 
 Function StopRunningXplorer
-  ; taskkill returning "not found" is harmless during a first install.
+  ; taskkill returning "not found" is harmless during a first install. An already-provisioned
+  ; SYSTEM BGW is stopped by the privileged provisioner during its verified replacement step.
   nsExec::ExecToLog 'taskkill /IM xplorer-bgw.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM xplorer.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /T /F'
@@ -72,7 +73,6 @@ FunctionEnd
 Function RestoreNativeUserData
   CreateDirectory "$LOCALAPPDATA\Xplorer"
 
-  ; Rename is intentionally unconditional: it also restores empty Themes/Index directories.
   ClearErrors
   Rename "$UpgradeBackup\settings.json" "$LOCALAPPDATA\Xplorer\settings.json"
   ClearErrors
@@ -83,15 +83,10 @@ Function RestoreNativeUserData
 FunctionEnd
 
 Function BackupNativeUserData
-  ; Recover a stale backup from an interrupted earlier upgrade before creating a fresh one. Never
-  ; blindly delete the backup directory: it may contain the user's only copy of settings/themes.
   IfFileExists "$UpgradeBackup\*.*" 0 +2
     Call RestoreNativeUserData
 
   CreateDirectory "$UpgradeBackup"
-
-  ; Move only Xplorer's native data, not the old Tauri program payload that happened to share
-  ; %LOCALAPPDATA%\Xplorer. This keeps upgrades safe without dragging obsolete binaries forward.
   ClearErrors
   Rename "$LOCALAPPDATA\Xplorer\settings.json" "$UpgradeBackup\settings.json"
   ClearErrors
@@ -107,8 +102,6 @@ Function RemoveLegacyShellKeys
 FunctionEnd
 
 Function RegisterNativeShellKeys
-  ; Register shell verbs directly from the installer. Quoting uses NSIS' single-quoted string form;
-  ; the previous $\" form was emitted literally as $"...$" and broke both verbs and worker startup.
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "MUIVerb" "Open in Xplorer"
   WriteRegStr HKCU "Software\Classes\Directory\shell\Xplorer.Native" "Icon" '"$INSTDIR\Xplorer.Native.exe"'
@@ -155,9 +148,6 @@ FunctionEnd
 Section "Xplorer" SEC_MAIN
   SetShellVarContext current
 
-  ; WinUI's unpackaged deployment still requires the VC++ runtime. Install/repair it before we
-  ; touch the existing Xplorer installation so cancelling or failing the prerequisite leaves the
-  ; currently installed app and user data intact.
   InitPluginsDir
   SetOutPath "$PLUGINSDIR"
   File /oname=vc_redist.x64.exe "${VC_REDIST_FILE}"
@@ -194,6 +184,7 @@ Section "Xplorer" SEC_MAIN
 
   SetOutPath "$INSTDIR"
   File /r "${PAYLOAD_DIR}\*.*"
+  File /oname=Provision-PrivilegedWorker.ps1 "${__FILEDIR__}\Provision-PrivilegedWorker.ps1"
 
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "${INSTALL_KEY}" "InstallDir" "$INSTDIR"
@@ -210,20 +201,62 @@ Section "Xplorer" SEC_MAIN
   CreateDirectory "$SMPROGRAMS\Xplorer"
   CreateShortcut "$SMPROGRAMS\Xplorer\Xplorer.lnk" "$INSTDIR\xplorer.exe" "" "$INSTDIR\Xplorer.Native.exe"
   CreateShortcut "$SMPROGRAMS\Xplorer\Uninstall Xplorer.lnk" "$INSTDIR\Uninstall.exe"
-
   Call RegisterNativeShellKeys
 
-  ; Background indexing is enabled by default in the native settings model. Register and start the
-  ; zero-UI Rust worker during installation so it does not depend on the first successful UI launch.
-  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer-bgw.exe" --service-worker'
-  Exec '"$INSTDIR\xplorer-bgw.exe" --service-worker'
+  CreateDirectory "$LOCALAPPDATA\Xplorer\Index"
+  CreateDirectory "$LOCALAPPDATA\Xplorer\Control"
+  Delete "$LOCALAPPDATA\Xplorer\Control\indexing.disabled"
+
+  ; Interactive installs offer one explicit UAC prompt to provision the protected SYSTEM worker.
+  ; Silent installs never create a surprise prompt and use the ordinary per-user worker instead.
+  IfSilent bgw_fallback bgw_privileged
+
+bgw_privileged:
+  DetailPrint "Requesting permission for protected background indexing..."
+  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\Provision-PrivilegedWorker.ps1" -Mode Install -SourceWorker "$INSTDIR\xplorer-bgw.exe"' $0
+  ${If} $0 == 0
+    DeleteRegValue HKCU "${RUN_KEY}" "Xplorer Index Worker"
+    DetailPrint "Protected background indexing was provisioned successfully."
+    Goto bgw_done
+  ${Else}
+    DetailPrint "Protected indexing was not provisioned (exit $0); using the per-user worker."
+  ${EndIf}
+
+bgw_fallback:
+  WriteRegStr HKCU "${RUN_KEY}" "Xplorer Index Worker" '"$INSTDIR\xplorer-bgw.exe" --service-worker --data-dir "$LOCALAPPDATA\Xplorer\Index" --control-dir "$LOCALAPPDATA\Xplorer\Control"'
+  Exec '"$INSTDIR\xplorer-bgw.exe" --service-worker --data-dir "$LOCALAPPDATA\Xplorer\Index" --control-dir "$LOCALAPPDATA\Xplorer\Control"'
+
+bgw_done:
 SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
 
-  ; Keep uninstall independent from WinUI startup. Registry cleanup below owns integration removal,
-  ; so a broken UI can never prevent uninstall from completing.
+  ; Disable first. If a silent/non-elevated cleanup cannot remove a protected task, the remaining
+  ; worker observes this marker and stays idle rather than continuing to crawl after uninstall.
+  CreateDirectory "$LOCALAPPDATA\Xplorer\Control"
+  FileOpen $0 "$LOCALAPPDATA\Xplorer\Control\indexing.disabled" w
+  FileWrite $0 "disabled"
+  FileClose $0
+
+  IfSilent un_priv_silent un_priv_interactive
+
+un_priv_interactive:
+  IfFileExists "$INSTDIR\Provision-PrivilegedWorker.ps1" 0 un_priv_done
+  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\Provision-PrivilegedWorker.ps1" -Mode Remove' $0
+  ${If} $0 != 0
+    MessageBox MB_ICONEXCLAMATION|MB_OK "Xplorer could not remove the protected background worker (exit code $0). It has been disabled and will remain idle."
+  ${EndIf}
+  Goto un_priv_done
+
+un_priv_silent:
+  IfFileExists "$INSTDIR\Provision-PrivilegedWorker.ps1" 0 un_priv_done
+  ExecWait '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\Provision-PrivilegedWorker.ps1" -Mode Remove -NoPrompt' $0
+  ${If} $0 != 0
+    DetailPrint "Protected worker cleanup requires an elevated uninstall; worker was disabled instead (exit $0)."
+  ${EndIf}
+
+un_priv_done:
   IfFileExists "$INSTDIR\xplorer-bgw.exe" 0 +3
     nsExec::ExecToLog '"$INSTDIR\xplorer-bgw.exe" --stop-service-worker'
     Goto +2
@@ -248,9 +281,6 @@ Section "Uninstall"
   DeleteRegKey HKCU "${UNINSTALL_KEY}"
   DeleteRegKey HKCU "${INSTALL_KEY}"
 
-  ; The worker can have an executable image mapping for a short time after it receives the stop event.
-  ; Delete the executable entry points explicitly after taskkill, retry once, then let NSIS mark
-  ; anything still transiently locked for deletion at reboot rather than leaving a half-installed tree.
   ClearErrors
   Delete "$INSTDIR\xplorer-bgw.exe"
   ${If} ${Errors}
@@ -274,7 +304,8 @@ Section "Uninstall"
   ${EndIf}
   RMDir /r /REBOOTOK "$INSTDIR"
 
-  ; Preserve %LOCALAPPDATA%\Xplorer: settings, XML themes, indexes and diagnostic logs are user data.
+  ; Preserve %LOCALAPPDATA%\Xplorer: settings, XML themes, indexes, context-menu config, control
+  ; state and diagnostic logs are user data. A failed privileged cleanup leaves indexing.disabled.
 SectionEnd
 
 Function un.StopRunningXplorer

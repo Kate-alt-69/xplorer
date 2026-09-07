@@ -53,13 +53,8 @@ pub struct WakeEvent(Handle);
 impl WakeEvent {
     pub fn create_for_worker() -> io::Result<Self> {
         let name = wide(WAKE_EVENT_NAME);
-        // Auto-reset is intentional: one workspace hint only needs one wake-up.
         let handle = unsafe { CreateEventW(null(), 0, 0, name.as_ptr()) };
-        if handle.is_null() {
-            Err(io::Error::last_os_error())
-        } else {
-            Ok(Self(handle))
-        }
+        if handle.is_null() { Err(io::Error::last_os_error()) } else { Ok(Self(handle)) }
     }
 
     pub fn wait(&self, timeout: Duration) -> io::Result<bool> {
@@ -75,17 +70,19 @@ impl WakeEvent {
 
 impl Drop for WakeEvent {
     fn drop(&mut self) {
-        unsafe {
-            CloseHandle(self.0);
-        }
+        unsafe { CloseHandle(self.0); }
     }
 }
 
-/// Refresh a bounded, metadata-only cache rooted at the directory Xplorer is currently showing.
-/// The hint is written atomically by the WinUI process. A timestamp guard makes this cheap to call
-/// from both the full-volume crawler and the idle worker loop.
-pub fn refresh_hot_workspace(data_dir: &Path, stop_event: Option<&StopEvent>) -> io::Result<bool> {
-    let hint_path = data_dir.join("workspace.hint");
+/// Refresh a bounded metadata-only cache rooted at the folder Xplorer is showing. The user-owned
+/// control directory contains only the hint; all cache writes go exclusively to the worker's data
+/// directory, which may be a protected ProgramData store.
+pub fn refresh_hot_workspace(
+    control_dir: &Path,
+    data_dir: &Path,
+    stop_event: Option<&StopEvent>,
+) -> io::Result<bool> {
+    let hint_path = control_dir.join("workspace.hint");
     let metadata = match fs::metadata(&hint_path) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(false),
@@ -102,25 +99,19 @@ pub fn refresh_hot_workspace(data_dir: &Path, stop_event: Option<&StopEvent>) ->
     let text = fs::read_to_string(&hint_path)?;
     let candidate = text.trim();
     if candidate.is_empty() {
-        if let Ok(mut guard) = stamp_lock.lock() {
-            *guard = Some(stamp);
-        }
+        if let Ok(mut guard) = stamp_lock.lock() { *guard = Some(stamp); }
         return Ok(false);
     }
 
     let root = PathBuf::from(candidate);
     if !root.is_absolute() || !root.is_dir() {
-        if let Ok(mut guard) = stamp_lock.lock() {
-            *guard = Some(stamp);
-        }
+        if let Ok(mut guard) = stamp_lock.lock() { *guard = Some(stamp); }
         return Ok(false);
     }
 
     let result = write_workspace_cache(&root, data_dir, stop_event);
     if result.is_ok() {
-        if let Ok(mut guard) = stamp_lock.lock() {
-            *guard = Some(stamp);
-        }
+        if let Ok(mut guard) = stamp_lock.lock() { *guard = Some(stamp); }
     }
     result.map(|_| true)
 }
@@ -138,9 +129,7 @@ fn write_workspace_cache(root: &Path, data_dir: &Path, stop_event: Option<&StopE
     writer.write_all(&WORKSPACE_VERSION.to_le_bytes())?;
     writer.write_all(&unix_now().to_le_bytes())?;
     writer.write_all(&(root_units.len() as u32).to_le_bytes())?;
-    for unit in &root_units {
-        writer.write_all(&unit.to_le_bytes())?;
-    }
+    for unit in &root_units { writer.write_all(&unit.to_le_bytes())?; }
 
     let mut budget = PacedBudget::new(WORKSPACE_BUDGET_BYTES_PER_SECOND);
     let mut stack = vec![(root.to_path_buf(), 0usize)];
@@ -155,36 +144,22 @@ fn write_workspace_cache(root: &Path, data_dir: &Path, stop_event: Option<&StopE
 
         for entry in entries {
             ensure_not_stopped(stop_event)?;
-            if records >= MAX_WORKSPACE_RECORDS {
-                break;
-            }
+            if records >= MAX_WORKSPACE_RECORDS { break; }
 
-            let entry = match entry {
-                Ok(entry) => entry,
-                Err(_) => continue,
-            };
+            let entry = match entry { Ok(entry) => entry, Err(_) => continue };
             let path = entry.path();
-            if path.starts_with(data_dir) {
-                continue;
-            }
-            let metadata = match fs::symlink_metadata(&path) {
-                Ok(metadata) => metadata,
-                Err(_) => continue,
-            };
-            let relative = match path.strip_prefix(root) {
-                Ok(relative) => relative,
-                Err(_) => continue,
-            };
+            if path.starts_with(data_dir) { continue; }
+            let metadata = match fs::symlink_metadata(&path) { Ok(metadata) => metadata, Err(_) => continue };
+            let relative = match path.strip_prefix(root) { Ok(relative) => relative, Err(_) => continue };
             let relative_units: Vec<u16> = relative.as_os_str().encode_wide().collect();
             budget.charge(160u64.saturating_add((relative_units.len() as u64).saturating_mul(2)));
 
             let attributes = metadata.file_attributes();
             let is_directory = attributes & FILE_ATTRIBUTE_DIRECTORY != 0;
             let is_reparse = attributes & FILE_ATTRIBUTE_REPARSE_POINT != 0;
-            let flags = flags_from_attributes(attributes);
             write_record(
                 &mut writer,
-                flags,
+                flags_from_attributes(attributes),
                 attributes,
                 if is_directory { 0 } else { metadata.len() },
                 metadata.last_write_time(),
@@ -196,10 +171,7 @@ fn write_workspace_cache(root: &Path, data_dir: &Path, stop_event: Option<&StopE
                 stack.push((path, depth + 1));
             }
         }
-
-        if records >= MAX_WORKSPACE_RECORDS {
-            break;
-        }
+        if records >= MAX_WORKSPACE_RECORDS { break; }
     }
 
     ensure_not_stopped(stop_event)?;
@@ -236,9 +208,7 @@ fn write_record(
     writer.write_all(&size.to_le_bytes())?;
     writer.write_all(&last_write_filetime.to_le_bytes())?;
     writer.write_all(&(path_units.len() as u32).to_le_bytes())?;
-    for unit in path_units {
-        writer.write_all(&unit.to_le_bytes())?;
-    }
+    for unit in path_units { writer.write_all(&unit.to_le_bytes())?; }
     Ok(())
 }
 
@@ -259,11 +229,7 @@ struct PacedBudget {
 
 impl PacedBudget {
     fn new(bytes_per_second: u64) -> Self {
-        Self {
-            bytes_per_second: bytes_per_second.max(1),
-            charged_bytes: 0,
-            started: Instant::now(),
-        }
+        Self { bytes_per_second: bytes_per_second.max(1), charged_bytes: 0, started: Instant::now() }
     }
 
     fn charge(&mut self, estimated_bytes: u64) {
@@ -271,9 +237,7 @@ impl PacedBudget {
         let target_nanos = self.charged_bytes.saturating_mul(1_000_000_000) / self.bytes_per_second as u128;
         let target = Duration::from_nanos(target_nanos.min(u64::MAX as u128) as u64);
         let elapsed = self.started.elapsed();
-        if target > elapsed {
-            thread::sleep(target - elapsed);
-        }
+        if target > elapsed { thread::sleep(target - elapsed); }
     }
 }
 
