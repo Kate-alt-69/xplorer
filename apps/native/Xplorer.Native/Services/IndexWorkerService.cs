@@ -37,6 +37,11 @@ public static class IndexWorkerService
         IndexLocationService.PreferConfiguredIndex();
         if (IndexLocationService.PrivilegedIndexConfigured)
         {
+            // The C# reader derives the protected store from the current SID and never trusts this
+            // pointer. It exists only so the standalone Rust -debug executable can report the same
+            // active backend without duplicating Windows-token SID lookup code.
+            TryWriteDiagnosticIndexPointer(IndexLocationService.ProtectedIndexDirectory);
+
             // The installer-owned SYSTEM task is configured to start at boot and restart on failure.
             // Cross-session named events are best-effort; the worker also polls this control channel
             // once per second, so no UI elevation or process-name guessing is needed here.
@@ -45,6 +50,7 @@ public static class IndexWorkerService
             return;
         }
 
+        TryDeleteDiagnosticIndexPointer();
         IndexLocationService.UseLocalIndexForSession();
         var worker = ResolveWorkerHostPath();
         var runtimeArguments = LocalWorkerRuntimeArguments();
@@ -99,6 +105,10 @@ public static class IndexWorkerService
         IndexLocationService.ControlDirectory,
         "indexing.disabled");
 
+    private static string DiagnosticIndexPointerPath => Path.Combine(
+        IndexLocationService.ControlDirectory,
+        "protected-index.path");
+
     private static string[] LocalWorkerRuntimeArguments() =>
     [
         "--data-dir",
@@ -129,6 +139,22 @@ public static class IndexWorkerService
             using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
             runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
         }
+        catch { }
+    }
+
+    private static void TryWriteDiagnosticIndexPointer(string indexDirectory)
+    {
+        try
+        {
+            Directory.CreateDirectory(IndexLocationService.ControlDirectory);
+            File.WriteAllText(DiagnosticIndexPointerPath, indexDirectory, new UTF8Encoding(false));
+        }
+        catch { }
+    }
+
+    private static void TryDeleteDiagnosticIndexPointer()
+    {
+        try { File.Delete(DiagnosticIndexPointerPath); }
         catch { }
     }
 
