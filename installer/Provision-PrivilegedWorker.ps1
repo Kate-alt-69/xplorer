@@ -105,6 +105,7 @@ $protectedWorker = Join-Path $programRoot 'xplorer-bgw.exe'
 $protectedIndex = Join-Path $env:ProgramData ("Xplorer\Index\" + $UserSid)
 $controlDir = Join-Path $UserLocalAppData 'Xplorer\Control'
 $provisionMarker = Join-Path $protectedIndex 'provisioned.v1'
+$diagnosticPointer = Join-Path $controlDir 'protected-index.path'
 
 try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch { }
 try { Unregister-ScheduledTask -TaskName $updateTaskName -Confirm:$false -ErrorAction SilentlyContinue } catch { }
@@ -132,6 +133,7 @@ exit 0
     finally {
         Unregister-ScheduledTask -TaskName $updateTaskName -Confirm:$false -ErrorAction SilentlyContinue
     }
+    Remove-Item -LiteralPath $diagnosticPointer -Force -ErrorAction SilentlyContinue
     exit 0
 }
 
@@ -140,9 +142,8 @@ if ([string]::IsNullOrWhiteSpace($SourceWorker) -or -not (Test-Path -LiteralPath
     exit 2
 }
 
-# Compute the immutable candidate identity before SYSTEM is allowed to copy it. A source file can be
-# user-writable, so the SYSTEM update task verifies this expected hash both before and after copying;
-# a race/substitution therefore fails closed instead of installing a different payload.
+# Compute the candidate identity before SYSTEM is allowed to copy it. The transient SYSTEM task
+# verifies this hash both before and after copying, closing the source-file replacement race.
 $sourceHash = (Get-FileHash -LiteralPath $SourceWorker -Algorithm SHA256).Hash.ToUpperInvariant()
 $sourceSignature = Get-AuthenticodeSignature -LiteralPath $SourceWorker
 $expectedSigner = ''
@@ -202,19 +203,29 @@ if ((Get-FileHash -LiteralPath `$destination -Algorithm SHA256).Hash.ToUpperInva
 `$admins = New-Object Security.Principal.SecurityIdentifier('S-1-5-32-544')
 `$desktopUser = New-Object Security.Principal.SecurityIdentifier(`$userSid)
 
-function Set-ProtectedAcl([string]`$Path, [bool]`$UserCanExecute) {
+function Set-ProtectedDirectoryAcl([string]`$Path) {
     `$acl = New-Object Security.AccessControl.DirectorySecurity
     `$acl.SetOwner(`$system)
     `$acl.SetAccessRuleProtection(`$true, `$false)
     `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$system, [Security.AccessControl.FileSystemRights]::FullControl, `$inherit, `$propagation, `$allow)))
     `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$admins, [Security.AccessControl.FileSystemRights]::ReadAndExecute, `$inherit, `$propagation, `$allow)))
-    `$userRights = if (`$UserCanExecute) { [Security.AccessControl.FileSystemRights]::ReadAndExecute } else { [Security.AccessControl.FileSystemRights]::Read }
-    `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$desktopUser, `$userRights, `$inherit, `$propagation, `$allow)))
+    `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$desktopUser, [Security.AccessControl.FileSystemRights]::ReadAndExecute, `$inherit, `$propagation, `$allow)))
     Set-Acl -LiteralPath `$Path -AclObject `$acl
 }
 
-Set-ProtectedAcl -Path `$programRoot -UserCanExecute `$true
-Set-ProtectedAcl -Path `$indexDir -UserCanExecute `$false
+function Set-ProtectedFileAcl([string]`$Path) {
+    `$acl = New-Object Security.AccessControl.FileSecurity
+    `$acl.SetOwner(`$system)
+    `$acl.SetAccessRuleProtection(`$true, `$false)
+    `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$system, [Security.AccessControl.FileSystemRights]::FullControl, `$allow)))
+    `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$admins, [Security.AccessControl.FileSystemRights]::ReadAndExecute, `$allow)))
+    `$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(`$desktopUser, [Security.AccessControl.FileSystemRights]::ReadAndExecute, `$allow)))
+    Set-Acl -LiteralPath `$Path -AclObject `$acl
+}
+
+Set-ProtectedDirectoryAcl -Path `$programRoot
+Set-ProtectedDirectoryAcl -Path `$indexDir
+Set-ProtectedFileAcl -Path `$destination
 Set-Content -LiteralPath `$marker -Value '$ProvisionVersion' -Encoding ASCII -NoNewline
 exit 0
 "@
@@ -231,8 +242,8 @@ finally {
     Unregister-ScheduledTask -TaskName $updateTaskName -Confirm:$false -ErrorAction SilentlyContinue
 }
 
-# The persistent task uses Windows' protected task definition as the fail-closed verifier. BGW is
-# launched only when its protected file still matches the installer-approved hash/signing identity.
+# The persistent task itself is the fail-closed launch broker. Windows Task Scheduler protects its
+# definition; it verifies hash (and signer on signed builds) before BGW is ever executed.
 $workerLiteral = $protectedWorker.Replace("'", "''")
 $indexLiteral = $protectedIndex.Replace("'", "''")
 $controlLiteral = $controlDir.Replace("'", "''")
@@ -275,6 +286,7 @@ Register-ScheduledTask `
     -Force | Out-Null
 
 New-Item -ItemType Directory -Force -Path $controlDir | Out-Null
+Set-Content -LiteralPath $diagnosticPointer -Value $protectedIndex -Encoding UTF8 -NoNewline
 Remove-Item -LiteralPath (Join-Path $controlDir 'indexing.disabled') -Force -ErrorAction SilentlyContinue
 Start-ScheduledTask -TaskName $taskName
 Write-Output "Protected Xplorer BGW installed. SHA256=$sourceHash Signed=$([bool]$expectedSigner)"
