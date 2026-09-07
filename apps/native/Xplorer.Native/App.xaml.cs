@@ -75,29 +75,44 @@ public partial class App : Application
 
     private void LaunchCore(LaunchActivatedEventArgs args)
     {
-        var rawArgument = GetRawArgument(args);
-        CrashLogService.Log($"OnLaunched. Argument='{rawArgument}'");
+        var processArguments = GetLaunchArguments(args);
+        var launch = LaunchRequestParser.Parse(processArguments);
+        CrashLogService.Log(
+            $"OnLaunched. Args=[{string.Join(", ", processArguments.Select(argument => $"'{argument}'"))}]; " +
+            $"InitialFolder='{launch.InitialFolder ?? "<session>"}'; ExplicitFolder={launch.ExplicitFolderRequested}; " +
+            $"Maintenance='{launch.MaintenanceCommand ?? "<none>"}'.");
 
-        if (TryHandleMaintenanceCommand(rawArgument) is int maintenanceExitCode)
+        if (!string.IsNullOrWhiteSpace(launch.Error))
+            CrashLogService.Log($"Launch argument warning: {launch.Error}");
+        if (launch.UnknownArguments.Count > 0)
+            CrashLogService.Log($"Ignored launch arguments: {string.Join(", ", launch.UnknownArguments)}");
+
+        if (launch.MaintenanceCommand is not null &&
+            TryHandleMaintenanceCommand(launch.MaintenanceCommand) is int maintenanceExitCode)
         {
             CrashLogService.Log($"Maintenance command completed with exit code {maintenanceExitCode}.");
             Environment.Exit(maintenanceExitCode);
             return;
         }
 
-        // --debug on the public Rust host enables these probes through an environment variable.
-        // They run before MainWindow.xaml so a broken WinUI control/resource can be separated from
-        // a bug in Xplorer's own compiled layout.
+        // The public Rust host normally enables debug preflight through XPLORER_DEBUG_STARTUP.
+        // Accepting --debug directly as well makes Xplorer.Native.exe independently diagnosable.
+        if (launch.DebugRequested)
+            Environment.SetEnvironmentVariable("XPLORER_DEBUG_STARTUP", "1");
+
+        // Debug startup probes run before MainWindow.xaml so a broken WinUI control/resource can be
+        // separated from a bug in Xplorer's own compiled layout.
         UiStartupDiagnostics.RunPreflight();
 
         CrashLogService.Log("Loading settings.");
         var settings = new SettingsService();
-        var initialFolder = ParseInitialFolder(rawArgument);
+        var initialFolder = launch.InitialFolder;
+        var bypassSession = initialFolder is not null || launch.ExplicitFolderRequested;
 
         MainWindow mainWindow;
         try
         {
-            CrashLogService.Log($"Creating MainWindow. InitialFolder='{initialFolder ?? "<session>"}'.");
+            CrashLogService.Log($"Creating MainWindow. InitialFolder='{initialFolder ?? (bypassSession ? "<home>" : "<session>")}'.");
             mainWindow = new MainWindow(initialFolder);
             CrashLogService.Log("MainWindow constructed.");
         }
@@ -136,7 +151,7 @@ public partial class App : Application
             CrashLogService.LogException("Workspace tracking startup ignored", ex);
         }
 
-        if (initialFolder is null)
+        if (!bypassSession)
         {
             try
             {
@@ -153,7 +168,7 @@ public partial class App : Application
         _window.Activate();
         CrashLogService.Log("MainWindow activated.");
 
-        if (initialFolder is null)
+        if (!bypassSession)
         {
             try
             {
@@ -198,26 +213,25 @@ public partial class App : Application
         });
     }
 
-    private static string GetRawArgument(LaunchActivatedEventArgs args)
+    private static string[] GetLaunchArguments(LaunchActivatedEventArgs args)
     {
-        if (!string.IsNullOrWhiteSpace(args.Arguments))
-            return args.Arguments.Trim();
-
-        // Unpackaged WinUI launches do not consistently populate LaunchActivatedEventArgs.Arguments.
-        // Fall back to the real process command line so installer/shell maintenance switches work.
+        // Environment.GetCommandLineArgs preserves Windows' quote/token boundaries and is the
+        // authoritative source for this unpackaged executable. LaunchActivatedEventArgs.Arguments
+        // is retained as a single fallback token for activation paths where WinUI supplies one.
         var commandLine = Environment.GetCommandLineArgs();
-        if (commandLine.Length <= 1) return string.Empty;
-        if (commandLine.Length == 2) return commandLine[1].Trim();
-        return string.Join(' ', commandLine.Skip(1)).Trim();
+        if (commandLine.Length > 1)
+            return commandLine.Skip(1).ToArray();
+
+        return string.IsNullOrWhiteSpace(args.Arguments)
+            ? []
+            : [args.Arguments.Trim()];
     }
 
-    private static int? TryHandleMaintenanceCommand(string rawArgument)
+    private static int? TryHandleMaintenanceCommand(string command)
     {
-        if (!rawArgument.StartsWith("--", StringComparison.Ordinal)) return null;
-
         try
         {
-            if (string.Equals(rawArgument, "--register-shell", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(command, "--register-shell", StringComparison.OrdinalIgnoreCase))
             {
                 ShellIntegrationService.Register();
                 var settings = new SettingsService();
@@ -226,7 +240,7 @@ public partial class App : Application
                 return 0;
             }
 
-            if (string.Equals(rawArgument, "--unregister-shell", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(command, "--unregister-shell", StringComparison.OrdinalIgnoreCase))
             {
                 ShellIntegrationService.Unregister();
                 var settings = new SettingsService();
@@ -235,7 +249,7 @@ public partial class App : Application
                 return 0;
             }
 
-            if (string.Equals(rawArgument, "--cleanup-integration", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(command, "--cleanup-integration", StringComparison.OrdinalIgnoreCase))
             {
                 // Used by the installer/uninstaller. Deliberately do not mutate user preferences:
                 // uninstalling the program should not erase the user's chosen settings for a later reinstall.
@@ -246,29 +260,10 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
-            CrashLogService.LogException($"Maintenance command {rawArgument}", ex);
+            CrashLogService.LogException($"Maintenance command {command}", ex);
             return 1;
         }
 
         return null;
-    }
-
-    private static string? ParseInitialFolder(string rawArgument)
-    {
-        if (string.IsNullOrWhiteSpace(rawArgument) || rawArgument.StartsWith("--", StringComparison.Ordinal))
-            return null;
-
-        var candidate = rawArgument;
-        if (candidate.Length >= 2 && candidate[0] == '"' && candidate[^1] == '"')
-            candidate = candidate[1..^1];
-
-        try
-        {
-            return Directory.Exists(candidate) ? Path.GetFullPath(candidate) : null;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }
