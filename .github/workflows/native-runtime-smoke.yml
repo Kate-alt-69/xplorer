@@ -118,7 +118,7 @@ jobs:
       - name: Exercise public folder-launch aliases
         shell: pwsh
         run: |
-          $host = (Resolve-Path 'dist/Xplorer-win-x64/xplorer.exe').Path
+          $hostExe = (Resolve-Path 'dist/Xplorer-win-x64/xplorer.exe').Path
           $target = (Resolve-Path 'apps/native/Xplorer.Native').Path
           $startupLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\startup.log'
           $hostLog = Join-Path $env:LOCALAPPDATA 'Xplorer\Logs\host.log'
@@ -126,7 +126,7 @@ jobs:
 
           # This is the exact compatibility spelling that regressed on Windows 10. Keep it in CI so
           # CLI parser refactors cannot silently turn an explicit folder request into session restore.
-          $process = Start-Process -FilePath $host -ArgumentList @('-debug', '-test-open-folder', $target) -PassThru
+          $process = Start-Process -FilePath $hostExe -ArgumentList @('-debug', '-test-open-folder', $target) -PassThru
           try {
             Start-Sleep -Seconds 7
 
