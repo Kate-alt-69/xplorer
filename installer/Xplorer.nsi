@@ -62,6 +62,9 @@ Function .onInit
 FunctionEnd
 
 Function StopRunningXplorer
+  ; Stop errorchk first so it cannot interpret an installer-owned UI shutdown as a crash/restart,
+  ; and so its own executable is not locked while the payload is replaced.
+  nsExec::ExecToLog 'taskkill /IM errorchk.exe /T /F'
   ; taskkill returning "not found" is harmless during a first install. An already-provisioned
   ; SYSTEM BGW is stopped by the privileged provisioner during its verified replacement step.
   nsExec::ExecToLog 'taskkill /IM xplorer-bgw.exe /T /F'
@@ -207,8 +210,6 @@ Section "Xplorer" SEC_MAIN
   CreateDirectory "$LOCALAPPDATA\Xplorer\Control"
   Delete "$LOCALAPPDATA\Xplorer\Control\indexing.disabled"
 
-  ; Interactive installs offer one explicit UAC prompt to provision the protected SYSTEM worker.
-  ; Silent installs never create a surprise prompt and use the ordinary per-user worker instead.
   IfSilent bgw_fallback bgw_privileged
 
 bgw_privileged:
@@ -232,8 +233,6 @@ SectionEnd
 Section "Uninstall"
   SetShellVarContext current
 
-  ; Disable first. If a silent/non-elevated cleanup cannot remove a protected task, the remaining
-  ; worker observes this marker and stays idle rather than continuing to crawl after uninstall.
   CreateDirectory "$LOCALAPPDATA\Xplorer\Control"
   FileOpen $0 "$LOCALAPPDATA\Xplorer\Control\indexing.disabled" w
   FileWrite $0 "disabled"
@@ -282,6 +281,13 @@ un_priv_done:
   DeleteRegKey HKCU "${INSTALL_KEY}"
 
   ClearErrors
+  Delete "$INSTDIR\errorchk.exe"
+  ${If} ${Errors}
+    Sleep 250
+    ClearErrors
+    Delete /REBOOTOK "$INSTDIR\errorchk.exe"
+  ${EndIf}
+  ClearErrors
   Delete "$INSTDIR\xplorer-bgw.exe"
   ${If} ${Errors}
     Sleep 750
@@ -309,6 +315,7 @@ un_priv_done:
 SectionEnd
 
 Function un.StopRunningXplorer
+  nsExec::ExecToLog 'taskkill /IM errorchk.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM xplorer-bgw.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM xplorer.exe /T /F'
   nsExec::ExecToLog 'taskkill /IM Xplorer.Native.exe /T /F'
