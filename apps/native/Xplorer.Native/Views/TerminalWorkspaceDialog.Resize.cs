@@ -1,47 +1,100 @@
-using Microsoft.UI.Xaml.Input;
+using System.Runtime.InteropServices;
+using Microsoft.UI.Windowing;
+using Windows.Graphics;
 
 namespace Xplorer.Native.Views;
 
 public sealed partial class TerminalWorkspaceDialog
 {
-    private void ResizeGrip_PointerPressed(object sender, PointerRoutedEventArgs e)
-    {
-        var point = e.GetCurrentPoint(ResizeGrip);
-        if (!point.Properties.IsLeftButtonPressed) return;
+    private const int SwHide = 0;
+    private const int SwShow = 5;
 
-        _resizing = true;
-        _resizePointerId = e.Pointer.PointerId;
-        _resizeStart = e.GetCurrentPoint(DialogRoot).Position;
-        _resizeStartWidth = DialogRoot.ActualWidth > 0 ? DialogRoot.ActualWidth : DialogRoot.Width;
-        _resizeStartHeight = DialogRoot.ActualHeight > 0 ? DialogRoot.ActualHeight : DialogRoot.Height;
-        ResizeGrip.CapturePointer(e.Pointer);
-        e.Handled = true;
+    private nint _terminalHwnd;
+    private AppWindow? _terminalAppWindow;
+
+    private void InitializeNativeTerminalWindow()
+    {
+        _terminalHwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        var windowId = Microsoft.UI.Win32Interop.GetWindowIdFromWindow(_terminalHwnd);
+        _terminalAppWindow = AppWindow.GetFromWindowId(windowId);
+
+        if (_terminalAppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            // Keep the normal Windows non-client frame. WS_THICKFRAME hit-testing is what gives us
+            // the standard horizontal/vertical/diagonal resize cursors on every edge and corner.
+            presenter.IsResizable = true;
+            presenter.IsMaximizable = true;
+            presenter.IsMinimizable = true;
+        }
+
+        _terminalAppWindow.Resize(new SizeInt32(980, 620));
+        _terminalAppWindow.Closing += TerminalAppWindow_Closing;
+        Title = "Xplorer Terminal";
     }
 
-    private void ResizeGrip_PointerMoved(object sender, PointerRoutedEventArgs e)
+    private void ShowNativeTerminalWindow()
     {
-        if (!_resizing || e.Pointer.PointerId != _resizePointerId) return;
-        var current = e.GetCurrentPoint(DialogRoot).Position;
-        var width = _resizeStartWidth + current.X - _resizeStart.X;
-        var height = _resizeStartHeight + current.Y - _resizeStart.Y;
-        DialogRoot.Width = Math.Clamp(width, DialogRoot.MinWidth, DialogRoot.MaxWidth);
-        DialogRoot.Height = Math.Clamp(height, DialogRoot.MinHeight, DialogRoot.MaxHeight);
-        e.Handled = true;
+        if (_disposed) return;
+
+        if (_terminalHwnd != 0)
+        {
+            _ = ShowWindow(_terminalHwnd, SwShow);
+            _ = SetForegroundWindow(_terminalHwnd);
+        }
+
+        Activate();
+        _visible = true;
     }
 
-    private void ResizeGrip_PointerReleased(object sender, PointerRoutedEventArgs e)
+    // Deliberately named Hide so existing terminal keyboard/tab behavior can stay independent from
+    // the hosting technology. Unlike ContentDialog.Hide(), this hides the real top-level HWND while
+    // keeping all ConPTY sessions and terminal tabs alive in memory.
+    private void Hide()
     {
-        if (!_resizing || e.Pointer.PointerId != _resizePointerId) return;
-        _resizing = false;
-        _resizePointerId = 0;
-        ResizeGrip.ReleasePointerCapture(e.Pointer);
-        e.Handled = true;
+        if (_disposed) return;
+        if (_terminalHwnd != 0) _ = ShowWindow(_terminalHwnd, SwHide);
+        _visible = false;
+        _tabChordArmed = false;
+        _tabChordUsed = false;
     }
 
-    private void ResizeGrip_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    private void TerminalAppWindow_Closing(AppWindow sender, AppWindowClosingEventArgs args)
     {
-        DialogRoot.Width = 980;
-        DialogRoot.Height = 620;
-        e.Handled = true;
+        if (_disposed) return;
+
+        // The normal caption X behaves like the in-terminal close button: hide the workspace rather
+        // than killing PowerShell/cmd tabs. MainWindow.Dispose is the only path that destroys it.
+        args.Cancel = true;
+        Hide();
     }
+
+    private void DisposeNativeTerminalWindow()
+    {
+        if (_terminalAppWindow is not null)
+            _terminalAppWindow.Closing -= TerminalAppWindow_Closing;
+
+        _visible = false;
+        try
+        {
+            Close();
+        }
+        catch
+        {
+            // Main-window shutdown must never fail because the auxiliary terminal HWND is already
+            // being destroyed by Windows.
+        }
+        finally
+        {
+            _terminalAppWindow = null;
+            _terminalHwnd = 0;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ShowWindow(nint hWnd, int nCmdShow);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetForegroundWindow(nint hWnd);
 }
