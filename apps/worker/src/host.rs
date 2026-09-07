@@ -118,6 +118,19 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     let mut waited = Duration::ZERO;
     while waited < grace_period {
         if let Some(status) = child.try_wait()? {
+            if status.success() {
+                // A zero process exit code is not a crash. The old startup watcher displayed the
+                // same fatal dialog for every early exit, which turned an orderly code-0 shutdown
+                // into a fake "startup error". Lifecycle policy belongs to the watchdog; this host
+                // is only responsible for surfacing actual process failures during the grace window.
+                log_host_message(
+                    &format!(
+                        "{UI_EXECUTABLE} exited cleanly during the startup watch with code 0 (0x00000000); no startup crash reported."
+                    ),
+                );
+                return Ok(0);
+            }
+
             let code = status.code().unwrap_or(4);
             let detail = format!(
                 "{UI_EXECUTABLE} exited during startup with code {code} (0x{:08X}).",
