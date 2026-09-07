@@ -97,6 +97,8 @@ public sealed partial class MainWindow
         _inspectorPane.Resources["TextControlBorderBrush"] = border;
         _inspectorPane.Resources["TextControlBorderBrushPointerOver"] = accent;
         _inspectorPane.Resources["TextControlBorderBrushFocused"] = accent;
+
+        ApplyInspectorSearchPalette(palette);
     }
 
     private sealed record InspectorPalette(

@@ -91,6 +91,10 @@ public sealed partial class MainWindow
         _inspectorSaveButton.IsEnabled = false;
         _inspectorReloadButton.Visibility = Visibility.Collapsed;
         _inspectorZoomControls.Visibility = Visibility.Collapsed;
+        if (_inspectorSearchPanel is not null)
+            _inspectorSearchPanel.Visibility = Visibility.Collapsed;
+        if (_inspectorSearchLauncher is not null)
+            _inspectorSearchLauncher.Visibility = Visibility.Collapsed;
         _inspectorImagePreview.Source = null;
         _inspectorImagePreview.Width = double.NaN;
         _inspectorImagePreview.Height = double.NaN;
@@ -144,6 +148,7 @@ public sealed partial class MainWindow
             _inspectorTextEditor.Visibility = Visibility.Visible;
             _inspectorSaveButton.Visibility = Visibility.Visible;
             _inspectorSaveButton.IsEnabled = false;
+            ShowInspectorSearchLauncher();
             _inspectorStatusText.Text = $"Ln 1, Col 1  •  {FormatEncoding(encoding)}";
         }
         catch (Exception ex)
@@ -224,11 +229,16 @@ public sealed partial class MainWindow
         _inspectorTextDirty = true;
         _inspectorSaveButton.IsEnabled = true;
         UpdateInspectorTextStatus();
+        if (_inspectorSearchPanel?.Visibility == Visibility.Visible)
+            UpdateInspectorSearchStatus();
     }
 
     private void InspectorTextEditor_SelectionChanged(object sender, RoutedEventArgs e)
     {
-        if (_inspectorTextEditor.Visibility == Visibility.Visible) UpdateInspectorTextStatus();
+        if (_inspectorTextEditor.Visibility != Visibility.Visible) return;
+        UpdateInspectorTextStatus();
+        if (_inspectorSearchPanel?.Visibility == Visibility.Visible)
+            UpdateInspectorSearchStatus();
     }
 
     private void InspectorTextEditor_KeyDown(object sender, KeyRoutedEventArgs e)
