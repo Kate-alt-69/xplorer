@@ -149,7 +149,10 @@ public sealed partial class TerminalWorkspaceDialog
         {
             Text = visibleText,
             Foreground = new SolidColorBrush(foreground),
-            FontWeight = style.Bold ? FontWeights.Bold : FontWeights.Normal,
+            // Windows.UI.Text.FontWeights does not expose the same static helpers on every
+            // Windows App SDK projection. Use the underlying FontWeight value directly so this
+            // renderer compiles on the Win10-compatible target as well as newer SDKs.
+            FontWeight = new FontWeight { Weight = style.Bold ? (ushort)700 : (ushort)400 },
         };
         display.Inlines.Add(run);
     }
