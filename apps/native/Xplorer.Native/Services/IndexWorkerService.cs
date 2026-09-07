@@ -7,14 +7,13 @@ namespace Xplorer.Native.Services;
 
 /// <summary>
 /// Owns the lifecycle boundary between WinUI and the Rust background index worker. A provisioned
-/// highest-privilege scheduled task is preferred, but browsing never depends on it: failure falls
-/// back to the normal per-user worker and direct-disk viewport path.
+/// protected worker is preferred; if it is unavailable, Xplorer falls back to the per-user worker
+/// and direct-disk browsing without requiring elevation from the UI.
 /// </summary>
 public static class IndexWorkerService
 {
     private const string HostExecutableName = "xplorer.exe";
     private const string WorkerExecutableName = "xplorer-bgw.exe";
-    private const string ScheduledTaskName = "Xplorer Index Worker";
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "Xplorer Index Worker";
     private const string WakeEventName = @"Local\Xplorer.IndexWorker.Wake.v1";
@@ -33,34 +32,28 @@ public static class IndexWorkerService
             Directory.CreateDirectory(IndexLocationService.ControlDirectory);
             File.Delete(DisabledFlagPath);
         }
-        catch
-        {
-            // Worker enable is still allowed to fall through to the local process path.
-        }
+        catch { }
 
         IndexLocationService.PreferConfiguredIndex();
-        if (IndexLocationService.PrivilegedIndexConfigured && TryStartProvisionedTask())
+        if (IndexLocationService.PrivilegedIndexConfigured && IsAnyBackgroundWorkerRunning())
+        {
+            SignalWorkerWake();
             return;
+        }
 
-        // A broken/missing task must never strand browsing on a protected stale cache. Use the local
-        // worker/index for this UI session and keep disk enumeration authoritative.
+        // A missing/crashed protected worker must never strand browsing on a stale protected cache.
+        // Switch this process to the local index and start the ordinary user worker immediately.
         IndexLocationService.UseLocalIndexForSession();
         var worker = ResolveWorkerHostPath();
         var runtimeArguments = LocalWorkerRuntimeArguments();
-        RunHostCommand(
-            worker,
-            ["--register-startup", .. runtimeArguments],
-            waitForExit: true);
-        RunHostCommand(
-            worker,
-            ["--service-worker", .. runtimeArguments],
-            waitForExit: false);
+        RegisterLocalStartup(worker, runtimeArguments);
+        RunHostCommand(worker, ["--service-worker", .. runtimeArguments], waitForExit: false);
     }
 
     /// <summary>
     /// Publish the directory the user is actually looking at through a user-owned control channel.
-    /// The elevated worker never trusts this path for its own executable/index location; it only
-    /// treats the hint contents as a folder to inspect.
+    /// A privileged worker treats the hint only as an indexing target; it never derives executable
+    /// or index-output paths from user-controlled data.
     /// </summary>
     public static void PrioritizeWorkspace(string folder)
     {
@@ -71,7 +64,6 @@ public static class IndexWorkerService
 
             var controlDirectory = IndexLocationService.ControlDirectory;
             Directory.CreateDirectory(controlDirectory);
-
             var hintPath = Path.Combine(controlDirectory, "workspace.hint");
             var tempPath = Path.Combine(
                 controlDirectory,
@@ -82,8 +74,7 @@ public static class IndexWorkerService
         }
         catch
         {
-            // Workspace priority is an optimization. Current-folder navigation and refresh must
-            // never fail because the worker or its control channel is unavailable.
+            // Hot indexing is an acceleration layer only.
         }
     }
 
@@ -97,13 +88,10 @@ public static class IndexWorkerService
         catch { }
 
         SignalWorkerWake();
-        var worker = TryResolveWorkerHostPath() ?? TryResolveHostPath();
-        if (worker is not null)
-        {
-            TryRun(worker, ["--unregister-startup"], waitForExit: true);
-            TryRun(worker, ["--stop-service-worker"], waitForExit: true);
-        }
 
+        // Remove only the per-user fallback autostart. The installer-provisioned protected task
+        // remains registered but observes indexing.disabled and stays idle, so re-enabling never
+        // needs UAC again.
         using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
         runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
     }
@@ -120,30 +108,32 @@ public static class IndexWorkerService
         IndexLocationService.ControlDirectory,
     ];
 
-    private static bool TryStartProvisionedTask()
+    private static void RegisterLocalStartup(string worker, IReadOnlyList<string> runtimeArguments)
     {
-        try
+        using var runKey = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true)
+            ?? throw new InvalidOperationException("Could not open the Windows startup registry key.");
+        var command = new StringBuilder();
+        AppendQuoted(command, worker);
+        command.Append(" --service-worker");
+        foreach (var argument in runtimeArguments)
         {
-            using var process = Process.Start(new ProcessStartInfo
-            {
-                FileName = Path.Combine(Environment.SystemDirectory, "schtasks.exe"),
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden,
-                ArgumentList = { "/Run", "/TN", ScheduledTaskName },
-            });
-            if (process is null) return false;
-            if (!process.WaitForExit(5000)) return false;
-            if (process.ExitCode == 0) return true;
+            command.Append(' ');
+            AppendQuoted(command, argument);
+        }
+        runKey.SetValue(RunValueName, command.ToString(), RegistryValueKind.String);
+    }
 
-            // Task Scheduler can return a non-zero result when an instance is already active. If a
-            // worker exists, keep the protected index selected and let the wake event do its job.
-            return Process.GetProcessesByName("xplorer-bgw").Length > 0;
-        }
-        catch
-        {
-            return Process.GetProcessesByName("xplorer-bgw").Length > 0;
-        }
+    private static void AppendQuoted(StringBuilder builder, string value)
+    {
+        builder.Append('"');
+        builder.Append(value.Replace("\"", "\\\"", StringComparison.Ordinal));
+        builder.Append('"');
+    }
+
+    private static bool IsAnyBackgroundWorkerRunning()
+    {
+        try { return Process.GetProcessesByName("xplorer-bgw").Length > 0; }
+        catch { return false; }
     }
 
     private static void SignalWorkerWake()
@@ -173,12 +163,6 @@ public static class IndexWorkerService
         return File.Exists(candidate) ? candidate : null;
     }
 
-    private static void TryRun(string host, IReadOnlyList<string> arguments, bool waitForExit)
-    {
-        try { RunHostCommand(host, arguments, waitForExit); }
-        catch { }
-    }
-
     private static void RunHostCommand(string host, IReadOnlyList<string> arguments, bool waitForExit)
     {
         var startInfo = new ProcessStartInfo
@@ -192,7 +176,6 @@ public static class IndexWorkerService
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Could not start {Path.GetFileName(host)}.");
-
         if (!waitForExit) return;
         if (!process.WaitForExit(5000))
             throw new TimeoutException($"{Path.GetFileName(host)} did not finish the worker command in time.");
