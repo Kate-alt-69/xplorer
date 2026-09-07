@@ -7,8 +7,8 @@ namespace Xplorer.Native.Services;
 
 /// <summary>
 /// Owns the lifecycle boundary between WinUI and the Rust background index worker. A provisioned
-/// protected worker is preferred; if it is unavailable, Xplorer falls back to the per-user worker
-/// and direct-disk browsing without requiring elevation from the UI.
+/// protected worker is controlled only through the user-owned control channel; otherwise Xplorer
+/// falls back to the per-user worker without requiring elevation from the UI.
 /// </summary>
 public static class IndexWorkerService
 {
@@ -35,14 +35,16 @@ public static class IndexWorkerService
         catch { }
 
         IndexLocationService.PreferConfiguredIndex();
-        if (IndexLocationService.PrivilegedIndexConfigured && IsAnyBackgroundWorkerRunning())
+        if (IndexLocationService.PrivilegedIndexConfigured)
         {
+            // The installer-owned SYSTEM task is configured to start at boot and restart on failure.
+            // Cross-session named events are best-effort; the worker also polls this control channel
+            // once per second, so no UI elevation or process-name guessing is needed here.
+            RemoveLocalStartup();
             SignalWorkerWake();
             return;
         }
 
-        // A missing/crashed protected worker must never strand browsing on a stale protected cache.
-        // Switch this process to the local index and start the ordinary user worker immediately.
         IndexLocationService.UseLocalIndexForSession();
         var worker = ResolveWorkerHostPath();
         var runtimeArguments = LocalWorkerRuntimeArguments();
@@ -52,8 +54,8 @@ public static class IndexWorkerService
 
     /// <summary>
     /// Publish the directory the user is actually looking at through a user-owned control channel.
-    /// A privileged worker treats the hint only as an indexing target; it never derives executable
-    /// or index-output paths from user-controlled data.
+    /// A privileged worker treats the hint only as an indexing target; executable/data-store paths
+    /// are fixed by its protected scheduled-task configuration.
     /// </summary>
     public static void PrioritizeWorkspace(string folder)
     {
@@ -74,7 +76,7 @@ public static class IndexWorkerService
         }
         catch
         {
-            // Hot indexing is an acceleration layer only.
+            // Hot indexing is an acceleration layer only. Direct-disk navigation stays authoritative.
         }
     }
 
@@ -88,12 +90,9 @@ public static class IndexWorkerService
         catch { }
 
         SignalWorkerWake();
-
-        // Remove only the per-user fallback autostart. The installer-provisioned protected task
-        // remains registered but observes indexing.disabled and stays idle, so re-enabling never
-        // needs UAC again.
-        using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-        runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
+        RemoveLocalStartup();
+        // A protected worker remains registered/running but idles while indexing.disabled exists.
+        // This is intentional: re-enabling never needs another UAC prompt.
     }
 
     private static string DisabledFlagPath => Path.Combine(
@@ -123,17 +122,21 @@ public static class IndexWorkerService
         runKey.SetValue(RunValueName, command.ToString(), RegistryValueKind.String);
     }
 
+    private static void RemoveLocalStartup()
+    {
+        try
+        {
+            using var runKey = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            runKey?.DeleteValue(RunValueName, throwOnMissingValue: false);
+        }
+        catch { }
+    }
+
     private static void AppendQuoted(StringBuilder builder, string value)
     {
         builder.Append('"');
         builder.Append(value.Replace("\"", "\\\"", StringComparison.Ordinal));
         builder.Append('"');
-    }
-
-    private static bool IsAnyBackgroundWorkerRunning()
-    {
-        try { return Process.GetProcessesByName("xplorer-bgw").Length > 0; }
-        catch { return false; }
     }
 
     private static void SignalWorkerWake()
