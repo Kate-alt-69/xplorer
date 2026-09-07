@@ -63,7 +63,7 @@ public sealed partial class MainWindow
         {
             using var shellMenu = new ExplorerShellMenuService();
             var result = shellMenu.ShowForPaths(_hwnd, [drive.RootPath]);
-            if (result != ShellMenuShowResult.Invoked) return;
+            if (!result.ShellWasInvoked) return;
 
             // Shell commands such as format/properties/eject can return before device state settles.
             // Give Windows a tiny amount of time, then rebuild the drive list and recover the active
