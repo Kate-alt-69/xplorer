@@ -24,10 +24,12 @@ public sealed partial class MainWindow
             .ToList();
         if (restorable.Count == 0) return false;
 
+        ExplorerTabState? selectedState = null;
         _suppressTabSelection = true;
         try
         {
             Tabs.TabItems.Clear();
+            _activeTabState = null;
 
             foreach (var entry in restorable)
             {
@@ -48,15 +50,25 @@ public sealed partial class MainWindow
                     .First().Index;
             }
 
-            Tabs.SelectedIndex = selectedIndex;
+            if (selectedIndex >= 0 &&
+                selectedIndex < Tabs.TabItems.Count &&
+                Tabs.TabItems[selectedIndex] is TabViewItem { Tag: ExplorerTabState restored } selectedTab)
+            {
+                // Do not depend on TabView raising SelectionChanged synchronously. Session restore
+                // owns the selected model explicitly, then mirrors that state into the visual tab.
+                selectedState = restored;
+                _activeTabState = restored;
+                Tabs.SelectedItem = selectedTab;
+                Tabs.SelectedIndex = selectedIndex;
+            }
         }
         finally
         {
             _suppressTabSelection = false;
         }
 
-        if (ActiveTabState is not null)
-            _ = NavigateAsync(ActiveTabState.CurrentPath, pushHistory: false);
+        if (selectedState is not null)
+            _ = NavigateTabAsync(selectedState, selectedState.CurrentPath, pushHistory: false);
 
         return true;
     }
