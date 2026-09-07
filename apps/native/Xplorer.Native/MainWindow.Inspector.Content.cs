@@ -17,7 +17,8 @@ public sealed partial class MainWindow
         if (!_inspectorOpen) return;
 
         var item = GetSelectedItem();
-        if (_inspectorTextDirty &&
+        var hasUnsavedChanges = _inspectorTextDirty || _inspectorImageDirty;
+        if (hasUnsavedChanges &&
             !string.IsNullOrWhiteSpace(_inspectorPath) &&
             !string.Equals(item?.FullPath, _inspectorPath, StringComparison.OrdinalIgnoreCase))
         {
@@ -25,11 +26,14 @@ public sealed partial class MainWindow
             return;
         }
 
-        if (_inspectorTextDirty &&
+        if (hasUnsavedChanges &&
             item is not null &&
             string.Equals(item.FullPath, _inspectorPath, StringComparison.OrdinalIgnoreCase))
         {
-            UpdateInspectorTextStatus();
+            if (_inspectorTextEditor.Visibility == Visibility.Visible)
+                UpdateInspectorTextStatus();
+            else
+                UpdateInspectorImageEditorStatus();
             return;
         }
 
@@ -100,6 +104,7 @@ public sealed partial class MainWindow
         _inspectorImagePreview.Height = double.NaN;
         _inspectorImagePixelWidth = 0;
         _inspectorImagePixelHeight = 0;
+        ResetInspectorImageEditorState();
     }
 
     private void ShowInspectorMetadata(FileSystemItem item, string note)
@@ -179,17 +184,23 @@ public sealed partial class MainWindow
             _inspectorSuppressZoom = true;
             _inspectorImageZoom.Value = 100;
             _inspectorSuppressZoom = false;
+            ShowInspectorImageEditor();
             ApplyInspectorImageZoom();
         }
         catch (Exception ex)
         {
-            ShowInspectorMetadata(item, $"Image preview could not decode this file: {ex.Message}");
-            _inspectorStatusText.Text = "Image preview failed";
+            ShowInspectorMetadata(item, $"Image editor could not decode this file: {ex.Message}");
+            _inspectorStatusText.Text = "Image open failed";
         }
     }
 
     private async void InspectorSaveButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_inspectorImageScroll.Visibility == Visibility.Visible)
+        {
+            await SaveInspectorImageAsync();
+            return;
+        }
         if (!_inspectorTextDirty || string.IsNullOrWhiteSpace(_inspectorPath)) return;
 
         try
@@ -220,6 +231,9 @@ public sealed partial class MainWindow
     {
         if (string.IsNullOrWhiteSpace(_inspectorPath)) return;
         _inspectorTextDirty = false;
+        _inspectorImageDirty = false;
+        _inspectorImageQuarterTurns = 0;
+        _inspectorImageFlipHorizontal = false;
         await RefreshInspectorSelectionAsync();
     }
 
@@ -283,11 +297,8 @@ public sealed partial class MainWindow
         var zoom = Math.Clamp(_inspectorImageZoom.Value, 25, 400);
         _inspectorZoomLabel.Text = $"{zoom:0}%";
         if (_inspectorImagePixelWidth <= 0 || _inspectorImagePixelHeight <= 0) return;
-        var factor = zoom / 100d;
-        _inspectorImagePreview.Width = Math.Max(1, _inspectorImagePixelWidth * factor);
-        _inspectorImagePreview.Height = Math.Max(1, _inspectorImagePixelHeight * factor);
-        _inspectorStatusText.Text =
-            $"{_inspectorImagePixelWidth} × {_inspectorImagePixelHeight}  •  {zoom:0}%";
+        UpdateInspectorImageLayoutForTransform(zoom);
+        UpdateInspectorImageEditorStatus();
     }
 
     private static bool IsInspectorTextCandidate(string path)
