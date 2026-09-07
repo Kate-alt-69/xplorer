@@ -75,7 +75,6 @@ if ($Mode -eq 'Remove') {
     Remove-Item -LiteralPath $taskPointerPath -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $protectedIndex -Recurse -Force -ErrorAction SilentlyContinue
 
-    # Remove the shared protected worker directory only when no Xplorer worker tasks remain.
     $remaining = @(Get-ScheduledTask -TaskName "$TaskPrefix *" -ErrorAction SilentlyContinue)
     if ($remaining.Count -eq 0) {
         Remove-Item -LiteralPath $programRoot -Recurse -Force -ErrorAction SilentlyContinue
@@ -88,13 +87,18 @@ if ([string]::IsNullOrWhiteSpace($SourceWorker) -or -not (Test-Path -LiteralPath
     exit 2
 }
 
+# Stop the existing task before replacing its protected executable during an upgrade.
+try { Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue } catch { }
+Start-Sleep -Milliseconds 250
+
 New-Item -ItemType Directory -Force -Path $programRoot | Out-Null
 New-Item -ItemType Directory -Force -Path $protectedIndex | Out-Null
 New-Item -ItemType Directory -Force -Path $localIndex | Out-Null
 New-Item -ItemType Directory -Force -Path $controlDir | Out-Null
 Copy-Item -LiteralPath $SourceWorker -Destination $protectedWorker -Force
 
-# Protect the index from unelevated writes while allowing the original desktop user to read it.
+# Protected index: SYSTEM/Admins may write; the original desktop user can read but cannot redirect
+# elevated writes through junctions/reparse points in a user-writable cache directory.
 $inheritance = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
 $propagation = [Security.AccessControl.PropagationFlags]::None
 $allow = [Security.AccessControl.AccessControlType]::Allow
