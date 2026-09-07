@@ -126,9 +126,14 @@ public static class UiStartupDiagnostics
         {
             _ = new SettingsDialog(new SettingsService());
         });
+
+        // TerminalWorkspaceDialog is now a real top-level Window. Constructing and immediately
+        // closing the only Window during preflight tells WinUI the application has no remaining
+        // windows and can schedule a clean process exit, even if MainWindow is created a moment
+        // later. The build already compiles its XAML; keep this marker as a type/load contract only.
         ProbeAction("TerminalWorkspaceDialog compiled XAML", static () =>
         {
-            using var dialog = new TerminalWorkspaceDialog(new SettingsService());
+            _ = typeof(TerminalWorkspaceDialog).FullName;
         });
 
         CrashLogService.Log("UI preflight completed.");
