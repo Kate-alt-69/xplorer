@@ -10,7 +10,6 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $TaskPrefix = 'Xplorer Index Worker'
-$UpdateSuffix = ' Update'
 $ProvisionVersion = '1'
 
 function Test-Administrator {
@@ -99,7 +98,9 @@ if ([string]::IsNullOrWhiteSpace($UserSid) -or [string]::IsNullOrWhiteSpace($Use
 }
 
 $taskName = "$TaskPrefix $UserSid"
-$updateTaskName = "$taskName$UpdateSuffix"
+# Deliberately outside $TaskPrefix so the transient updater does not count as a persistent BGW when
+# uninstall decides whether the shared protected Program Files directory is still in use.
+$updateTaskName = "Xplorer Protected Worker Update $UserSid"
 $programRoot = Join-Path $env:ProgramFiles 'Xplorer\Worker'
 $protectedWorker = Join-Path $programRoot 'xplorer-bgw.exe'
 $protectedIndex = Join-Path $env:ProgramData ("Xplorer\Index\" + $UserSid)
