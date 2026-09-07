@@ -124,8 +124,18 @@ Application PRI: resources.pri
 Normal launch:
   .\xplorer.exe
 
+Open a folder explicitly (bypasses session restore):
+  .\xplorer.exe --open "C:\\path\\to\\folder"
+
 Debug startup/resource probe:
   .\xplorer.exe --debug
+
+Debug UI opened at a requested folder:
+  .\xplorer.exe -debug -test-open-folder "C:\\path\\to\\folder"
+
+Accepted folder aliases:
+  --open, -open, /open, --folder, -folder, --path, -path,
+  --test-open-folder, -test-open-folder, --test-open-path, -test-open-path
 
 Read-only folder/index diagnostic:
   .\xplorer.exe --debug --test-folder "C:\\path\\to\\folder"
