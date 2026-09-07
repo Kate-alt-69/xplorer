@@ -16,6 +16,7 @@ const STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(3);
 const DEBUG_STARTUP_GRACE_PERIOD: Duration = Duration::from_secs(15);
 const STARTUP_POLL_INTERVAL: Duration = Duration::from_millis(75);
 const DEBUG_STARTUP_ENV: &str = "XPLORER_DEBUG_STARTUP";
+const TEST_OPEN_PATH_ARGUMENT: &str = "--test-open-path";
 const MB_OK: u32 = 0;
 const MB_ICONERROR: u32 = 0x0000_0010;
 const VC_RUNTIME_DLLS: &[&str] = &["vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"];
@@ -36,18 +37,29 @@ unsafe extern "system" {
 /// briefly so an immediately-crashing UI produces a visible diagnostic instead of looking like
 /// xplorer.exe simply did nothing. --debug/-debug extends that observation window and enables the
 /// managed UI preflight through a private environment variable without forwarding a fake app arg.
+///
+/// `-debug --test-open-path <folder>` is a deliberately narrow UI diagnostic. The Rust host
+/// validates the requested directory and forwards it as the WinUI process' ordinary initial-folder
+/// argument. This bypasses session restore/startup routing while still exercising the real
+/// MainWindow, NavigateAsync path, file controls, theme, shell menu, and background-index handoff.
 pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     let debug = arguments.iter().any(|argument| is_debug_argument(argument));
-    let arguments: Vec<OsString> = arguments
-        .into_iter()
-        .filter(|argument| !is_debug_argument(argument))
-        .collect();
 
     let executable = env::current_exe()?;
     let directory = executable.parent().ok_or_else(|| {
         io::Error::new(io::ErrorKind::NotFound, "xplorer.exe has no executable directory")
     })?;
     let ui = directory.join(UI_EXECUTABLE);
+
+    let arguments = match prepare_ui_arguments(arguments, debug) {
+        Ok(arguments) => arguments,
+        Err(error) => {
+            let detail = format!("Invalid Xplorer debug launch: {error}");
+            log_host_message(&detail);
+            show_launch_failure(&ui, &detail);
+            return Ok(2);
+        }
+    };
 
     if debug {
         log_host_message(
@@ -129,11 +141,80 @@ pub fn launch_ui(arguments: Vec<OsString>) -> io::Result<i32> {
     Ok(0)
 }
 
+fn prepare_ui_arguments(arguments: Vec<OsString>, debug: bool) -> io::Result<Vec<OsString>> {
+    let mut forwarded = Vec::new();
+    let mut requested_path: Option<PathBuf> = None;
+    let mut index = 0usize;
+
+    while index < arguments.len() {
+        let argument = &arguments[index];
+        if is_debug_argument(argument) {
+            index += 1;
+            continue;
+        }
+
+        if is_test_open_path_argument(argument) {
+            if !debug {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("{TEST_OPEN_PATH_ARGUMENT} requires -debug or --debug"),
+                ));
+            }
+            if requested_path.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("{TEST_OPEN_PATH_ARGUMENT} may only be supplied once"),
+                ));
+            }
+
+            let value = arguments.get(index + 1).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("{TEST_OPEN_PATH_ARGUMENT} requires a folder path"),
+                )
+            })?;
+            let path = PathBuf::from(value);
+            if !path.is_dir() {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "folder for {TEST_OPEN_PATH_ARGUMENT} does not exist or is not a directory: {}",
+                        path.display()
+                    ),
+                ));
+            }
+
+            requested_path = Some(path);
+            index += 2;
+            continue;
+        }
+
+        forwarded.push(argument.clone());
+        index += 1;
+    }
+
+    if let Some(path) = requested_path {
+        // The test-open mode intentionally overrides session/ordinary launch arguments. WinUI
+        // already accepts one bare folder path as its authoritative initial location, so forwarding
+        // exactly one path keeps the diagnostic on the production startup/navigation code path.
+        let path = fs::canonicalize(&path).unwrap_or(path);
+        return Ok(vec![path.into_os_string()]);
+    }
+
+    Ok(forwarded)
+}
+
 fn is_debug_argument(argument: &OsStr) -> bool {
     matches!(
         argument.to_string_lossy().to_ascii_lowercase().as_str(),
         "--debug" | "-debug" | "--diagnose"
     )
+}
+
+fn is_test_open_path_argument(argument: &OsStr) -> bool {
+    argument
+        .to_string_lossy()
+        .eq_ignore_ascii_case(TEST_OPEN_PATH_ARGUMENT)
 }
 
 fn missing_vc_runtime_dlls() -> Vec<&'static str> {
@@ -229,4 +310,35 @@ fn show_error_message(text: &str, caption: &str) {
 
 fn wide(value: &str) -> Vec<u16> {
     OsStr::new(value).encode_wide().chain(Some(0)).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn debug_test_open_path_becomes_single_native_folder_argument() {
+        let root = env::current_dir().expect("current directory");
+        let arguments = vec![
+            OsString::from("-debug"),
+            OsString::from(TEST_OPEN_PATH_ARGUMENT),
+            root.clone().into_os_string(),
+        ];
+
+        let forwarded = prepare_ui_arguments(arguments, true).expect("prepare arguments");
+        assert_eq!(forwarded.len(), 1);
+        assert!(PathBuf::from(&forwarded[0]).is_dir());
+    }
+
+    #[test]
+    fn test_open_path_requires_debug_mode() {
+        let root = env::current_dir().expect("current directory");
+        let arguments = vec![
+            OsString::from(TEST_OPEN_PATH_ARGUMENT),
+            root.into_os_string(),
+        ];
+
+        let error = prepare_ui_arguments(arguments, false).expect_err("debug gate");
+        assert_eq!(error.kind(), io::ErrorKind::InvalidInput);
+    }
 }
