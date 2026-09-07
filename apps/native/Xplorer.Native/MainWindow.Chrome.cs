@@ -30,8 +30,6 @@ public sealed partial class MainWindow
         _settingsService.Saved += ChromeSettings_Saved;
         Closed += (_, _) => _settingsService.Saved -= ChromeSettings_Saved;
 
-        // Search is compiled into XAML now; only its keyboard behavior needs initialization here.
-        // Drive, drag/drop and the embedded terminal are native-window services and idempotent.
         InitializeNativeSearch();
         InitializeMouseActivationGestures();
         InitializeNativeDriveUx();
@@ -39,6 +37,7 @@ public sealed partial class MainWindow
         InitializeEmbeddedTerminal();
         InitializeInspectorWorkspace();
         InitializeSidebarHoverRecovery();
+        InitializeOriginalParityChrome();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
@@ -46,14 +45,16 @@ public sealed partial class MainWindow
 
     private void ChromeSettings_Saved(object? sender, EventArgs e)
     {
-        // ThemeService's live-refresh handler was registered before this Loaded handler. Queueing
-        // once therefore runs after its ApplySavedSettingsAsync callback and repairs any local
-        // background values that an older theme reset may have restored.
         DispatcherQueue.TryEnqueue(() =>
         {
             ApplyBuiltInChromePalette();
             RefreshSearchPresentation();
             RefreshChromeLabels();
+            RefreshOriginalTabVisuals();
+            // Live theme/settings refresh remains owned by WinUI. Tell errorchk that this was an
+            // intentional refresh event so the lifecycle protocol is already in place for settings
+            // that may require a future full restart.
+            _ = ErrorCheckService.NotifyRefresh();
         });
     }
 
@@ -83,7 +84,7 @@ public sealed partial class MainWindow
             : CreateOriginalXplorerGradient();
 
         Tabs.Background = surface;
-        Tabs.Height = 32;
+        Tabs.Height = 34;
         AddressChrome.Background = surface;
         OperationBar.Background = surface;
         SidebarBorder.Background = surface;
@@ -100,8 +101,6 @@ public sealed partial class MainWindow
         }
         SetExtensionsRailWidth(NativeExtensionsRailWidth);
 
-        // Custom XML may have created a window-local accent resource. Bring it back in sync when
-        // the user returns to a built-in theme instead of leaving a stale custom accent behind.
         if (Root.Resources.TryGetValue("XplorerAccentBrush", out var accentResource) &&
             accentResource is SolidColorBrush accentBrush)
         {
@@ -157,8 +156,6 @@ public sealed partial class MainWindow
     {
         NativeMenuThemeService.Apply(!light);
 
-        // Windows 10 1809/1903 used attribute ids 19/20 for immersive dark captions. Trying both
-        // is harmless and keeps the native title bar visually coherent without replacing it.
         var dark = light ? 0 : 1;
         try
         {
