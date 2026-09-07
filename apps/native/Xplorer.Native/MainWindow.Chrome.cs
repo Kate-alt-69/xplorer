@@ -33,6 +33,7 @@ public sealed partial class MainWindow
         // Search is compiled into XAML now; only its keyboard behavior needs initialization here.
         // Drive, drag/drop and the embedded terminal are native-window services and idempotent.
         InitializeNativeSearch();
+        InitializeMouseActivationGestures();
         InitializeNativeDriveUx();
         InitializeNativeDragDrop();
         InitializeEmbeddedTerminal();
