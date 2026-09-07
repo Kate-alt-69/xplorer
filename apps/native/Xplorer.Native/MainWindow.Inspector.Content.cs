@@ -153,6 +153,7 @@ public sealed partial class MainWindow
             _inspectorTextEditor.Visibility = Visibility.Visible;
             _inspectorSaveButton.Visibility = Visibility.Visible;
             _inspectorSaveButton.IsEnabled = false;
+            EnsureInspectorCommandAccelerators();
             ShowInspectorSearchLauncher();
             _inspectorStatusText.Text = $"Ln 1, Col 1  •  {FormatEncoding(encoding)}";
         }
@@ -184,6 +185,7 @@ public sealed partial class MainWindow
             _inspectorSuppressZoom = true;
             _inspectorImageZoom.Value = 100;
             _inspectorSuppressZoom = false;
+            EnsureInspectorCommandAccelerators();
             ShowInspectorImageEditor();
             ApplyInspectorImageZoom();
         }
@@ -197,34 +199,9 @@ public sealed partial class MainWindow
     private async void InspectorSaveButton_Click(object sender, RoutedEventArgs e)
     {
         if (_inspectorImageScroll.Visibility == Visibility.Visible)
-        {
             await SaveInspectorImageAsync();
-            return;
-        }
-        if (!_inspectorTextDirty || string.IsNullOrWhiteSpace(_inspectorPath)) return;
-
-        try
-        {
-            _inspectorSaveButton.IsEnabled = false;
-            _inspectorStatusText.Text = "Saving…";
-            using var stream = new FileStream(
-                _inspectorPath,
-                FileMode.Create,
-                FileAccess.Write,
-                FileShare.Read,
-                4096,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-            using var writer = new StreamWriter(stream, _inspectorTextEncoding, 4096, leaveOpen: false);
-            await writer.WriteAsync(_inspectorTextEditor.Text);
-            await writer.FlushAsync();
-            _inspectorTextDirty = false;
-            UpdateInspectorTextStatus();
-        }
-        catch (Exception ex)
-        {
-            _inspectorSaveButton.IsEnabled = true;
-            _inspectorStatusText.Text = $"Save failed: {ex.Message}";
-        }
+        else
+            await SaveInspectorTextBufferAsync();
     }
 
     private async void InspectorReloadButton_Click(object sender, RoutedEventArgs e)
@@ -258,13 +235,79 @@ public sealed partial class MainWindow
     private void InspectorTextEditor_KeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (e.Key != VirtualKey.Tab) return;
-        var start = _inspectorTextEditor.SelectionStart;
-        var length = _inspectorTextEditor.SelectionLength;
-        var text = _inspectorTextEditor.Text;
-        _inspectorTextEditor.Text = text.Remove(start, length).Insert(start, "\t");
-        _inspectorTextEditor.SelectionStart = start + 1;
-        _inspectorTextEditor.SelectionLength = 0;
+        AdjustInspectorIndent(InspectorIsKeyDown(VirtualKey.Shift));
         e.Handled = true;
+    }
+
+    private void AdjustInspectorIndent(bool unindent)
+    {
+        var text = _inspectorTextEditor.Text;
+        var start = Math.Clamp(_inspectorTextEditor.SelectionStart, 0, text.Length);
+        var length = Math.Clamp(_inspectorTextEditor.SelectionLength, 0, text.Length - start);
+
+        if (length == 0)
+        {
+            if (!unindent)
+            {
+                _inspectorTextEditor.Text = text.Insert(start, "\t");
+                _inspectorTextEditor.SelectionStart = start + 1;
+                _inspectorTextEditor.SelectionLength = 0;
+                return;
+            }
+
+            var lineStart = start == 0 ? 0 : text.LastIndexOf('\n', Math.Max(0, start - 1)) + 1;
+            var remove = InspectorLeadingIndentLength(text, lineStart);
+            if (remove == 0) return;
+            _inspectorTextEditor.Text = text.Remove(lineStart, remove);
+            _inspectorTextEditor.SelectionStart = Math.Max(lineStart, start - remove);
+            _inspectorTextEditor.SelectionLength = 0;
+            return;
+        }
+
+        var blockStart = start == 0 ? 0 : text.LastIndexOf('\n', Math.Max(0, start - 1)) + 1;
+        var blockEnd = Math.Clamp(start + length, blockStart, text.Length);
+        var block = text.Substring(blockStart, blockEnd - blockStart);
+        var lines = block.Split('\n');
+        var trailingEmptyLine = block.EndsWith('\n');
+
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (trailingEmptyLine && index == lines.Length - 1 && lines[index].Length == 0)
+                continue;
+
+            if (!unindent)
+            {
+                lines[index] = "\t" + lines[index];
+                continue;
+            }
+
+            if (lines[index].StartsWith('\t'))
+            {
+                lines[index] = lines[index][1..];
+                continue;
+            }
+
+            var spaces = 0;
+            while (spaces < lines[index].Length && spaces < 4 && lines[index][spaces] == ' ')
+                spaces++;
+            if (spaces > 0)
+                lines[index] = lines[index][spaces..];
+        }
+
+        var replacement = string.Join("\n", lines);
+        _inspectorTextEditor.Text = text.Remove(blockStart, blockEnd - blockStart).Insert(blockStart, replacement);
+        _inspectorTextEditor.SelectionStart = blockStart;
+        _inspectorTextEditor.SelectionLength = replacement.Length;
+    }
+
+    private static int InspectorLeadingIndentLength(string text, int lineStart)
+    {
+        if (lineStart < 0 || lineStart >= text.Length) return 0;
+        if (text[lineStart] == '\t') return 1;
+        var spaces = 0;
+        while (lineStart + spaces < text.Length && spaces < 4 && text[lineStart + spaces] == ' ')
+            spaces++;
+        return spaces;
     }
 
     private void UpdateInspectorTextStatus()
