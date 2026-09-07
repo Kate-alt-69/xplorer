@@ -33,7 +33,7 @@ where
     let control_dir = option_path(&arguments, "--control-dir").unwrap_or_else(|| data_dir.clone());
 
     if arguments.iter().any(|value| value == "--register-startup") {
-        platform::register_startup(&data_dir, &control_dir)?;
+        platform::register_startup()?;
         return Ok(0);
     }
     if arguments.iter().any(|value| value == "--unregister-startup") {
@@ -70,9 +70,6 @@ fn run_idle_probe() -> io::Result<i32> {
 fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result<i32> {
     fs::create_dir_all(&data_dir)?;
     fs::create_dir_all(&control_dir)?;
-    if indexing_disabled(&control_dir) {
-        return Ok(0);
-    }
 
     let Some(_instance) = SingleInstanceMutex::acquire()? else {
         return Ok(0);
@@ -85,17 +82,21 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
     let mut state = CursorState::load(&cursor_path)?;
 
     loop {
+        // A provisioned privileged worker stays resident while disabled so turning indexing back on
+        // never needs permission to start an elevated task again.
         if indexing_disabled(&control_dir) {
-            return Ok(0);
+            platform::trim_idle_working_set();
+            if stop_event.wait(WORKSPACE_WAIT_SLICE)? {
+                return Ok(0);
+            }
+            continue;
         }
 
-        // Hints are intentionally user-owned while the index store may be protected. The worker
-        // treats the hint only as a folder to inspect and never derives an executable/data path from it.
         let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
 
         reconcile(&data_dir, &mut state, &stop_event);
         state.save(&cursor_path)?;
-        if stop_event.wait(Duration::ZERO)? || indexing_disabled(&control_dir) {
+        if stop_event.wait(Duration::ZERO)? {
             return Ok(0);
         }
         if once {
@@ -105,7 +106,7 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
         platform::trim_idle_working_set();
         let deadline = Instant::now() + RECONCILE_INTERVAL;
         loop {
-            if stop_event.wait(Duration::ZERO)? || indexing_disabled(&control_dir) {
+            if stop_event.wait(Duration::ZERO)? {
                 return Ok(0);
             }
             let now = Instant::now();
@@ -114,13 +115,18 @@ fn run_worker(once: bool, data_dir: PathBuf, control_dir: PathBuf) -> io::Result
             }
             let remaining = deadline.saturating_duration_since(now);
             let wait_for = remaining.min(WORKSPACE_WAIT_SLICE);
-            if wake_event.wait(wait_for)? {
-                if indexing_disabled(&control_dir) {
-                    return Ok(0);
-                }
-                let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
+            let _ = wake_event.wait(wait_for)?;
+
+            if indexing_disabled(&control_dir) {
                 platform::trim_idle_working_set();
+                continue;
             }
+
+            // The named event gives same-session workers immediate wakeups. A SYSTEM scheduled task
+            // lives in another session, so this one-second metadata check is the cross-session
+            // fallback; refresh_hot_workspace's timestamp guard makes unchanged polls trivial.
+            let _ = workspace::refresh_hot_workspace(&control_dir, &data_dir, Some(&stop_event));
+            platform::trim_idle_working_set();
         }
     }
 }
@@ -248,12 +254,14 @@ fn rebuild_snapshot(
 fn option_path(arguments: &[String], name: &str) -> Option<PathBuf> {
     for (index, argument) in arguments.iter().enumerate() {
         if argument.eq_ignore_ascii_case(name) {
-            return arguments.get(index + 1).filter(|value| !value.starts_with("--")).map(PathBuf::from);
+            return arguments
+                .get(index + 1)
+                .filter(|value| !value.starts_with("--"))
+                .map(PathBuf::from);
         }
-        if let Some(value) = argument.strip_prefix(&format!("{name}=")) {
-            if !value.is_empty() {
-                return Some(PathBuf::from(value));
-            }
+        let prefix = format!("{name}=");
+        if argument.len() > prefix.len() && argument[..prefix.len()].eq_ignore_ascii_case(&prefix) {
+            return Some(PathBuf::from(&argument[prefix.len()..]));
         }
     }
     None
