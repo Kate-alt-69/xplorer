@@ -8,12 +8,21 @@ namespace Xplorer.Native;
 
 public sealed partial class MainWindow
 {
+    private static readonly HashSet<string> InspectorWritableImageExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png", ".jpg", ".jpeg", ".bmp",
+    };
+
     private bool _inspectorImageEditorInitialized;
     private bool _inspectorImageDirty;
     private int _inspectorImageQuarterTurns;
     private bool _inspectorImageFlipHorizontal;
     private StackPanel? _inspectorImageActions;
     private Grid? _inspectorImageCanvas;
+
+    private bool InspectorImageCanBeSaved =>
+        !string.IsNullOrWhiteSpace(_inspectorPath) &&
+        InspectorWritableImageExtensions.Contains(Path.GetExtension(_inspectorPath));
 
     private void EnsureInspectorImageEditor()
     {
@@ -77,11 +86,13 @@ public sealed partial class MainWindow
     private void ShowInspectorImageEditor()
     {
         EnsureInspectorImageEditor();
+        var writable = InspectorImageCanBeSaved;
         if (_inspectorImageActions is not null)
-            _inspectorImageActions.Visibility = Visibility.Visible;
-        _inspectorSaveButton.Visibility = Visibility.Visible;
-        _inspectorSaveButton.IsEnabled = _inspectorImageDirty;
+            _inspectorImageActions.Visibility = writable ? Visibility.Visible : Visibility.Collapsed;
+        _inspectorSaveButton.Visibility = writable ? Visibility.Visible : Visibility.Collapsed;
+        _inspectorSaveButton.IsEnabled = writable && _inspectorImageDirty;
         ApplyInspectorImageTransformPreview();
+        UpdateInspectorImageEditorStatus();
     }
 
     private void ResetInspectorImageEditorState()
@@ -102,6 +113,7 @@ public sealed partial class MainWindow
 
     private void ResetInspectorImageTransform(bool markDirty)
     {
+        if (!InspectorImageCanBeSaved) return;
         var changed = _inspectorImageQuarterTurns != 0 || _inspectorImageFlipHorizontal;
         _inspectorImageQuarterTurns = 0;
         _inspectorImageFlipHorizontal = false;
@@ -113,14 +125,14 @@ public sealed partial class MainWindow
 
     private void RotateInspectorImage(int quarterTurns)
     {
-        if (_inspectorImageScroll.Visibility != Visibility.Visible) return;
+        if (_inspectorImageScroll.Visibility != Visibility.Visible || !InspectorImageCanBeSaved) return;
         _inspectorImageQuarterTurns = Mod4(_inspectorImageQuarterTurns + quarterTurns);
         MarkInspectorImageModified();
     }
 
     private void FlipInspectorImage(bool horizontal)
     {
-        if (_inspectorImageScroll.Visibility != Visibility.Visible) return;
+        if (_inspectorImageScroll.Visibility != Visibility.Visible || !InspectorImageCanBeSaved) return;
 
         // Canonical transform is Rotation * HorizontalFlip. Windows BitmapTransform performs flip
         // before rotation, so these group updates preserve the exact operation sequence while still
@@ -134,10 +146,12 @@ public sealed partial class MainWindow
 
     private void MarkInspectorImageModified()
     {
+        if (!InspectorImageCanBeSaved) return;
         _inspectorImageDirty = true;
         _inspectorSaveButton.Visibility = Visibility.Visible;
         _inspectorSaveButton.IsEnabled = true;
         ApplyInspectorImageTransformPreview();
+        UpdateInspectorImageEditorStatus();
     }
 
     private void ApplyInspectorImageTransformPreview()
@@ -184,12 +198,18 @@ public sealed partial class MainWindow
         var zoom = Math.Clamp(_inspectorImageZoom.Value, 25, 400);
         _inspectorStatusText.Text =
             $"{width} × {height}  •  {zoom:0}%" +
-            (_inspectorImageDirty ? "  •  Modified" : string.Empty);
+            (_inspectorImageDirty ? "  •  Modified" : string.Empty) +
+            (!InspectorImageCanBeSaved ? "  •  Preview only" : string.Empty);
     }
 
     private async Task SaveInspectorImageAsync()
     {
         if (!_inspectorImageDirty || string.IsNullOrWhiteSpace(_inspectorPath)) return;
+        if (!InspectorImageCanBeSaved)
+        {
+            _inspectorStatusText.Text = "This image format is preview-only to avoid destructive transcoding.";
+            return;
+        }
 
         StorageFile? temporaryFile = null;
         try
@@ -218,7 +238,14 @@ public sealed partial class MainWindow
             }
 
             var temporaryPath = temporaryFile.Path;
-            File.Move(temporaryPath, _inspectorPath, overwrite: true);
+            try
+            {
+                File.Replace(temporaryPath, _inspectorPath, destinationBackupFileName: null, ignoreMetadataErrors: true);
+            }
+            catch (PlatformNotSupportedException)
+            {
+                File.Move(temporaryPath, _inspectorPath, overwrite: true);
+            }
             temporaryFile = null;
 
             _inspectorImageDirty = false;
