@@ -36,11 +36,13 @@ public sealed partial class MainWindow
         InitializeNativeDragDrop();
         InitializeEmbeddedTerminal();
         InitializeInspectorWorkspace();
+        InitializeOriginalSidebarParity();
         InitializeSidebarHoverRecovery();
         InitializeOriginalParityChrome();
 
         ApplyBuiltInChromePalette();
         RefreshChromeLabels();
+        RefreshOriginalSidebarState();
     }
 
     private void ChromeSettings_Saved(object? sender, EventArgs e)
@@ -49,6 +51,8 @@ public sealed partial class MainWindow
         {
             ApplyBuiltInChromePalette();
             RefreshSearchPresentation();
+            RefreshOriginalSidebarSearchPresentation();
+            RefreshOriginalSidebarState();
             RefreshChromeLabels();
             RefreshOriginalTabVisuals();
             // Live theme/settings refresh remains owned by WinUI. Tell errorchk that this was an
