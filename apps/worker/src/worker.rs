@@ -19,7 +19,9 @@ const RECONCILE_INTERVAL: Duration = Duration::from_secs(30 * 60);
 const FULL_SNAPSHOT_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 const IDLE_PROBE_TIMEOUT: Duration = Duration::from_secs(30);
 const WORKSPACE_WAIT_SLICE: Duration = Duration::from_secs(1);
-const STOP_WAIT_TIMEOUT: Duration = Duration::from_secs(10);
+const STOP_GRACE_TIMEOUT: Duration = Duration::from_secs(3);
+const STOP_FORCE_TIMEOUT: Duration = Duration::from_secs(5);
+const STOP_FINAL_TIMEOUT: Duration = Duration::from_secs(2);
 const MAX_DELTA_BYTES: u64 = 4 * 1024 * 1024;
 const MAX_USN_RECORDS_PER_PASS: usize = 4096;
 const WORKER_PID_FILE: &str = "xplorer-bgw.pid";
@@ -44,8 +46,7 @@ where
         return Ok(0);
     }
     if arguments.iter().any(|value| value == "--stop-service-worker") {
-        let _ = platform::signal_stop_event()?;
-        wait_for_worker_exit(STOP_WAIT_TIMEOUT)?;
+        stop_service_worker(&control_dir)?;
         return Ok(0);
     }
     if arguments.iter().any(|value| value == "--idle-probe") {
@@ -58,6 +59,80 @@ where
         return Ok(2);
     }
     run_worker(once, data_dir, control_dir)
+}
+
+/// Shutdown is normally a cheap named-event handoff. A worker can however be inside a Windows
+/// filesystem call long enough that an installer would otherwise have to schedule xplorer-bgw.exe
+/// for deletion at reboot. After a short grace period, use the exact pid file plus an executable-
+/// path verification before terminating anything. No process-name sweep is performed here.
+fn stop_service_worker(control_dir: &Path) -> io::Result<()> {
+    let _ = platform::signal_stop_event()?;
+    if wait_for_worker_exit(STOP_GRACE_TIMEOUT).is_ok() {
+        remove_worker_pid_if_stale(control_dir);
+        return Ok(());
+    }
+
+    let pid = read_worker_pid(control_dir).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::TimedOut,
+            "background worker did not stop and no verified pid is available for bounded shutdown",
+        )
+    })?;
+    let expected_worker = expected_worker_path()?;
+
+    let forced = platform::force_stop_verified_worker(pid, &expected_worker, STOP_FORCE_TIMEOUT)?;
+    if !forced {
+        // The PID may have exited between the pid-file read and OpenProcess. Re-check the mutex
+        // before treating that race as a failure. If the pid was reused by another executable the
+        // verified terminator returns false and this check remains safely non-destructive.
+        wait_for_worker_exit(STOP_FINAL_TIMEOUT)?;
+    } else {
+        wait_for_worker_exit(STOP_FINAL_TIMEOUT)?;
+    }
+
+    remove_worker_pid_if_matches(control_dir, pid);
+    Ok(())
+}
+
+fn expected_worker_path() -> io::Result<PathBuf> {
+    let current = env::current_exe()?;
+    let is_worker_image = current
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.eq_ignore_ascii_case("xplorer-bgw.exe"));
+    if is_worker_image {
+        return Ok(current);
+    }
+
+    let sibling = current
+        .parent()
+        .map(|parent| parent.join("xplorer-bgw.exe"))
+        .filter(|path| path.is_file());
+    Ok(sibling.unwrap_or(current))
+}
+
+fn read_worker_pid(control_dir: &Path) -> Option<u32> {
+    fs::read_to_string(control_dir.join(WORKER_PID_FILE))
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+}
+
+fn remove_worker_pid_if_matches(control_dir: &Path, pid: u32) {
+    let path = control_dir.join(WORKER_PID_FILE);
+    let matches = fs::read_to_string(&path)
+        .ok()
+        .and_then(|value| value.trim().parse::<u32>().ok())
+        == Some(pid);
+    if matches {
+        let _ = fs::remove_file(path);
+    }
+}
+
+fn remove_worker_pid_if_stale(control_dir: &Path) {
+    let path = control_dir.join(WORKER_PID_FILE);
+    if path.is_file() {
+        let _ = fs::remove_file(path);
+    }
 }
 
 fn wait_for_worker_exit(timeout: Duration) -> io::Result<()> {
