@@ -1,9 +1,10 @@
 use std::{
     env,
     ffi::{c_void, OsStr, OsString},
+    fs,
     io,
-    os::windows::ffi::OsStrExt,
-    path::Path,
+    os::windows::ffi::{OsStrExt, OsStringExt},
+    path::{Path, PathBuf},
     ptr::{null, null_mut},
     time::Duration,
 };
@@ -13,6 +14,7 @@ type HKey = *mut c_void;
 
 const ERROR_ALREADY_EXISTS: u32 = 183;
 const ERROR_FILE_NOT_FOUND: i32 = 2;
+const ERROR_INVALID_PARAMETER: u32 = 87;
 const ERROR_SUCCESS: i32 = 0;
 const DRIVE_FIXED: u32 = 3;
 const FILE_SHARE_READ: u32 = 0x0000_0001;
@@ -27,6 +29,8 @@ const MOVEFILE_REPLACE_EXISTING: u32 = 0x0000_0001;
 const MOVEFILE_WRITE_THROUGH: u32 = 0x0000_0008;
 const PROCESS_MODE_BACKGROUND_BEGIN: u32 = 0x0010_0000;
 const IDLE_PRIORITY_CLASS: u32 = 0x0000_0040;
+const PROCESS_TERMINATE: u32 = 0x0000_0001;
+const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x0000_1000;
 const EVENT_MODIFY_STATE: u32 = 0x0002;
 const SYNCHRONIZE: u32 = 0x0010_0000;
 const WAIT_OBJECT_0: u32 = 0;
@@ -67,6 +71,14 @@ unsafe extern "system" {
     fn SetEvent(event: Handle) -> i32;
     fn ResetEvent(event: Handle) -> i32;
     fn WaitForSingleObject(handle: Handle, milliseconds: u32) -> u32;
+    fn OpenProcess(desired_access: u32, inherit_handle: i32, process_id: u32) -> Handle;
+    fn QueryFullProcessImageNameW(
+        process: Handle,
+        flags: u32,
+        exe_name: *mut u16,
+        size: *mut u32,
+    ) -> i32;
+    fn TerminateProcess(process: Handle, exit_code: u32) -> i32;
     fn GetDriveTypeW(root_path_name: *const u16) -> u32;
     fn CreateFileW(
         file_name: *const u16,
@@ -214,6 +226,75 @@ pub fn signal_stop_event() -> io::Result<bool> {
     } else {
         Ok(true)
     }
+}
+
+/// Force-stop only the exact worker process recorded by Xplorer's pid file, and only after Windows
+/// confirms that PID still belongs to the expected installed xplorer-bgw.exe. This is the bounded
+/// fallback for uninstall/upgrade when a long filesystem call prevents the graceful stop event from
+/// being observed quickly enough. It deliberately refuses to terminate a reused/unrelated PID.
+pub fn force_stop_verified_worker(
+    pid: u32,
+    expected_path: &Path,
+    timeout: Duration,
+) -> io::Result<bool> {
+    let handle = unsafe {
+        OpenProcess(
+            PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE,
+            0,
+            pid,
+        )
+    };
+    if handle.is_null() {
+        let error = unsafe { GetLastError() };
+        if error == ERROR_INVALID_PARAMETER {
+            return Ok(false);
+        }
+        return Err(io::Error::from_raw_os_error(error as i32));
+    }
+
+    let result = (|| {
+        match unsafe { WaitForSingleObject(handle, 0) } {
+            WAIT_OBJECT_0 => return Ok(false),
+            WAIT_FAILED => return Err(io::Error::last_os_error()),
+            _ => {}
+        }
+
+        let mut image = vec![0u16; 32_768];
+        let mut image_len = image.len() as u32;
+        if unsafe { QueryFullProcessImageNameW(handle, 0, image.as_mut_ptr(), &mut image_len) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let actual_path = PathBuf::from(OsString::from_wide(&image[..image_len as usize]));
+        if !same_windows_path(&actual_path, expected_path) {
+            return Ok(false);
+        }
+
+        if unsafe { TerminateProcess(handle, 1) } == 0 {
+            return Err(io::Error::last_os_error());
+        }
+
+        let milliseconds = timeout.as_millis().min(u32::MAX as u128) as u32;
+        match unsafe { WaitForSingleObject(handle, milliseconds) } {
+            WAIT_OBJECT_0 => Ok(true),
+            WAIT_TIMEOUT => Err(io::Error::new(
+                io::ErrorKind::TimedOut,
+                format!("worker pid {pid} did not terminate after forced shutdown"),
+            )),
+            WAIT_FAILED => Err(io::Error::last_os_error()),
+            other => Err(io::Error::other(format!("unexpected process wait result {other}"))),
+        }
+    })();
+
+    unsafe {
+        CloseHandle(handle);
+    }
+    result
+}
+
+fn same_windows_path(left: &Path, right: &Path) -> bool {
+    let left = fs::canonicalize(left).unwrap_or_else(|_| left.to_path_buf());
+    let right = fs::canonicalize(right).unwrap_or_else(|_| right.to_path_buf());
+    left.to_string_lossy().eq_ignore_ascii_case(&right.to_string_lossy())
 }
 
 pub fn enter_background_mode() {
