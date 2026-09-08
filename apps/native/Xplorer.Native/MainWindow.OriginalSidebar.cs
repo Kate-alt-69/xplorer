@@ -66,8 +66,6 @@ public sealed partial class MainWindow
 
         SidebarBorder.Child = root;
 
-        // Search belongs to the sidebar in the original UI. Keep the compiled SearchBox alive and
-        // hidden as the authoritative search engine/event source; the visible sidebar box mirrors it.
         SearchBox.Visibility = Visibility.Collapsed;
         if (AddressChrome.ColumnDefinitions.Count >= 3)
             AddressChrome.ColumnDefinitions[2].Width = new GridLength(0);
@@ -88,9 +86,6 @@ public sealed partial class MainWindow
         RefreshOriginalSidebarState();
         RefreshOriginalSidebarSearchPresentation();
         ShowOriginalSidebarExplorer();
-
-        // The resize grip is layout-only and is intentionally installed after replacing the sidebar
-        // visual tree. Its implementation never touches file-list click/double-click arbitration.
         InitializeFileInteractionParity();
     }
 
@@ -223,7 +218,6 @@ public sealed partial class MainWindow
 
         _originalSidebarSearchSummary = new TextBlock
         {
-            Grid.Row = 1,
             Margin = new Thickness(2, 8, 2, 4),
             Foreground = OriginalSidebarBrush("XplorerTextMutedBrush", Color.FromArgb(0xff, 0x94, 0xa3, 0xb8)),
             FontSize = 10,
@@ -313,7 +307,6 @@ public sealed partial class MainWindow
 
             var add = new Button
             {
-                Grid.Column = 1,
                 Width = 26,
                 Height = 26,
                 MinWidth = 26,
@@ -391,8 +384,6 @@ public sealed partial class MainWindow
         if (Directory.Exists(path) && RecentLocationService.Record(path, isDirectory: true))
             RefreshOriginalSidebarRecent();
 
-        // A collection is scoped to the directory where it was applied. Moving somewhere else
-        // returns to the normal folder view rather than silently filtering a different location.
         _activeOriginalCollection = null;
         RefreshOriginalSidebarCollections();
         RefreshOriginalSidebarState();
@@ -643,13 +634,11 @@ public sealed partial class MainWindow
                 }
                 catch
                 {
-                    // One inaccessible child must not prevent the rest of the tree from expanding.
                 }
             }
         }
         catch
         {
-            // Tree navigation is optional convenience; the main disk viewport remains authoritative.
         }
 
         node.HasUnrealizedChildren = false;
