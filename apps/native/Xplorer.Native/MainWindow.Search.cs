@@ -18,8 +18,8 @@ public sealed partial class MainWindow
 
     /// <summary>
     /// Finishes native search behavior for the compiled SearchBox in MainWindow.xaml. The visual
-    /// control itself now exists from the first frame instead of being injected after Loaded; this
-    /// initializer only installs the Ctrl+F accelerator and synchronizes the current placeholder.
+    /// control itself exists from the first frame; the original-Xplorer parity layer may move the
+    /// visible search entry into the sidebar while this compiled box remains the search engine.
     /// </summary>
     private void InitializeNativeSearch()
     {
@@ -52,6 +52,9 @@ public sealed partial class MainWindow
 
     private void FocusSearchBox()
     {
+        // The original UI owns search from the sidebar. During startup/recovery the parity sidebar
+        // may not exist yet, so the compiled box remains a safe fallback instead of losing Ctrl+F.
+        if (TryFocusOriginalSidebarSearch()) return;
         SearchBox.Focus(FocusState.Programmatic);
         SearchBox.SelectAll();
     }
@@ -90,6 +93,7 @@ public sealed partial class MainWindow
             _searchTotalCount = 0;
             _searchUsingIndex = false;
             await NavigateAsync(CurrentPath, pushHistory: false);
+            RefreshOriginalSidebarState();
             return;
         }
 
@@ -143,6 +147,7 @@ public sealed partial class MainWindow
 
         ApplyViewMode(_settingsService.GetViewMode(path));
         UpdateSearchStatus();
+        RefreshOriginalSidebarState();
     }
 
     private static bool MatchesSearch(FileSystemItem item, string query)
