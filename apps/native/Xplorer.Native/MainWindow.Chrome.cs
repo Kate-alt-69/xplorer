@@ -17,11 +17,6 @@ public sealed partial class MainWindow
     private bool _sidebarCollapsed;
     private double _sidebarExpandedWidth = NativeSidebarWidth;
 
-    /// <summary>
-    /// Finishes the visual setup after WinUI has loaded the tree. This deliberately runs after
-    /// XML-theme initialization so built-in Light/Dark/System modes can never be left with a stale
-    /// dark brush that was captured during startup.
-    /// </summary>
     private void ChromeRoot_Loaded(object sender, RoutedEventArgs e)
     {
         if (_chromeLoaded) return;
@@ -32,6 +27,7 @@ public sealed partial class MainWindow
 
         InitializeNativeSearch();
         InitializeMouseActivationGestures();
+        InitializeBackgroundContextMenuParity();
         InitializeNativeDriveUx();
         InitializeNativeDragDrop();
         InitializeEmbeddedTerminal();
@@ -55,18 +51,10 @@ public sealed partial class MainWindow
             RefreshOriginalSidebarState();
             RefreshChromeLabels();
             RefreshOriginalTabVisuals();
-            // Live theme/settings refresh remains owned by WinUI. Tell errorchk that this was an
-            // intentional refresh event so the lifecycle protocol is already in place for settings
-            // that may require a future full restart.
             _ = ErrorCheckService.NotifyRefresh();
         });
     }
 
-    /// <summary>
-    /// Old Xplorer used one coherent palette for the full frame. Native ThemeResource foregrounds
-    /// switch correctly, but local Background values set by XML preview/reset can outlive a theme
-    /// change. Re-apply only the built-in chrome surfaces here; Custom XML remains authoritative.
-    /// </summary>
     private void ApplyBuiltInChromePalette()
     {
         if (string.Equals(_settingsService.Current.Theme, "Custom XML", StringComparison.OrdinalIgnoreCase))
@@ -168,7 +156,6 @@ public sealed partial class MainWindow
         }
         catch
         {
-            // Caption styling is cosmetic; never make Xplorer startup depend on DWM support.
         }
     }
 
